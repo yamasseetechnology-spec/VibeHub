@@ -2123,7 +2123,11 @@ function initSupabaseClient() {
 }
 
 function getSupabase() {
-  if (!supabaseClient && window.supabaseReady && window.VIBEHUB_SUPABASE_URL) {
+  // Return existing client if already created
+  if (supabaseClient) return supabaseClient;
+  
+  // Create client if Supabase is ready
+  if (window.supabaseReady && window.VIBEHUB_SUPABASE_URL && window.VIBEHUB_SUPABASE_ANON_KEY) {
     supabaseClient = window.supabase.createClient(
       window.VIBEHUB_SUPABASE_URL,
       window.VIBEHUB_SUPABASE_ANON_KEY
@@ -2171,17 +2175,27 @@ async function initDataStore() {
   if (!sb) return;
   
   try {
-    const [usersRes, postsRes, channelsRes, notifsRes] = await Promise.all([
-      sb.from('users').select('*'),
-      sb.from('posts').select('*'),
-      sb.from('channels').select('*'),
-      sb.from('notifications').select('*')
-    ]);
-    
+    // Load users first - this is critical
+    const usersRes = await sb.from('users').select('*');
     _usersCache = usersRes.data || [];
-    _postsCache = postsRes.data || [];
-    _channelsCache = channelsRes.data || [];
-    _notifsCache = notifsRes.data || [];
+    console.log('Users loaded from Supabase:', _usersCache.length);
+    
+    // Try to load other data but don't fail if they don't exist
+    try {
+      const postsRes = await sb.from('posts').select('*');
+      _postsCache = postsRes.data || [];
+    } catch (e) { console.log('Posts table not available'); }
+    
+    try {
+      const channelsRes = await sb.from('channels').select('*');
+      _channelsCache = channelsRes.data || [];
+    } catch (e) { console.log('Channels table not available'); }
+    
+    try {
+      const notifsRes = await sb.from('notifications').select('*');
+      _notifsCache = notifsRes.data || [];
+    } catch (e) { console.log('Notifications table not available'); }
+    
     _initialized = true;
     console.log('Data loaded from Supabase');
   } catch (err) {
@@ -2378,54 +2392,6 @@ function clearSession() {
 // Navigation history for back button
 let navHistory = [];
 let currentView = null;
-
-// Seed demo data to Supabase
-async function seedDemoData() {
-  const sb = getSupabase();
-  if (!sb) return;
-  
-  try {
-    // Check if demo users already exist
-    const { data: existing } = await sb.from('users').select('id').like('id', 'demo_%').limit(1);
-    if (existing && existing.length > 0) {
-      console.log('Demo users already exist in Supabase');
-      return;
-    }
-    
-    const demoUsers = [
-      { username:'skyvibes', name:'Sky Williams', email:'sky@vibe.com', password:'pass123', bio:'Just living. 🌈 Music lover. Creator.', theme:'purple', banner:'purple', song:{url:'',name:'Blinding Lights',artist:'The Weeknd'}, mood:{emoji:'☀️',text:'Living my best life'}, top8:['neoncat','djbeatrix','cosmicray','petalrose','hackernova','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*30, avatar:'🌈', isBeta:false },
-      { username:'neoncat', name:'Neon Cat', email:'neo@vibe.com', password:'pass123', bio:'🎮 Gamer. 🐱 Cat person. 💻 Developer.', theme:'cyan', banner:'cyan', song:{url:'',name:'Levitating',artist:'Dua Lipa'}, mood:{emoji:'🎵',text:'Vibing to music'}, top8:['skyvibes','djbeatrix','hackernova','cosmicray','petalrose','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*20, avatar:'🐱', isBeta:false },
-      { username:'djbeatrix', name:'DJ Beatrix', email:'bea@vibe.com', password:'pass123', bio:'🎵 DJ. Producer. Music is life.', theme:'pink', banner:'pink', song:{url:'',name:'Stay',artist:'Kid Laroi'}, mood:{emoji:'🔥',text:'On fire today'}, top8:['skyvibes','neoncat','cosmicray','hackernova','petalrose','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*15, avatar:'🎵', isBeta:false },
-      { username:'cosmicray', name:'Cosmic Ray', email:'ray@vibe.com', password:'pass123', bio:'✨ Space nerd. Artist. Always curious.', theme:'gold', banner:'gold', song:{url:'',name:'Space Song',artist:'Beach House'}, mood:{emoji:'💫',text:'Lost in thought'}, top8:['skyvibes','neoncat','djbeatrix','hackernova','petalrose','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*10, avatar:'✨', isBeta:false },
-      { username:'petalrose', name:'Petal Rose', email:'rose@vibe.com', password:'pass123', bio:'🌹 Fashion. Beauty. Self love.', theme:'pink', banner:'pink', song:{url:'',name:'Flowers',artist:'Miley Cyrus'}, mood:{emoji:'✌️',text:'Peace and love'}, top8:['skyvibes','neoncat','djbeatrix','cosmicray','hackernova','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*8, avatar:'🌹', isBeta:false },
-      { username:'hackernova', name:'HackerNova', email:'hack@vibe.com', password:'pass123', bio:'💻 Code. Build. Ship. Repeat.', theme:'green', banner:'green', song:{url:'',name:'Unstoppable',artist:'Sia'}, mood:{emoji:'🔥',text:'On fire today'}, top8:['skyvibes','neoncat','djbeatrix','cosmicray','petalrose','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*5, avatar:'💻', isBeta:false },
-      { username:'the_sage', name:'The Sage', email:'sage@vibe.com', password:'pass123', bio:'🧠 Philosophy. Deep thoughts. Tea.', theme:'purple', banner:'purple', song:{url:'',name:'Teardrop',artist:'Massive Attack'}, mood:{emoji:'😴',text:'Need coffee'}, top8:['skyvibes','neoncat','djbeatrix','cosmicray','petalrose','hackernova','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*3, avatar:'🧠', isBeta:false },
-      { username:'wanderlust', name:'Wanderlust', email:'wander@vibe.com', password:'pass123', bio:'✈️ Traveler. Storyteller. World citizen.', theme:'cyan', banner:'cyan', song:{url:'',name:'Adventure of a Lifetime',artist:'Coldplay'}, mood:{emoji:'✌️',text:'Peace and love'}, top8:['skyvibes','neoncat','djbeatrix','cosmicray','petalrose','hackernova','the_sage','sunsetkim'], role:'user', joined: Date.now()-86400000*2, avatar:'✈️', isBeta:false },
-      { username:'sunsetkim', name:'Sunset Kim', email:'kim@vibe.com', password:'pass123', bio:'🌅 Photographer. Sunset collector.', theme:'gold', banner:'gold', song:{url:'',name:'Golden Hour',artist:'JVKE'}, mood:{emoji:'☀️',text:'Living my best life'}, top8:['skyvibes','neoncat','djbeatrix','cosmicray','petalrose','hackernova','the_sage','wanderlust'], role:'user', joined: Date.now()-86400000*1, avatar:'📸', isBeta:false },
-    ];
-    
-    await sb.from('users').upsert(demoUsers.map(u => ({
-        id: 'demo_' + u.username,
-      username: u.username,
-      email: u.email,
-      name: u.name,
-      bio: u.bio,
-      avatar_url: u.avatar,
-      theme: u.theme,
-      banner_url: u.banner,
-      role: u.role,
-      isBeta: u.isBeta,
-      paid: false,
-      created_at: new Date(u.joined).toISOString()
-    })), { onConflict: 'id' });
-    
-    // Reload data
-    await initDataStore();
-    console.log('Demo users created in Supabase');
-  } catch (err) {
-    console.error('Failed to seed demo data:', err);
-  }
-}
 
 // Navigate function
 function navigate(view, param) {
@@ -2768,19 +2734,34 @@ function doAdminLogin() {
 
   if (!username || !pass) { toast('Enter username and password', 'error'); return; }
 
-  // Query Supabase for user
+  // Query Supabase for user - specifically by username
   const sb = getSupabase();
   if (sb) {
-    sb.from('users').select('*').then(({ data, error }) => {
+    sb.from('users').select('*').eq('username', username).then(({ data, error }) => {
       if (error) {
         console.error('Error fetching from Supabase:', error);
-        toast('Server error. Try again.', 'error');
+        toast('Server error: ' + error.message, 'error');
         return;
       }
-      // Check using recovery phrase (password not stored in Supabase)
-      const user = data?.find(u => u.username === username && u.recovery === pass);
-      if (!user) { toast('Invalid credentials', 'error'); return; }
-      if (user.role !== 'owner') { toast('Only owner can login here', 'error'); return; }
+      
+      if (!data || data.length === 0) {
+        toast('User not found', 'error');
+        return;
+      }
+      
+      const user = data[0];
+      
+      // Check recovery phrase
+      if (user.recovery !== pass) {
+        toast('Invalid credentials - check your recovery phrase', 'error');
+        return;
+      }
+      
+      // Check role
+      if (user.role !== 'owner') {
+        toast('Only owner can login here', 'error');
+        return;
+      }
       
       // Success - login
       closeModal('modal-admin-login');
@@ -5406,9 +5387,6 @@ async function init() {
         return;
       }
     }
-    
-    // Seed demo data in Supabase
-    await seedDemoData();
     
     // Show landing page
     showPage('landing');
