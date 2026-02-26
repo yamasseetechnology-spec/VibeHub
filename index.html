@@ -2098,16 +2098,20 @@ let supabase = null;
 
 // Initialize Supabase - waits for async load
 function initSupabase() {
-  try {
-    if (window.supabaseReady && window.supabase) {
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-      console.log('Supabase connected');
-    } else {
-      console.log('Supabase not ready, using localStorage only');
+  function tryInit() {
+    try {
+      if (window.supabaseReady && window.supabase && !supabase) {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        console.log('Supabase connected');
+      } else if (!window.supabaseReady) {
+        // Script not loaded yet, try again in 100ms
+        setTimeout(tryInit, 100);
+      }
+    } catch(e) {
+      console.log('Supabase init failed:', e.message);
     }
-  } catch(e) {
-    console.log('Supabase init failed:', e.message);
   }
+  tryInit();
 }
 
 // PAGE ROUTING - defined early so buttons work
@@ -2141,6 +2145,7 @@ function setDB(key, val) {
 function getUsers() { return getDB('users', []); }
 function setUsers(users) { 
   setDB('users', users); 
+  console.log('Saving users to Supabase, count:', users.length);
   if (window.supabaseReady && supabase) {
     supabase.from('users').upsert(users.slice(0, 50).map(u => ({
       id: u.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
@@ -2159,7 +2164,13 @@ function setUsers(users) {
       isBeta: u.isBeta || false,
       joined: u.joined || Date.now(),
       owner_setup: u.owner_setup || false
-    })), { onConflict: 'id' }).then(() => {}).catch(() => {});
+    })), { onConflict: 'id' }).then(() => {
+      console.log('Users saved to Supabase successfully');
+    }).catch((err) => {
+      console.error('Failed to save users to Supabase:', err);
+    });
+  } else {
+    console.log('Supabase not ready, users saved to local only');
   }
 }
 
@@ -5370,23 +5381,55 @@ function init() {
 
   // Check if we're on admin URL - show setup by default unless we know owner exists
   if (window.location.hash.includes(ADMIN_SLUG) || window.location.search.includes(ADMIN_SLUG)) {
-    // Show setup modal by default on admin URL
-    // This will be the first time owner setup
+    console.log('Admin URL detected, checking for owner...');
+    
+    // Show setup modal by default
     document.getElementById('modal-admin-setup').classList.remove('hidden');
     document.getElementById('page-landing').classList.remove('hidden');
     
-    // Try to fetch from Supabase in background to see if owner already exists
-    if (window.supabaseReady && window.supabase) {
-      fetchFromSupabaseFirst().then(() => {
-        // Check if owner exists after fetch
-        const hasOwner = (getUsers() || []).some(u => u.role === 'owner');
-        if (hasOwner) {
-          // Owner exists - switch to login modal
-          document.getElementById('modal-admin-setup').classList.add('hidden');
-          document.getElementById('modal-admin-login').classList.remove('hidden');
-        }
-      }).catch(() => {});
+    // Try to fetch from Supabase to check for existing owner
+    function checkForOwner() {
+      if (supabase && window.supabaseReady) {
+        supabase.from('users').select('*').then(({ data }) => {
+          console.log('Fetched users from Supabase:', data?.length || 0);
+          if (data && data.some(u => u.role === 'owner')) {
+            console.log('Owner found in Supabase, showing login');
+            document.getElementById('modal-admin-setup').classList.add('hidden');
+            document.getElementById('modal-admin-login').classList.remove('hidden');
+            // Save to localStorage
+            const formattedUsers = data.map(su => ({
+              id: su.id,
+              username: su.username,
+              email: su.email,
+              name: su.name,
+              bio: su.bio || '',
+              avatar: su.avatar || '',
+              theme: su.theme || 'purple',
+              banner: su.banner || 'purple',
+              role: su.role || 'user',
+              password: su.password || '',
+              recovery: su.recovery || '',
+              paid: su.paid || false,
+              registered: su.registered || false,
+              isBeta: su.isBeta || false,
+              joined: su.joined || Date.now(),
+              owner_setup: su.owner_setup || false
+            }));
+            setDB('users', formattedUsers);
+          } else {
+            console.log('No owner found in Supabase, showing setup');
+          }
+        }).catch((err) => {
+          console.error('Error fetching from Supabase:', err);
+        });
+      } else {
+        // Supabase not ready, try again
+        setTimeout(checkForOwner, 200);
+      }
     }
+    
+    // Start checking after a short delay
+    setTimeout(checkForOwner, 500);
     return;
   }
 
@@ -5541,8 +5584,8 @@ document.addEventListener('click', e => {
 })();
 
 try {
-  init();
   initSupabase();
+  init();
 } catch(e) {
   console.error('Init error:', e);
   // Fallback: show landing page anyway
