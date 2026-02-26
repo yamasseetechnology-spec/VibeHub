@@ -2510,27 +2510,12 @@ function bottomHomeClick() {
 }
 
 function bottomAdminClick() {
-  const appShell = document.getElementById('app-shell');
-  const me = getCurrentUser();
-  if (!appShell.classList.contains('hidden') && me?.role === 'owner') {
-    navigate('admin');
-  } else if (!appShell.classList.contains('hidden')) {
-    toast('Owner access only 🛡️', 'error');
-  } else {
-    // On landing/auth pages — check if owner exists in Supabase
-    if (getOwnerSetup()) {
-      // Show admin login modal
-      showPage('landing');
-      document.getElementById('modal-admin-login').classList.remove('hidden');
-      setTimeout(() => {
-        document.getElementById('admin-login-user').focus();
-      }, 100);
-    } else {
-      // Show setup modal
-      showPage('landing');
-      document.getElementById('modal-admin-setup').classList.remove('hidden');
-    }
-  }
+  // Always show admin login modal
+  showPage('landing');
+  document.getElementById('modal-admin-login').classList.remove('hidden');
+  setTimeout(() => {
+    document.getElementById('admin-login-user').focus();
+  }, 100);
 }
 
 function updateBetaUI() {
