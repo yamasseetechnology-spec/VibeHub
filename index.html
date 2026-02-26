@@ -810,7 +810,7 @@ label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px
 .profile-banner { position: relative; }
 .profile-banner > * { position: relative; z-index: 1; }
 
-/* Responsive */
+/* Responsive - Tablet */
 @media (max-width: 900px) {
   .sidebar { transform: translateX(-100%); transition: transform .3s; }
   .sidebar.open { transform: translateX(0); }
@@ -819,6 +819,93 @@ label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px
   .admin-layout { grid-template-columns: 1fr; }
   .messages-layout { grid-template-columns: 1fr; }
   .admin-stat-grid { grid-template-columns: repeat(2,1fr); }
+  .landing-hero { padding: 40px 20px; }
+  .landing-title { font-size: clamp(32px, 8vw, 56px); }
+  .landing-features { padding: 0 20px; }
+  .auth-card { padding: 24px; margin: 20px; }
+}
+
+/* Responsive - Mobile Phone */
+@media (max-width: 480px) {
+  /* Touch-friendly buttons */
+  .btn { min-height: 44px; padding: 12px 20px; font-size: 15px; }
+  .btn-sm { min-height: 40px; padding: 10px 16px; font-size: 14px; }
+  
+  /* Landing page */
+  .landing-nav { padding: 12px 16px; }
+  .landing-hero { padding: 24px 16px 40px; }
+  .landing-title { font-size: clamp(28px, 10vw, 40px); line-height: 1.2; }
+  .landing-sub { font-size: 15px; }
+  .landing-ctas { flex-direction: column; gap: 10px; }
+  .landing-ctas .btn { width: 100%; justify-content: center; }
+  .landing-features { padding: 0 12px; gap: 12px; }
+  .feature-card { padding: 16px; }
+  
+  /* Auth forms */
+  .auth-card { padding: 20px 16px; margin: 12px; }
+  .auth-title { font-size: 24px; }
+  
+  /* Main content */
+  .view { padding: 16px; }
+  .topbar { padding: 10px 12px; }
+  .topbar-title { font-size: 16px; }
+  .topbar-search { width: 140px; }
+  
+  /* Posts */
+  .post-card { margin-bottom: 12px; }
+  .post-header { padding: 12px 14px; }
+  .post-body { padding: 0 14px 4px; font-size: 14px; }
+  .post-tags { padding: 8px 14px; }
+  .post-actions { padding: 8px 10px; }
+  .post-action { padding: 8px 12px; font-size: 13px; }
+  
+  /* Composer */
+  .post-composer { padding: 14px; }
+  .composer-input { padding: 10px 12px; font-size: 14px; }
+  
+  /* Profile */
+  .profile-banner { height: 140px; }
+  .profile-avatar-wrap .avatar-xl { width: 80px; height: 80px; font-size: 28px; margin-top: -40px; }
+  .profile-name { font-size: 22px; }
+  .profile-info-section { padding: 0 16px 16px; }
+  .profile-stats { gap: 16px; }
+  
+  /* Modals */
+  .modal { margin: 12px; max-height: 90vh; }
+  .modal-header { padding: 16px 16px 0; }
+  .modal-body { padding: 16px; }
+  .modal-title { font-size: 18px; }
+  
+  /* Bottom bar */
+  .bottom-bar { padding: 10px 16px; }
+  .bottom-home-btn, .bottom-admin-btn { padding: 10px 16px; font-size: 13px; }
+  
+  /* Feed tabs */
+  .feed-tabs { margin-bottom: 16px; }
+  .feed-tab { padding: 10px 8px; font-size: 12px; }
+  
+  /* Channels */
+  .channels-grid { grid-template-columns: 1fr; gap: 12px; }
+  .channel-card { }
+  
+  /* Top 8 */
+  .top8-grid { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .top8-name { font-size: 9px; max-width: 50px; }
+  
+  /* Video grid */
+  .video-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .video-info { padding: 8px; }
+  .video-title { font-size: 12px; }
+}
+
+/* Very small phones */
+@media (max-width: 360px) {
+  .landing-title { font-size: 24px; }
+  .feature-card { padding: 12px; }
+  .feature-title { font-size: 14px; }
+  .feature-desc { font-size: 12px; }
+  .profile-banner { height: 100px; }
+  .profile-avatar-wrap .avatar-xl { width: 60px; height: 60px; font-size: 22px; margin-top: -30px; }
 }
 
 /* Theme colors for profiles */
