@@ -1949,6 +1949,32 @@ if (window.FIREBASE_READY) {
   </div>
 </div>
 
+<!-- Admin Login Modal -->
+<div id="modal-admin-login" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">🛡️ Owner Login</div>
+    </div>
+    <div class="modal-body">
+      <div style="background:rgba(255,193,7,0.1);border:1px solid rgba(255,193,7,0.2);border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--text2);">
+        Enter your owner credentials to access the admin panel.
+      </div>
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="admin-login-user" placeholder="owner_username">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="admin-login-pass" placeholder="Your password">
+      </div>
+      <button class="btn btn-primary w-full" style="justify-content:center;padding:13px;" onclick="doAdminLogin()">Login as Owner 🔐</button>
+      <div style="text-align:center;margin-top:12px;">
+        <a href="#" onclick="showPage('landing');closeModal('modal-admin-login');" style="color:var(--text3);font-size:13px;">← Back to Home</a>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Comment Modal -->
 <div id="modal-comments" class="modal-overlay hidden">
   <div class="modal" style="max-width:560px;">
@@ -1974,12 +2000,14 @@ const MAX_BETA_USERS = 10; // First 10 users get in FREE
 const SUPABASE_URL = 'https://osfqlabtuqpynqcdmwff.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zZnFsYWJ0dXFweW5xY2Rtd2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5ODQ3OTEsImV4cCI6MjA4NzU2MDc5MX0.LXZ-lbLiarXHSSlu8NXi0c_uvIVFxh8mw6amXGJAwtA';
 
-let supabase;
-try {
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  console.log('✅ Supabase connected!');
-} catch(e) {
-  console.log('ℹ️  Supabase not available, using localStorage mode');
+let supabase = null;
+if (typeof window !== 'undefined' && window.supabase) {
+  try {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    console.log('Supabase connected');
+  } catch(e) {
+    console.log('Supabase unavailable, using localStorage only');
+  }
 }
 
 // ══════════════════════════════════════
@@ -2089,13 +2117,81 @@ function syncWithSupabase() {
     setDB('posts', merged);
     if (typeof renderFeed === 'function') renderFeed();
   });
+  
+  // Fetch channels from Supabase and merge
+  supabase.from('channels').select('*').then(({ data }) => {
+    if (!data || data.length === 0) return;
+    const localChannels = getChannels();
+    const merged = [...localChannels];
+    data.forEach(sc => {
+      if (!merged.find(lc => lc.id === sc.id)) {
+        merged.push({
+          id: sc.id,
+          ownerId: sc.owner_id,
+          name: sc.name,
+          desc: sc.description,
+          category: sc.category,
+          emoji: sc.emoji_banner,
+          subs: sc.subscribers || []
+        });
+      }
+    });
+    setDB('channels', merged);
+  });
+  
+  // Fetch notifications from Supabase and merge
+  supabase.from('notifications').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+    if (!data || data.length === 0) return;
+    const localNotifs = getNotifs();
+    const merged = [...localNotifs];
+    data.forEach(sn => {
+      if (!merged.find(ln => ln.id === sn.id)) {
+        merged.push({
+          id: sn.id,
+          userId: sn.clerk_id,
+          type: sn.type,
+          text: sn.text,
+          read: sn.read || false,
+          time: new Date(sn.created_at).getTime()
+        });
+      }
+    });
+    setDB('notifs', merged);
+  });
 }
 function getChannels() { return getDB('channels', []); }
-function setChannels(v) { setDB('channels', v); }
+function setChannels(channels) { 
+  setDB('channels', channels); 
+  if (supabase) {
+    supabase.from('channels').upsert(channels.slice(0, 50).map(c => ({
+      id: c.id,
+      owner_id: c.ownerId,
+      name: c.name,
+      description: c.desc || '',
+      category: c.category || '🎵 Music',
+      emoji_banner: c.emoji || '🎬',
+      subscribers: c.subs || []
+    })), { onConflict: 'id' }).then(() => {}).catch(() => {});
+  }
+}
 function getMessages() { return getDB('messages', {}); }
-function setMessages(v) { setDB('messages', v); }
+function setMessages(messages) { 
+  setDB('messages', messages); 
+}
 function getNotifs() { return getDB('notifs', []); }
-function setNotifs(v) { setDB('notifs', v); }
+function setNotifs(notifs) { 
+  setDB('notifs', notifs); 
+  if (supabase) {
+    supabase.from('notifications').upsert(notifs.slice(0, 50).map(n => ({
+      id: n.id,
+      clerk_id: n.userId,
+      type: n.type,
+      text: n.text,
+      read: n.read || false,
+      created_at: new Date(n.time).toISOString()
+    })), { onConflict: 'id' }).then(() => {}).catch(() => {});
+  }
+}
 function getOwnerSetup() { return getDB('owner_setup', false); }
 function setOwnerSetup(v) { setDB('owner_setup', v); }
 
@@ -2567,6 +2663,25 @@ function createOwnerAccount() {
   setSession(username);
   launchApp();
   toast('Owner account created! Welcome, ' + name + ' 👑', 'success');
+}
+
+function doAdminLogin() {
+  const username = document.getElementById('admin-login-user').value.trim();
+  const pass = document.getElementById('admin-login-pass').value;
+
+  if (!username || !pass) { toast('Enter username and password', 'error'); return; }
+
+  const users = getUsers();
+  const user = users.find(u => u.username === username && u.password === pass);
+
+  if (!user) { toast('Invalid credentials', 'error'); return; }
+  if (user.role !== 'owner') { toast('Only owner can login here', 'error'); return; }
+
+  closeModal('modal-admin-login');
+  setSession(username);
+  launchApp();
+  navigate('admin');
+  toast('Welcome back, ' + user.name + ' 👑', 'success');
 }
 
 function doLogout() {
@@ -5130,7 +5245,13 @@ function init() {
   // Check for admin slug in URL
   if (window.location.hash.includes(ADMIN_SLUG) || window.location.search.includes(ADMIN_SLUG)) {
     if (!getOwnerSetup()) {
+      // No owner yet - show setup modal
       document.getElementById('modal-admin-setup').classList.remove('hidden');
+      document.getElementById('page-landing').classList.remove('hidden');
+      return;
+    } else {
+      // Owner exists - show login modal
+      document.getElementById('modal-admin-login').classList.remove('hidden');
       document.getElementById('page-landing').classList.remove('hidden');
       return;
     }
