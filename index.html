@@ -2005,6 +2005,7 @@ if (window.FIREBASE_READY) {
   <div class="modal">
     <div class="modal-header">
       <div class="modal-title">🛡️ Owner Setup</div>
+      <button class="btn-ghost" style="position:absolute;right:16px;top:16px;font-size:20px;" onclick="dismissOwnerSetup()">×</button>
     </div>
     <div class="modal-body">
       <div style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.2);border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--text2);">
@@ -2256,6 +2257,10 @@ function setNotifs(notifs) {
 // Owner setup status
 function getOwnerSetup() { return getDB('owner_setup', false); }
 function setOwnerSetup(v) { setDB('owner_setup', v); }
+function dismissOwnerSetup() {
+  setDB('owner_setup_dismissed', true);
+  closeModal('modal-admin-setup');
+}
 
 // Beta users = real users (non-seed) who joined free
 function getBetaCount() {
@@ -2474,14 +2479,14 @@ function bottomAdminClick() {
   } else if (!appShell.classList.contains('hidden')) {
     toast('Owner access only 🛡️', 'error');
   } else {
-    // On landing/auth pages — show admin setup
+    // On landing/auth pages — show admin setup (unless dismissed)
     if (getOwnerSetup()) {
       showPage('login');
       setTimeout(() => {
         document.getElementById('login-user').focus();
         toast('Log in with your owner account 👑', 'info');
       }, 100);
-    } else {
+    } else if (!getDB('owner_setup_dismissed', false)) {
       document.getElementById('modal-admin-setup').classList.remove('hidden');
     }
   }
