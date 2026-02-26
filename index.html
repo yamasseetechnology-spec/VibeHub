@@ -16,6 +16,10 @@
   document.head.appendChild(s);
 })();
 </script>
+<script>
+  window.VIBEHUB_SUPABASE_URL = 'https://osfqlabtuqpynqcdmwff.supabase.co';
+  window.VIBEHUB_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zZnFsYWJ0dXFweW5xY2Rtd2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5ODQ3OTEsImV4cCI6MjA4NzU2MDc5MX0.LXZ-lbLiarXHSSlu8NXi0c_uvIVFxh8mw6amXGJAwtA';
+</script>
 <style>
 :root {
   --bg: #08080f;
@@ -2006,14 +2010,6 @@ if (window.FIREBASE_READY) {
       <div style="background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.2);border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--text2);">
         This is the one-time owner account creation. Keep this URL private.
       </div>
-      <div class="firebase-notice">
-        <strong>🔥 Firebase Ready to Connect</strong><br>
-        Once you add your Firebase config in the &lt;script type="module"&gt; block at the top of the file, all data will sync to the cloud automatically. Until then, everything saves locally.
-      </div>
-      <div class="form-group">
-        <label>Setup Key (from .env file)</label>
-        <input type="password" id="setup-key" placeholder="Enter owner setup key">
-      </div>
       <div class="form-group">
         <label>Owner Username</label>
         <input type="text" id="setup-username" placeholder="owner_username">
@@ -2104,22 +2100,32 @@ const SQUARE_MARKETPLACE_LINK = 'https://square.link/u/82tj2UXK';
 // Cached reference to the shared client
 var supabaseClient = null;
 
-// Initialize Supabase - waits for async load and shared client
+// Initialize Supabase - creates client directly
 function initSupabase() {
   function tryInit() {
     try {
+      // First try window.vhSupabase if available
       if (window.vhSupabase && typeof window.vhSupabase.getClient === 'function') {
         const client = window.vhSupabase.getClient();
         if (client && !supabaseClient) {
           supabaseClient = client;
-          console.log('Supabase connected');
+          console.log('Supabase connected via vhSupabase');
         }
-      } else if (!window.vhSupabase || !window.supabase) {
-        // Scripts not loaded yet, try again in 100ms
+      }
+      // Otherwise create client directly if library is loaded
+      if (!supabaseClient && window.supabase) {
+        const url = window.VIBEHUB_SUPABASE_URL || 'https://osfqlabtuqpynqcdmwff.supabase.co';
+        const key = window.VIBEHUB_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zZnFsYWJ0dXFweW5xY2Rtd2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5ODQ3OTEsImV4cCI6MjA4NzU2MDc5MX0.LXZ-lbLiarXHSSlu8NXi0c_uvIVFxh8mw6amXGJAwtA';
+        supabaseClient = window.supabase.createClient(url, key);
+        console.log('Supabase connected directly');
+      }
+      // If Supabase not loaded yet, try again
+      if (!supabaseClient) {
         setTimeout(tryInit, 100);
       }
     } catch (e) {
       console.log('Supabase init failed:', e.message);
+      setTimeout(tryInit, 100);
     }
   }
   tryInit();
@@ -2166,10 +2172,8 @@ function getUsers() { return getDB('users', []); }
 function setUsers(users) { 
   setDB('users', users); 
   console.log('Saving users to Supabase, count:', users.length);
-  // Only perform direct Supabase writes from the SPA in demo mode.
-  // In production, writes should go through authenticated helpers
-  // (e.g. vhDb) with proper RLS enforcement.
-  if (DEMO_MODE && supabaseClient) {
+  // Save to Supabase if client is ready
+  if (supabaseClient) {
     supabaseClient.from('users').upsert(users.slice(0, 50).map(u => ({
       id: u.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
       username: u.username,
@@ -2200,8 +2204,8 @@ function setUsers(users) {
 function getPosts() { return getDB('posts', []); }
 function setPosts(posts) { 
   setDB('posts', posts); 
-  // Only perform direct Supabase writes from the SPA in demo mode.
-  if (DEMO_MODE && supabaseClient) {
+  // Save to Supabase if client is ready
+  if (supabaseClient) {
     supabaseClient.from('posts').upsert(posts.slice(0, 50).map(p => ({
       id: p.id,
       user_id: p.userId,
@@ -2323,8 +2327,8 @@ function syncWithSupabase() {
 function getChannels() { return getDB('channels', []); }
 function setChannels(channels) { 
   setDB('channels', channels); 
-  // Only perform direct Supabase writes from the SPA in demo mode.
-  if (DEMO_MODE && supabaseClient) {
+  // Save to Supabase if client is ready
+  if (supabaseClient) {
     supabaseClient.from('channels').upsert(channels.slice(0, 50).map(c => ({
       id: c.id,
       owner_id: c.ownerId,
@@ -2343,8 +2347,8 @@ function setMessages(messages) {
 function getNotifs() { return getDB('notifs', []); }
 function setNotifs(notifs) { 
   setDB('notifs', notifs); 
-  // Only perform direct Supabase writes from the SPA in demo mode.
-  if (DEMO_MODE && supabaseClient) {
+  // Save to Supabase if client is ready
+  if (supabaseClient) {
     supabaseClient.from('notifications').upsert(notifs.slice(0, 50).map(n => ({
       id: n.id,
       clerk_id: n.userId,
@@ -2797,24 +2801,19 @@ async function completeRegistration() {
 }
 
 function createOwnerAccount() {
-  if (!DEMO_MODE) {
-    toast('Owner setup is only available in demo mode. Admins should be created via secure server-side tooling.', 'error');
-    return;
-  }
-  const key = document.getElementById('setup-key').value;
   const username = document.getElementById('setup-username').value.trim();
   const name = document.getElementById('setup-name').value.trim();
   const email = document.getElementById('setup-email').value.trim();
   const pass = document.getElementById('setup-pass').value;
   const recovery = document.getElementById('setup-recovery').value.trim();
 
-  if (!OWNER_SETUP_KEY || key !== OWNER_SETUP_KEY) { toast('Invalid setup key', 'error'); return; }
   if (!username || !name || !email || !pass || !recovery) { toast('Fill all fields', 'error'); return; }
 
   const users = getUsers();
   if (users.find(u => u.username === username)) { toast('Username taken', 'error'); return; }
 
   const owner = {
+    id: 'owner_' + Date.now(),
     username, name, email, password: pass, bio: 'Platform owner 👑',
     theme: 'gold', banner: 'gold',
     song: { url:'', name:'', artist:'' },
@@ -2829,6 +2828,32 @@ function createOwnerAccount() {
 
   users.push(owner);
   setUsers(users);
+  
+  // Save directly to Supabase immediately
+  if (supabaseClient) {
+    supabaseClient.from('users').upsert({
+      id: owner.id,
+      username: owner.username,
+      email: owner.email,
+      name: owner.name,
+      bio: owner.bio,
+      avatar: owner.avatar,
+      theme: owner.theme,
+      banner: owner.banner,
+      role: owner.role,
+      password: owner.password,
+      recovery: owner.recovery,
+      paid: true,
+      registered: true,
+      owner_setup: true,
+      created_at: new Date().toISOString()
+    }, { onConflict: 'id' }).then(() => {
+      console.log('Owner saved to Supabase');
+    }).catch((err) => {
+      console.error('Failed to save owner to Supabase:', err);
+    });
+  }
+  
   setOwnerSetup(true);
 
   closeModal('modal-admin-setup');
@@ -2843,17 +2868,48 @@ function doAdminLogin() {
 
   if (!username || !pass) { toast('Enter username and password', 'error'); return; }
 
-  const users = getUsers();
-  const user = users.find(u => u.username === username && u.password === pass);
-
-  if (!user) { toast('Invalid credentials', 'error'); return; }
-  if (user.role !== 'owner') { toast('Only owner can login here', 'error'); return; }
-
-  closeModal('modal-admin-login');
-  setSession(username);
-  launchApp();
-  navigate('admin');
-  toast('Welcome back, ' + user.name + ' 👑', 'success');
+  // Query Supabase for user
+  if (supabaseClient) {
+    supabaseClient.from('users').select('*').then(({ data, error }) => {
+      if (error) {
+        console.error('Error fetching from Supabase:', error);
+        // Fallback to localStorage
+        checkLocalUsers();
+        return;
+      }
+      const user = data?.find(u => u.username === username && u.password === pass);
+      if (!user) { toast('Invalid credentials', 'error'); return; }
+      if (user.role !== 'owner') { toast('Only owner can login here', 'error'); return; }
+      
+      // Success - login
+      closeModal('modal-admin-login');
+      setSession(username);
+      // Also save to localStorage
+      const localUsers = getUsers();
+      if (!localUsers.find(u => u.username === username)) {
+        localUsers.push(user);
+        setUsers(localUsers);
+      }
+      launchApp();
+      navigate('admin');
+      toast('Welcome back, ' + user.name + ' 👑', 'success');
+    });
+  } else {
+    // Supabase not ready, check local
+    checkLocalUsers();
+  }
+  
+  function checkLocalUsers() {
+    const users = getUsers();
+    const user = users.find(u => u.username === username && u.password === pass);
+    if (!user) { toast('Invalid credentials', 'error'); return; }
+    if (user.role !== 'owner') { toast('Only owner can login here', 'error'); return; }
+    closeModal('modal-admin-login');
+    setSession(username);
+    launchApp();
+    navigate('admin');
+    toast('Welcome back, ' + user.name + ' 👑', 'success');
+  }
 }
 
 function doLogout() {
@@ -5467,18 +5523,16 @@ function init() {
 // vhAuth.getVibeHubUser to centralize auth state.
 function preInit() {
 
-  // Check if we're on admin URL - in demo mode, show setup by default unless we know owner exists.
-  // In production (DEMO_MODE === false), the client-side admin slug is disabled.
-  if (DEMO_MODE && ADMIN_SLUG && (window.location.hash.includes(ADMIN_SLUG) || window.location.search.includes(ADMIN_SLUG))) {
+  // Check if we're on admin URL - always check Supabase for existing owner
+  if (window.location.hash.includes('vibe-control-7x9kq2m') || window.location.search.includes('vibe-control-7x9kq2m')) {
     console.log('Admin URL detected, checking for owner...');
     
     // Show setup modal by default
     document.getElementById('modal-admin-setup').classList.remove('hidden');
     document.getElementById('page-landing').classList.remove('hidden');
     
-    // Try to fetch from Supabase to check for existing owner (demo mode only)
+    // Check Supabase for existing owner
     function checkForOwner() {
-      if (!DEMO_MODE) return;
       if (supabaseClient) {
         supabaseClient.from('users').select('*').then(({ data }) => {
           console.log('Fetched users from Supabase:', data?.length || 0);
@@ -5523,9 +5577,8 @@ function preInit() {
     return;
   }
 
-  // Try to fetch from Supabase first (demo mode only). In production,
-  // authenticated data should come via vhDb/Clerk-backed flows.
-  if (DEMO_MODE && supabaseClient) {
+  // Try to fetch from Supabase first to sync data
+  if (supabaseClient) {
     fetchFromSupabaseFirst()
       .then(() => {
         continueInit();
