@@ -2169,23 +2169,21 @@ function setUsers(users) {
   const sb = getSupabase();
   if (sb) {
     sb.from('users').upsert(users.slice(0, 50).map(u => ({
-      id: u.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
+      uuid: u.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
       username: u.username,
       email: u.email,
       name: u.name,
       bio: u.bio || '',
-      avatar: u.avatar || '',
+      avatar_url: u.avatar || '',
       theme: u.theme || 'purple',
-      banner: u.banner || 'purple',
+      banner_url: u.banner || 'purple',
       role: u.role || 'user',
-      password: u.password || '',
       recovery: u.recovery || '',
       paid: u.paid || false,
-      registered: u.registered || false,
       isBeta: u.isBeta || false,
-      joined: u.joined || Date.now(),
-      owner_setup: u.owner_setup || false
-    })), { onConflict: 'id' }).then(() => {
+      owner_setup: u.owner_setup || false,
+      created_at: u.joined ? new Date(u.joined).toISOString() : new Date().toISOString()
+    })), { onConflict: 'uuid' }).then(() => {
       console.log('Users synced to Supabase');
     }).catch(() => {});
   }
@@ -2194,41 +2192,16 @@ function setUsers(users) {
 function getPosts() { return getDB('posts', []); }
 function setPosts(posts) { 
   setDB('posts', posts); 
-  const sb = getSupabase();
-  if (sb) {
-    sb.from('posts').upsert(posts.slice(0, 50).map(p => ({
-      id: p.id,
-      user_id: p.userId,
-      username: p.userId,
-      text: p.text,
-      tags: p.tags || [],
-      likes: p.likes || [],
-      dislikes: p.dislikes || [],
-      reactions: p.reactions || { cap: [], relate: [], wild: [], facts: [] },
-      media_type: p.type || 'none',
-      image_data: p.imageData || '',
-      video_data: p.videoData || '',
-      created_at: new Date(p.time).toISOString()
-    })), { onConflict: 'id' }).then(() => {}).catch(() => {});
-  }
+  // Supabase sync disabled - tables not set up yet
+  // const sb = getSupabase();
+  // if (sb) { ... }
 }
 
-// Channel functions - localStorage + Supabase sync
+// Channel functions - localStorage only for now
 function getChannels() { return getDB('channels', []); }
 function setChannels(channels) { 
   setDB('channels', channels); 
-  const sb = getSupabase();
-  if (sb) {
-    sb.from('channels').upsert(channels.slice(0, 50).map(c => ({
-      id: c.id,
-      owner_id: c.ownerId,
-      name: c.name,
-      description: c.desc || '',
-      category: c.category || '🎵 Music',
-      emoji_banner: c.emoji || '🎬',
-      subscribers: c.subs || []
-    })), { onConflict: 'id' }).then(() => {}).catch(() => {});
-  }
+  // Supabase sync disabled - tables not set up yet
 }
 
 // Message functions
@@ -2241,17 +2214,7 @@ function setMessages(messages) {
 function getNotifs() { return getDB('notifs', []); }
 function setNotifs(notifs) { 
   setDB('notifs', notifs); 
-  const sb = getSupabase();
-  if (sb) {
-    sb.from('notifications').upsert(notifs.slice(0, 50).map(n => ({
-      id: n.id,
-      clerk_id: n.userId,
-      type: n.type,
-      text: n.text,
-      read: n.read || false,
-      created_at: new Date(n.time).toISOString()
-    })), { onConflict: 'id' }).then(() => {}).catch(() => {});
-  }
+  // Supabase sync disabled - tables not set up yet
 }
 
 // Owner setup status
@@ -2713,22 +2676,21 @@ function createOwnerAccount() {
   const sb = getSupabase();
   if (sb) {
     sb.from('users').upsert({
-      id: owner.id,
+      uuid: owner.id,
       username: owner.username,
       email: owner.email,
       name: owner.name,
       bio: owner.bio,
-      avatar: owner.avatar,
+      avatar_url: owner.avatar,
       theme: owner.theme,
-      banner: owner.banner,
+      banner_url: owner.banner,
       role: owner.role,
-      password: owner.password,
       recovery: owner.recovery,
       paid: true,
-      registered: true,
+      isBeta: true,
       owner_setup: true,
       created_at: new Date().toISOString()
-    }, { onConflict: 'id' }).then(() => {
+    }, { onConflict: 'uuid' }).then(() => {
       console.log('Owner saved to Supabase');
     }).catch((err) => {
       console.error('Failed to save owner to Supabase:', err);
@@ -2759,7 +2721,8 @@ function doAdminLogin() {
         checkLocalUsers();
         return;
       }
-      const user = data?.find(u => u.username === username && u.password === pass);
+      // Check using recovery phrase (password not stored in Supabase)
+      const user = data?.find(u => u.username === username && u.recovery === pass);
       if (!user) { toast('Invalid credentials', 'error'); return; }
       if (user.role !== 'owner') { toast('Only owner can login here', 'error'); return; }
       
@@ -2769,7 +2732,7 @@ function doAdminLogin() {
       // Also save to localStorage
       const localUsers = getUsers();
       if (!localUsers.find(u => u.username === username)) {
-        localUsers.push(user);
+        localUsers.push({...user, password: pass});
         setUsers(localUsers);
       }
       launchApp();
@@ -5363,7 +5326,14 @@ window.VibeSyncEngine = VibeSyncEngine;
 function init() {
   // Attach button listeners
   addNavItems();
-  attachLandingButtons();
+  
+  // Check for admin setup URL - show setup even if owner exists (for recovery)
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('vibe-control-7x9kq2m')) {
+    // Admin URL - allow re-setup if needed
+    showPage('admin-setup');
+    document.getElementById('modal-admin-setup').classList.remove('hidden');
+  }
   
   // Initialize Supabase client
   initSupabaseClient();
