@@ -2087,250 +2087,52 @@ const SQUARE_MARKETPLACE_LINK = 'https://square.link/u/82tj2UXK';
 // ══════════════════════════════════════
 // SUPABASE CONFIG (SHARED CLIENT)
 // ══════════════════════════════════════
-// The actual Supabase client is created once in backend/supabaseClient.js
-// using window.VIBEHUB_SUPABASE_URL and window.VIBEHUB_SUPABASE_ANON_KEY.
-// This file only holds a cached reference and simple bootstrap helpers.
+// This file now uses simple Supabase background sync
+// See initSupabaseClient() below
 
-// Cached reference to the shared client
-var supabaseClient = null;
+// ══════════════════════════════════════
+// SIMPLE SUPABASE SYNC (Background)
+// ══════════════════════════════════════
 
-// Initialize Supabase - creates client directly
-function initSupabase() {
+let supabaseClient = null;
+
+// Initialize Supabase client
+function initSupabaseClient() {
+  if (supabaseClient) return supabaseClient;
+  
   function tryInit() {
-    try {
-      // First try window.vhSupabase if available
-      if (window.vhSupabase && typeof window.vhSupabase.getClient === 'function') {
-        const client = window.vhSupabase.getClient();
-        if (client && !supabaseClient) {
-          supabaseClient = client;
-          console.log('Supabase connected via vhSupabase');
-        }
-      }
-      // Otherwise create client directly if library is loaded
-      if (!supabaseClient && window.supabase) {
-        const url = window.VIBEHUB_SUPABASE_URL || 'https://osfqlabtuqpynqcdmwff.supabase.co';
-        const key = window.VIBEHUB_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zZnFsYWJ0dXFweW5xY2Rtd2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5ODQ3OTEsImV4cCI6MjA4NzU2MDc5MX0.LXZ-lbLiarXHSSlu8NXi0c_uvIVFxh8mw6amXGJAwtA';
-        supabaseClient = window.supabase.createClient(url, key);
-        console.log('Supabase connected directly');
-      }
-      // If Supabase not loaded yet, try again
-      if (!supabaseClient) {
-        setTimeout(tryInit, 100);
-      }
-    } catch (e) {
-      console.log('Supabase init failed:', e.message);
+    if (window.supabase && window.VIBEHUB_SUPABASE_URL) {
+      supabaseClient = window.supabase.createClient(
+        window.VIBEHUB_SUPABASE_URL,
+        window.VIBEHUB_SUPABASE_ANON_KEY
+      );
+      console.log('Supabase client ready');
+    } else if (!window.supabaseReady) {
       setTimeout(tryInit, 100);
     }
   }
-  tryInit();
+  
+  if (window.supabaseReady) {
+    tryInit();
+  } else {
+    setTimeout(tryInit, 100);
+  }
+  
+  return supabaseClient;
 }
 
-// Helper function to get Supabase client
 function getSupabase() {
-  if (supabaseClient) return supabaseClient;
-  if (window.vhSupabase && typeof window.vhSupabase.getClient === 'function') {
-    supabaseClient = window.vhSupabase.getClient();
+  if (!supabaseClient && window.supabaseReady && window.VIBEHUB_SUPABASE_URL) {
+    supabaseClient = window.supabase.createClient(
+      window.VIBEHUB_SUPABASE_URL,
+      window.VIBEHUB_SUPABASE_ANON_KEY
+    );
   }
   return supabaseClient;
 }
 
-// ══════════════════════════════════════
-// CLOUD DATA MANAGER (Supabase-Only Storage)
-// ══════════════════════════════════════
-
-// In-memory cache for cloud data
-let cloudCache = {
-  users: [],
-  posts: [],
-  channels: [],
-  notifications: [],
-  messages: {},
-  products: [],
-  friends: {},
-  friendRequests: [],
-  statusChannels: [],
-  collabPosts: [],
-  syncSpaces: [],
-  session: null,
-  ownerSetup: false,
-  loaded: false
-};
-
-// Initialize all cloud data from Supabase
-async function initCloudData() {
-  if (cloudCache.loaded) return cloudCache;
-  
-  if (!supabaseClient) {
-    console.log('Waiting for Supabase...');
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return initCloudData();
-  }
-  
-  try {
-    // Load all data in parallel
-    const [users, posts, channels, notifications, products, friends, friendRequests, statusChannels, syncSpaces] = await Promise.all([
-      loadUsers(),
-      loadPosts(),
-      loadChannels(),
-      loadNotifications(),
-      loadProducts(),
-      loadFriends(),
-      loadFriendRequests(),
-      loadStatusChannels(),
-      loadSyncSpaces()
-    ]);
-    
-    // Check owner status
-    cloudCache.ownerSetup = cloudCache.users.some(u => u.role === 'owner');
-    cloudCache.loaded = true;
-    
-    console.log('Cloud data initialized:', {
-      users: cloudCache.users.length,
-      posts: cloudCache.posts.length,
-      channels: cloudCache.channels.length,
-      notifications: cloudCache.notifications.length,
-      ownerSetup: cloudCache.ownerSetup
-    });
-    
-    return cloudCache;
-  } catch (err) {
-    console.error('Failed to init cloud data:', err);
-    return cloudCache;
-  }
-}
-
-// Individual data loaders
-async function loadUsers() {
-  try {
-    const { data } = await supabaseClient.from('users').select('*');
-    cloudCache.users = data || [];
-    return cloudCache.users;
-  } catch (err) {
-    console.error('loadUsers error:', err);
-    cloudCache.users = [];
-    return [];
-  }
-}
-
-async function loadPosts() {
-  try {
-    const { data } = await supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
-    cloudCache.posts = data || [];
-    return cloudCache.posts;
-  } catch (err) {
-    console.error('loadPosts error:', err);
-    cloudCache.posts = [];
-    return [];
-  }
-}
-
-async function loadChannels() {
-  try {
-    const { data } = await supabaseClient.from('channels').select('*');
-    cloudCache.channels = data || [];
-    return cloudCache.channels;
-  } catch (err) {
-    console.error('loadChannels error:', err);
-    cloudCache.channels = [];
-    return [];
-  }
-}
-
-async function loadNotifications() {
-  try {
-    const { data } = await supabaseClient.from('notifications').select('*').order('created_at', { ascending: false });
-    cloudCache.notifications = data || [];
-    return cloudCache.notifications;
-  } catch (err) {
-    console.error('loadNotifications error:', err);
-    cloudCache.notifications = [];
-    return [];
-  }
-}
-
-async function loadProducts() {
-  try {
-    const { data } = await supabaseClient.from('marketplace').select('*');
-    cloudCache.products = data || [];
-    return cloudCache.products;
-  } catch (err) {
-    console.error('loadProducts error:', err);
-    cloudCache.products = [];
-    return [];
-  }
-}
-
-async function loadFriends() {
-  try {
-    const { data } = await supabaseClient.from('friendships').select('*');
-    cloudCache.friends = data || {};
-    return cloudCache.friends;
-  } catch (err) {
-    console.error('loadFriends error:', err);
-    cloudCache.friends = {};
-    return {};
-  }
-}
-
-async function loadFriendRequests() {
-  try {
-    const { data } = await supabaseClient.from('friend_requests').select('*');
-    cloudCache.friendRequests = data || [];
-    return cloudCache.friendRequests;
-  } catch (err) {
-    console.error('loadFriendRequests error:', err);
-    cloudCache.friendRequests = [];
-    return [];
-  }
-}
-
-async function loadStatusChannels() {
-  try {
-    const { data } = await supabaseClient.from('status_channels').select('*');
-    cloudCache.statusChannels = data || [];
-    return cloudCache.statusChannels;
-  } catch (err) {
-    console.error('loadStatusChannels error:', err);
-    cloudCache.statusChannels = [];
-    return [];
-  }
-}
-
-async function loadSyncSpaces() {
-  try {
-    const { data } = await supabaseClient.from('sync_spaces').select('*').order('created_at', { ascending: false });
-    cloudCache.syncSpaces = data || [];
-    return cloudCache.syncSpaces;
-  } catch (err) {
-    console.error('loadSyncSpaces error:', err);
-    cloudCache.syncSpaces = [];
-    return [];
-  }
-}
-
-// Session management
-function setCloudSession(username) {
-  cloudCache.session = username;
-}
-
-function getCloudSession() {
-  return cloudCache.session;
-}
-
-function clearCloudSession() {
-  cloudCache.session = null;
-}
-
-// Refresh a specific data type
-async function refreshUsers() { return loadUsers(); }
-async function refreshPosts() { return loadPosts(); }
-async function refreshChannels() { return loadChannels(); }
-async function refreshNotifications() { return loadNotifications(); }
-async function refreshProducts() { return loadProducts(); }
-async function refreshFriends() { return loadFriends(); }
-async function refreshFriendRequests() { return loadFriendRequests(); }
-async function refreshStatusChannels() { return loadStatusChannels(); }
-async function refreshSyncSpaces() { return loadSyncSpaces(); }
+// Run on page load
+initSupabaseClient();
 
 // PAGE ROUTING - defined early so buttons work
 function showPage(page) {
@@ -2353,185 +2155,114 @@ function showPage(page) {
 // DATA STORE (localStorage + Supabase Background Sync)
 // ══════════════════════════════════════
 function getDB(key, def) {
-  // Legacy function - redirects to cloud cache
-  if (key === 'users') return cloudCache.users;
-  if (key === 'posts') return cloudCache.posts;
-  if (key === 'channels') return cloudCache.channels;
-  if (key === 'notifs') return cloudCache.notifications;
-  if (key === 'messages') return cloudCache.messages;
-  if (key === 'products') return cloudCache.products;
-  if (key === 'friends') return cloudCache.friends;
-  if (key === 'friendRequests') return cloudCache.friendRequests;
-  if (key === 'statusChannels') return cloudCache.statusChannels;
-  if (key === 'collabPosts') return cloudCache.collabPosts;
-  if (key === 'owner_setup') return cloudCache.ownerSetup;
-  if (key === 'session') return cloudCache.session;
-  return def;
+  try { return JSON.parse(localStorage.getItem('vh_' + key)) ?? def; }
+  catch { return def; }
 }
 function setDB(key, val) {
-  // Legacy function - no-op, data goes through setX functions now
+  localStorage.setItem('vh_' + key, JSON.stringify(val));
 }
 
-// Cloud-first get/set functions
-function getUsers() { 
-  return cloudCache.users || []; 
-}
-
-async function setUsers(users) { 
-  cloudCache.users = users;
-  if (supabaseClient) {
-    try {
-      await supabaseClient.from('users').upsert(users.slice(0, 50).map(u => ({
-        id: u.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
-        username: u.username,
-        email: u.email,
-        name: u.name,
-        bio: u.bio || '',
-        avatar: u.avatar || '',
-        theme: u.theme || 'purple',
-        banner: u.banner || 'purple',
-        role: u.role || 'user',
-        password: u.password || '',
-        recovery: u.recovery || '',
-        paid: u.paid || false,
-        registered: u.registered || false,
-        isBeta: u.isBeta || false,
-        joined: u.joined || Date.now(),
-        owner_setup: u.owner_setup || false,
-        created_at: new Date().toISOString()
-      })), { onConflict: 'id' });
-      console.log('Users saved to Supabase, count:', users.length);
-    } catch (err) {
-      console.error('Failed to save users to Supabase:', err);
-    }
+function getUsers() { return getDB('users', []); }
+function setUsers(users) { 
+  setDB('users', users); 
+  const sb = getSupabase();
+  if (sb) {
+    sb.from('users').upsert(users.slice(0, 50).map(u => ({
+      id: u.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
+      username: u.username,
+      email: u.email,
+      name: u.name,
+      bio: u.bio || '',
+      avatar: u.avatar || '',
+      theme: u.theme || 'purple',
+      banner: u.banner || 'purple',
+      role: u.role || 'user',
+      password: u.password || '',
+      recovery: u.recovery || '',
+      paid: u.paid || false,
+      registered: u.registered || false,
+      isBeta: u.isBeta || false,
+      joined: u.joined || Date.now(),
+      owner_setup: u.owner_setup || false
+    })), { onConflict: 'id' }).then(() => {
+      console.log('Users synced to Supabase');
+    }).catch(() => {});
   }
 }
 
-function getPosts() { 
-  return cloudCache.posts || []; 
-}
-
-async function setPosts(posts) { 
-  cloudCache.posts = posts;
-  if (supabaseClient) {
-    try {
-      await supabaseClient.from('posts').upsert(posts.slice(0, 50).map(p => ({
-        id: p.id,
-        user_id: p.userId,
-        username: p.userId,
-        text: p.text,
-        tags: p.tags || [],
-        likes: p.likes || [],
-        dislikes: p.dislikes || [],
-        reactions: p.reactions || { cap: [], relate: [], wild: [], facts: [] },
-        media_type: p.type || 'none',
-        image_data: p.imageData || '',
-        video_data: p.videoData || '',
-        created_at: p.time ? new Date(p.time).toISOString() : new Date().toISOString()
-      })), { onConflict: 'id' });
-    } catch (err) {
-      console.error('Failed to save posts:', err);
-    }
+function getPosts() { return getDB('posts', []); }
+function setPosts(posts) { 
+  setDB('posts', posts); 
+  const sb = getSupabase();
+  if (sb) {
+    sb.from('posts').upsert(posts.slice(0, 50).map(p => ({
+      id: p.id,
+      user_id: p.userId,
+      username: p.userId,
+      text: p.text,
+      tags: p.tags || [],
+      likes: p.likes || [],
+      dislikes: p.dislikes || [],
+      reactions: p.reactions || { cap: [], relate: [], wild: [], facts: [] },
+      media_type: p.type || 'none',
+      image_data: p.imageData || '',
+      video_data: p.videoData || '',
+      created_at: new Date(p.time).toISOString()
+    })), { onConflict: 'id' }).then(() => {}).catch(() => {});
   }
 }
 
-// Background sync - now uses cloud cache, no need for old sync function
-// Data is kept in sync via setX functions which update both cache and Supabase
-
-// Channel functions - cloud-first
-function getChannels() { 
-  return cloudCache.channels || []; 
-}
-
-async function setChannels(channels) { 
-  cloudCache.channels = channels;
-  if (supabaseClient) {
-    try {
-      await supabaseClient.from('channels').upsert(channels.slice(0, 50).map(c => ({
-        id: c.id,
-        owner_id: c.ownerId,
-        name: c.name,
-        description: c.desc || '',
-        category: c.category || '🎵 Music',
-        emoji_banner: c.emoji || '🎬',
-        subscribers: c.subs || []
-      })), { onConflict: 'id' });
-    } catch (err) {
-      console.error('Failed to save channels:', err);
-    }
+// Channel functions - localStorage + Supabase sync
+function getChannels() { return getDB('channels', []); }
+function setChannels(channels) { 
+  setDB('channels', channels); 
+  const sb = getSupabase();
+  if (sb) {
+    sb.from('channels').upsert(channels.slice(0, 50).map(c => ({
+      id: c.id,
+      owner_id: c.ownerId,
+      name: c.name,
+      description: c.desc || '',
+      category: c.category || '🎵 Music',
+      emoji_banner: c.emoji || '🎬',
+      subscribers: c.subs || []
+    })), { onConflict: 'id' }).then(() => {}).catch(() => {});
   }
 }
 
-// Message functions - cloud-first
-function getMessages() { 
-  return cloudCache.messages || {}; 
+// Message functions
+function getMessages() { return getDB('messages', {}); }
+function setMessages(messages) { 
+  setDB('messages', messages); 
 }
 
-async function setMessages(messages) { 
-  cloudCache.messages = messages;
-  if (supabaseClient) {
-    try {
-      // Save each conversation
-      for (const [convId, msgs] of Object.entries(messages)) {
-        for (const msg of msgs) {
-          await supabaseClient.from('messages').upsert({
-            id: msg.id,
-            conversation_id: convId,
-            sender_id: msg.senderId,
-            sender_username: msg.senderUsername,
-            receiver_id: msg.receiverId,
-            text: msg.text,
-            read: msg.read || false,
-            created_at: msg.time ? new Date(msg.time).toISOString() : new Date().toISOString()
-          }, { onConflict: 'id' });
-        }
-      }
-    } catch (err) {
-      console.error('Failed to save messages:', err);
-    }
+// Notification functions
+function getNotifs() { return getDB('notifs', []); }
+function setNotifs(notifs) { 
+  setDB('notifs', notifs); 
+  const sb = getSupabase();
+  if (sb) {
+    sb.from('notifications').upsert(notifs.slice(0, 50).map(n => ({
+      id: n.id,
+      clerk_id: n.userId,
+      type: n.type,
+      text: n.text,
+      read: n.read || false,
+      created_at: new Date(n.time).toISOString()
+    })), { onConflict: 'id' }).then(() => {}).catch(() => {});
   }
 }
 
-// Notification functions - cloud-first
-function getNotifs() { 
-  return cloudCache.notifications || []; 
-}
-
-async function setNotifs(notifs) { 
-  cloudCache.notifications = notifs;
-  if (supabaseClient) {
-    try {
-      await supabaseClient.from('notifications').upsert(notifs.slice(0, 50).map(n => ({
-        id: n.id,
-        clerk_id: n.userId,
-        type: n.type,
-        text: n.text,
-        read: n.read || false,
-        created_at: n.time ? new Date(n.time).toISOString() : new Date().toISOString()
-      })), { onConflict: 'id' });
-    } catch (err) {
-      console.error('Failed to save notifications:', err);
-    }
-  }
-}
-
-// Owner setup status - from cloud cache
-function getOwnerSetup() { 
-  return cloudCache.ownerSetup; 
-}
-
-function setOwnerSetup(v) { 
-  cloudCache.ownerSetup = v;
-}
+// Owner setup status
+function getOwnerSetup() { return getDB('owner_setup', false); }
+function setOwnerSetup(v) { setDB('owner_setup', v); }
 
 // Beta users = real users (non-seed) who joined free
 function getBetaCount() {
   const users = getUsers();
-  // Count non-seed users (seed users have joined time > 1 day ago from seed)
   return users.filter(u => u.isBeta || u.role === 'owner').length;
 }
 function getRealUserCount() {
-  // Count only non-seed accounts (accounts created via registration)
   return getUsers().filter(u => u.registered).length;
 }
 function getBetaSlotsLeft() {
@@ -2541,23 +2272,22 @@ function isBetaOpen() {
   return getRealUserCount() < MAX_BETA_USERS;
 }
 
-// Session - cloud-based (no localStorage)
-let currentSession = null;
+// Session
+let currentSession = getDB('session', null);
 
-async function getCurrentUser() {
+function getCurrentUser() {
   if (!currentSession) return null;
-  // Find user in cloud cache
-  return cloudCache.users?.find(u => u.username === currentSession) || null;
+  return getUsers().find(u => u.username === currentSession);
 }
 
 function setSession(username) {
   currentSession = username;
-  cloudCache.session = username;
+  setDB('session', username);
 }
 
 function clearSession() {
   currentSession = null;
-  cloudCache.session = null;
+  setDB('session', null);
 }
 
 // Navigation history for back button
@@ -2975,8 +2705,9 @@ function createOwnerAccount() {
   setUsers(users);
   
   // Save directly to Supabase immediately
-  if (supabaseClient) {
-    supabaseClient.from('users').upsert({
+  const sb = getSupabase();
+  if (sb) {
+    sb.from('users').upsert({
       id: owner.id,
       username: owner.username,
       email: owner.email,
@@ -3014,8 +2745,9 @@ function doAdminLogin() {
   if (!username || !pass) { toast('Enter username and password', 'error'); return; }
 
   // Query Supabase for user
-  if (supabaseClient) {
-    supabaseClient.from('users').select('*').then(({ data, error }) => {
+  const sb = getSupabase();
+  if (sb) {
+    sb.from('users').select('*').then(({ data, error }) => {
       if (error) {
         console.error('Error fetching from Supabase:', error);
         // Fallback to localStorage
@@ -5621,72 +5353,37 @@ const VibeSyncEngine = {
 window.VibeSyncEngine = VibeSyncEngine;
 
 // ══════════════════════════════════════
-// INIT - Cloud-based (no localStorage)
+// INIT
 // ══════════════════════════════════════
-async function init() {
-  // Clear any old localStorage data (legacy cleanup)
-  try {
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('vh_')) localStorage.removeItem(key);
-    });
-  } catch(e) {}
-
-  // Attach button listeners (these work even before data loads)
+function init() {
+  // Attach button listeners
   addNavItems();
   attachLandingButtons();
-
-  // Initialize Supabase client first
-  initSupabase();
-
-  // Wait a moment for Supabase to initialize, then load cloud data
-  await new Promise(resolve => setTimeout(resolve, 500));
   
-  // Initialize cloud data from Supabase
-  await initCloudData();
+  // Initialize Supabase client
+  initSupabaseClient();
   
-  // Now check admin URL and handle auth flow
-  handleAuthFlow();
-}
-
-// Handle authentication flow based on URL and owner status
-async function handleAuthFlow() {
-  // Check if we're on admin URL
-  if (window.location.hash.includes('vibe-control-7x9kq2m') || window.location.search.includes('vibe-control-7x9kq2m')) {
-    console.log('Admin URL detected, checking for owner...');
-    
-    // Refresh cloud data to get latest
-    await refreshUsers();
-    const hasOwner = cloudCache.users.some(u => u.role === 'owner');
-    
-    if (hasOwner) {
-      console.log('Owner found in Supabase, showing login');
-      document.getElementById('modal-admin-setup').classList.add('hidden');
-      document.getElementById('modal-admin-login').classList.remove('hidden');
-      document.getElementById('page-landing').classList.remove('hidden');
-    } else {
-      console.log('No owner found in Supabase, showing setup');
-      document.getElementById('modal-admin-setup').classList.remove('hidden');
-      document.getElementById('page-landing').classList.remove('hidden');
+  // Seed demo data if needed
+  seedData();
+  
+  // Check for existing session
+  const session = getDB('session', null);
+  if (session) {
+    const user = getCurrentUser();
+    if (user) {
+      launchApp();
+      return;
     }
-  } else {
-    // Normal flow - continue to app
-    continueInit();
   }
+  
+  // Show landing page
+  showPage('landing');
+  if (typeof updateBetaUI === 'function') updateBetaUI();
 }
 
-// Pre-init logic - now handled by init() with cloud data
-// Kept for compatibility
-function preInit() {
-  continueInit();
-}
-      });
-  } else {
-    // No Supabase, just continue
-    continueInit();
-  }
-}
+// Simple init - handled by init() at bottom of file
 
-function attachLandingButtons() {
+function continueInit() {
   var navLoginBtn = document.getElementById('nav-login-btn');
   var landingJoinBtn = document.getElementById('landing-join-btn');
   var heroJoinBtn = document.getElementById('hero-join-btn');
@@ -5698,33 +5395,18 @@ function attachLandingButtons() {
   if (heroLoginBtn) heroLoginBtn.onclick = function() { showPage('login'); };
 }
 
-// Legacy function - now uses initCloudData
-async function fetchFromSupabaseFirst() {
-  // Cloud data is now loaded via initCloudData() in init()
-  // This function kept for compatibility
-  return initCloudData();
-}
 
-async function continueInit() {
-  // Cloud-based auth - check if user is logged in via session
-  if (currentSession && cloudCache.session) {
-    // User has session, launch app
-    const user = await getCurrentUser();
-    if (user) {
-      launchApp();
-      return;
-    }
+
+// Simple init - handled by init() at bottom of file
+
+function continueInit() {
+  // Just show landing if no session
+  const session = getDB('session', null);
+  if (session && getCurrentUser()) {
+    launchApp();
+  } else {
+    showPage('landing');
   }
-  
-  // No session - show landing page
-  showPage('landing');
-  if (typeof updateBetaUI === 'function') {
-    updateBetaUI();
-  }
-}
-  
-  // Start background sync
-  syncWithSupabase();
 }
 
 // Click outside modal to close
@@ -5753,7 +5435,7 @@ document.addEventListener('click', e => {
 })();
 
 try {
-  initSupabase();
+  initSupabaseClient();
   init();
 } catch(e) {
   console.error('Init error:', e);
