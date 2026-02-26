@@ -1983,7 +1983,7 @@ try {
 }
 
 // ══════════════════════════════════════
-// DATA STORE (localStorage + Supabase)
+// DATA STORE (localStorage + Supabase Background Sync)
 // ══════════════════════════════════════
 function getDB(key, def) {
   try { return JSON.parse(localStorage.getItem('vh_' + key)) ?? def; }
@@ -1993,88 +1993,102 @@ function setDB(key, val) {
   localStorage.setItem('vh_' + key, JSON.stringify(val));
 }
 
-async function getUsers() {
+function getUsers() { return getDB('users', []); }
+function setUsers(users) { 
+  setDB('users', users); 
   if (supabase) {
-    try {
-      const { data, error } = await supabase.from('users').select('*');
-      if (!error && data && data.length > 0) {
-        setDB('users', data);
-        return data;
-      }
-    } catch(e) { console.log('Supabase getUsers error:', e); }
+    supabase.from('users').upsert(users.slice(0, 50).map(u => ({
+      id: u.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
+      username: u.username,
+      email: u.email,
+      name: u.name,
+      bio: u.bio || '',
+      avatar: u.avatar || '',
+      theme: u.theme || 'purple',
+      banner: u.banner || 'purple',
+      role: u.role || 'user'
+    })), { onConflict: 'id' }).then(() => {}).catch(() => {});
   }
-  return getDB('users', []);
 }
 
-async function setUsers(users) {
-  setDB('users', users);
-  if (!supabase) return;
-  try {
-    for (const user of users.slice(0, 50)) {
-      await supabase.from('users').upsert({
-        id: user.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
-        username: user.username,
-        email: user.email,
-        name: user.name,
-        bio: user.bio || '',
-        avatar: user.avatar || '',
-        theme: user.theme || 'purple',
-        banner: user.banner || 'purple',
-        role: user.role || 'user'
-      }, { onConflict: 'id' });
-    }
-  } catch(e) { console.log('Supabase setUsers error:', e); }
-}
-
-async function getPosts() {
+function getPosts() { return getDB('posts', []); }
+function setPosts(posts) { 
+  setDB('posts', posts); 
   if (supabase) {
-    try {
-      const { data, error } = await supabase.from('posts').select('*').order('created_at', { ascending: false });
-      if (!error && data && data.length > 0) {
-        // Convert Supabase format to app format
-        const posts = data.map(p => ({
-          id: p.id,
-          userId: p.user_id || p.username,
-          text: p.text,
-          tags: p.tags || [],
-          likes: p.likes || [],
-          dislikes: p.dislikes || [],
-          comments: p.comments || [],
-          reactions: p.reactions || { cap: [], relate: [], wild: [], facts: [] },
-          type: p.media_type || p.type || 'text',
-          imageData: p.image_data || p.media_url || '',
-          videoData: p.video_data || '',
-          time: new Date(p.created_at).getTime()
-        }));
-        setDB('posts', posts);
-        return posts;
-      }
-    } catch(e) { console.log('Supabase getPosts error:', e); }
+    supabase.from('posts').upsert(posts.slice(0, 50).map(p => ({
+      id: p.id,
+      user_id: p.userId,
+      username: p.userId,
+      text: p.text,
+      tags: p.tags || [],
+      likes: p.likes || [],
+      dislikes: p.dislikes || [],
+      reactions: p.reactions || { cap: [], relate: [], wild: [], facts: [] },
+      media_type: p.type || 'none',
+      image_data: p.imageData || '',
+      video_data: p.videoData || '',
+      created_at: new Date(p.time).toISOString()
+    })), { onConflict: 'id' }).then(() => {}).catch(() => {});
   }
-  return getDB('posts', []);
 }
 
-async function setPosts(posts) {
-  setDB('posts', posts);
+// Background sync with Supabase - non-blocking
+function syncWithSupabase() {
   if (!supabase) return;
-  try {
-    for (const post of posts.slice(0, 50)) {
-      await supabase.from('posts').upsert({
-        id: post.id,
-        user_id: post.userId,
-        username: post.userId,
-        text: post.text,
-        tags: post.tags || [],
-        likes: post.likes || [],
-        dislikes: post.dislikes || [],
-        reactions: post.reactions || { cap: [], relate: [], wild: [], facts: [] },
-        media_type: post.type || 'none',
-        image_data: post.imageData || '',
-        video_data: post.videoData || '',
-        created_at: new Date(post.time).toISOString()
-      }, { onConflict: 'id' });
-    }
-  } catch(e) { console.log('Supabase setPosts error:', e); }
+  
+  // Fetch users from Supabase and merge
+  supabase.from('users').select('*').then(({ data }) => {
+    if (!data || data.length === 0) return;
+    const localUsers = getUsers();
+    const supabaseUsers = data;
+    const merged = [...localUsers];
+    supabaseUsers.forEach(su => {
+      if (!merged.find(lu => lu.username === su.username)) {
+        merged.push({
+          id: su.id,
+          username: su.username,
+          email: su.email,
+          name: su.name,
+          bio: su.bio || '',
+          avatar: su.avatar || '',
+          theme: su.theme || 'purple',
+          banner: su.banner || 'purple',
+          role: su.role || 'user',
+          registered: true
+        });
+      }
+    });
+    setDB('users', merged);
+  });
+  
+  // Fetch posts from Supabase and merge
+  supabase.from('posts').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+    if (!data || data.length === 0) return;
+    const localPosts = getPosts();
+    const supabasePosts = data.map(p => ({
+      id: p.id,
+      userId: p.user_id || p.username,
+      text: p.text,
+      tags: p.tags || [],
+      likes: p.likes || [],
+      dislikes: p.dislikes || [],
+      comments: p.comments || [],
+      reactions: p.reactions || { cap: [], relate: [], wild: [], facts: [] },
+      type: p.media_type || p.type || 'text',
+      imageData: p.image_data || p.media_url || '',
+      videoData: p.video_data || '',
+      time: new Date(p.created_at).getTime()
+    }));
+    const merged = [...localPosts];
+    supabasePosts.forEach(sp => {
+      if (!merged.find(lp => lp.id === sp.id)) {
+        merged.push(sp);
+      }
+    });
+    merged.sort((a, b) => b.time - a.time);
+    setDB('posts', merged);
+    if (typeof renderFeed === 'function') renderFeed();
+  });
 }
 function getChannels() { return getDB('channels', []); }
 function setChannels(v) { setDB('channels', v); }
@@ -2419,7 +2433,7 @@ async function doRegisterFree() {
   };
 
   users.push(newUser);
-  await setUsers(users);
+  setUsers(users);
   setSession(username);
   launchApp();
   toast('🎉 Welcome to the VibeHub Beta, ' + name + '! You got in FREE!', 'success');
@@ -2507,7 +2521,7 @@ async function completeRegistration() {
 
   const users = getUsers();
   users.push(newUser);
-  await setUsers(users);
+  setUsers(users);
 
   setSession(username);
   launchApp();
@@ -2658,7 +2672,7 @@ async function createPost() {
 
   const posts = getPosts();
   posts.unshift(post);
-  await setPosts(posts);
+  setPosts(posts);
 
   document.getElementById('post-composer-input').value = '';
   document.getElementById('composer-preview').innerHTML = '';
@@ -2669,9 +2683,9 @@ async function createPost() {
   toast('Vibe posted! ✌️', 'success');
 }
 
-async function renderFeed(tab) {
+function renderFeed(tab) {
   const container = document.getElementById('feed-posts');
-  let posts = await getPosts();
+  let posts = getPosts();
   const user = getCurrentUser();
 
   // Update composer avatar
@@ -5129,6 +5143,9 @@ function init() {
     showPage('landing');
     updateBetaUI();
   }
+  
+  // Background sync with Supabase - non-blocking
+  syncWithSupabase();
 }
 
 // Click outside modal to close
