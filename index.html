@@ -5351,7 +5351,6 @@ function init() {
   // Clear localStorage but keep session flags
   const stayLoggedIn = localStorage.getItem('vh_stay_logged_in');
   const currentSession = localStorage.getItem('vh_session');
-  // owner_setup flag is no longer restored from localStorage; rely on Supabase state
   
   // Clear everything
   Object.keys(localStorage).forEach(key => {
@@ -5361,13 +5360,35 @@ function init() {
   // Restore essential flags (stay logged in and session only)
   if (stayLoggedIn) localStorage.setItem('vh_stay_logged_in', 'true');
   if (currentSession) localStorage.setItem('vh_session', currentSession);
-  // owner_setup not restored from localStorage
+  
   // Update currentSession variable
   currentSession = getDB('session', null);
 
   // Attach button listeners (these work even before data loads)
   addNavItems();
   attachLandingButtons();
+
+  // Check if we're on admin URL - show setup by default unless we know owner exists
+  if (window.location.hash.includes(ADMIN_SLUG) || window.location.search.includes(ADMIN_SLUG)) {
+    // Show setup modal by default on admin URL
+    // This will be the first time owner setup
+    document.getElementById('modal-admin-setup').classList.remove('hidden');
+    document.getElementById('page-landing').classList.remove('hidden');
+    
+    // Try to fetch from Supabase in background to see if owner already exists
+    if (window.supabaseReady && window.supabase) {
+      fetchFromSupabaseFirst().then(() => {
+        // Check if owner exists after fetch
+        const hasOwner = (getUsers() || []).some(u => u.role === 'owner');
+        if (hasOwner) {
+          // Owner exists - switch to login modal
+          document.getElementById('modal-admin-setup').classList.add('hidden');
+          document.getElementById('modal-admin-login').classList.remove('hidden');
+        }
+      }).catch(() => {});
+    }
+    return;
+  }
 
   // Try to fetch from Supabase first
   if (window.supabaseReady && window.supabase) {
@@ -5482,22 +5503,7 @@ async function fetchFromSupabaseFirst() {
 }
 
 function continueInit() {
-  // Check for admin slug in URL AFTER data is loaded
-  if (window.location.hash.includes(ADMIN_SLUG) || window.location.search.includes(ADMIN_SLUG)) {
-    // Determine owner existence from Supabase data (in local cache)
-    const hasOwner = (getUsers() || []).some(u => u.role === 'owner');
-    if (!hasOwner) {
-      document.getElementById('modal-admin-setup').classList.remove('hidden');
-      document.getElementById('page-landing').classList.remove('hidden');
-      return;
-    } else {
-      document.getElementById('modal-admin-login').classList.remove('hidden');
-      document.getElementById('page-landing').classList.remove('hidden');
-      return;
-    }
-  }
-
-  // Check for existing session
+  // Check for existing session (admin URL is handled in init() now)
   if (currentSession && getCurrentUser()) {
     launchApp();
   } else {
