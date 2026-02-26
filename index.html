@@ -2141,7 +2141,7 @@ function setDB(key, val) {
 function getUsers() { return getDB('users', []); }
 function setUsers(users) { 
   setDB('users', users); 
-  if (supabase) {
+  if (window.supabaseReady && supabase) {
     supabase.from('users').upsert(users.slice(0, 50).map(u => ({
       id: u.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
       username: u.username,
@@ -2166,7 +2166,7 @@ function setUsers(users) {
 function getPosts() { return getDB('posts', []); }
 function setPosts(posts) { 
   setDB('posts', posts); 
-  if (supabase) {
+  if (window.supabaseReady && supabase) {
     supabase.from('posts').upsert(posts.slice(0, 50).map(p => ({
       id: p.id,
       user_id: p.userId,
@@ -2186,7 +2186,7 @@ function setPosts(posts) {
 
 // Background sync with Supabase - non-blocking
 function syncWithSupabase() {
-  if (!supabase) return;
+  if (!window.supabaseReady || !supabase) return;
   
   // Fetch users from Supabase and merge
   supabase.from('users').select('*').then(({ data }) => {
@@ -2286,7 +2286,7 @@ function syncWithSupabase() {
 function getChannels() { return getDB('channels', []); }
 function setChannels(channels) { 
   setDB('channels', channels); 
-  if (supabase) {
+  if (window.supabaseReady && supabase) {
     supabase.from('channels').upsert(channels.slice(0, 50).map(c => ({
       id: c.id,
       owner_id: c.ownerId,
@@ -2305,7 +2305,7 @@ function setMessages(messages) {
 function getNotifs() { return getDB('notifs', []); }
 function setNotifs(notifs) { 
   setDB('notifs', notifs); 
-  if (supabase) {
+  if (window.supabaseReady && supabase) {
     supabase.from('notifications').upsert(notifs.slice(0, 50).map(n => ({
       id: n.id,
       clerk_id: n.userId,
@@ -5371,7 +5371,7 @@ function init() {
   attachLandingButtons();
 
   // Try to fetch from Supabase first
-  if (supabase) {
+  if (window.supabaseReady && window.supabase) {
     fetchFromSupabaseFirst().then(() => {
       continueInit();
     }).catch(() => {
@@ -5397,7 +5397,7 @@ function attachLandingButtons() {
 }
 
 async function fetchFromSupabaseFirst() {
-  if (!supabase) return;
+  if (!window.supabaseReady || !supabase) return;
   
   // Show loading state on landing
   showPage('landing');
