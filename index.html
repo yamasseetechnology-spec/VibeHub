@@ -12,7 +12,7 @@
   var s = document.createElement('script');
   s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
   s.onload = function() { window.supabaseReady = true; console.log('Supabase loaded'); };
-  s.onerror = function() { console.log('Supabase failed - using localStorage'); };
+  s.onerror = function() { console.log('Supabase failed to load'); };
   document.head.appendChild(s);
 })();
 </script>
@@ -1172,7 +1172,7 @@ if (window.FIREBASE_READY) {
     });
   });
 } else {
-  console.log('ℹ️  Firebase not configured — running in localStorage mode. Add your Firebase config to go live!');
+   console.log('ℹ️  Data stored in Supabase only. Add Firebase config for backup storage.');
 }
 </script>
 
@@ -2077,7 +2077,7 @@ if (window.FIREBASE_READY) {
 // ══════════════════════════════════════
 // CONSTANTS & CONFIG
 // ══════════════════════════════════════
-// All data stored in Supabase - no localStorage fallback
+// All data stored in Supabase - no localStorage
 const ADMIN_SLUG = 'vibe-control-7x9kq2m';
 const MAX_BETA_USERS = 10; // First 10 users get in FREE
 
@@ -2153,85 +2153,175 @@ function showPage(page) {
 }
 
 // ══════════════════════════════════════
-// DATA STORE (localStorage + Supabase Background Sync)
+// DATA STORE (Supabase Only)
 // ══════════════════════════════════════
-function getDB(key, def) {
-  try { return JSON.parse(localStorage.getItem('vh_' + key)) ?? def; }
-  catch { return def; }
-}
-function setDB(key, val) {
-  localStorage.setItem('vh_' + key, JSON.stringify(val));
-}
 
-function getUsers() { return getDB('users', []); }
-function setUsers(users) { 
-  setDB('users', users); 
+// In-memory cache for data
+let _usersCache = [];
+let _postsCache = [];
+let _channelsCache = [];
+let _notifsCache = [];
+let _messagesCache = {};
+let _initialized = false;
+
+// Initialize data from Supabase
+async function initDataStore() {
+  if (_initialized) return;
   const sb = getSupabase();
-  if (sb) {
-    sb.from('users').upsert(users.slice(0, 50).map(u => ({
-      uuid: u.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
-      username: u.username,
-      email: u.email,
-      name: u.name,
-      bio: u.bio || '',
-      avatar_url: u.avatar || '',
-      theme: u.theme || 'purple',
-      banner_url: u.banner || 'purple',
-      role: u.role || 'user',
-      recovery: u.recovery || '',
-      paid: u.paid || false,
-      isBeta: u.isBeta || false,
-      owner_setup: u.owner_setup || false,
-      created_at: u.joined ? new Date(u.joined).toISOString() : new Date().toISOString()
-    })), { onConflict: 'uuid' }).then(() => {
-      console.log('Users synced to Supabase');
-    }).catch(() => {});
+  if (!sb) return;
+  
+  try {
+    const [usersRes, postsRes, channelsRes, notifsRes] = await Promise.all([
+      sb.from('users').select('*'),
+      sb.from('posts').select('*'),
+      sb.from('channels').select('*'),
+      sb.from('notifications').select('*')
+    ]);
+    
+    _usersCache = usersRes.data || [];
+    _postsCache = postsRes.data || [];
+    _channelsCache = channelsRes.data || [];
+    _notifsCache = notifsRes.data || [];
+    _initialized = true;
+    console.log('Data loaded from Supabase');
+  } catch (err) {
+    console.error('Failed to load data:', err);
   }
 }
 
-function getPosts() { return getDB('posts', []); }
-function setPosts(posts) { 
-  setDB('posts', posts); 
-  // Supabase sync disabled - tables not set up yet
-  // const sb = getSupabase();
-  // if (sb) { ... }
+// User functions - Supabase only
+function getUsers() { return _usersCache; }
+
+async function setUsers(users) { 
+  _usersCache = users;
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      await sb.from('users').upsert(users.slice(0, 50).map(u => ({
+        uuid: u.id || u.uuid || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
+        username: u.username,
+        email: u.email,
+        name: u.name,
+        bio: u.bio || '',
+        avatar_url: u.avatar || u.avatar_url || '',
+        theme: u.theme || 'purple',
+        banner_url: u.banner || u.banner_url || 'purple',
+        role: u.role || 'user',
+        recovery: u.recovery || '',
+        paid: u.paid || false,
+        isBeta: u.isBeta || false,
+        owner_setup: u.owner_setup || false,
+        created_at: u.joined ? new Date(u.joined).toISOString() : new Date().toISOString()
+      })), { onConflict: 'uuid' });
+      console.log('Users saved to Supabase');
+    } catch (err) {
+      console.error('Failed to save users:', err);
+    }
+  }
 }
 
-// Channel functions - localStorage only for now
-function getChannels() { return getDB('channels', []); }
-function setChannels(channels) { 
-  setDB('channels', channels); 
-  // Supabase sync disabled - tables not set up yet
+// Post functions - Supabase only
+function getPosts() { return _postsCache; }
+
+async function setPosts(posts) { 
+  _postsCache = posts;
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      await sb.from('posts').upsert(posts.slice(0, 50).map(p => ({
+        uuid: p.id,
+        user_id: p.userId,
+        username: p.userId,
+        text: p.text,
+        tags: p.tags || [],
+        likes: p.likes || [],
+        dislikes: p.dislikes || [],
+        reactions: p.reactions || { cap: [], relate: [], wild: [], facts: [] },
+        media_type: p.type || 'none',
+        image_data: p.imageData || '',
+        video_data: p.videoData || '',
+        created_at: p.time ? new Date(p.time).toISOString() : new Date().toISOString()
+      })), { onConflict: 'uuid' });
+    } catch (err) {}
+  }
 }
 
-// Message functions
-function getMessages() { return getDB('messages', {}); }
+// Channel functions - Supabase only
+function getChannels() { return _channelsCache; }
+
+async function setChannels(channels) { 
+  _channelsCache = channels;
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      await sb.from('channels').upsert(channels.slice(0, 50).map(c => ({
+        uuid: c.id,
+        owner_id: c.ownerId,
+        name: c.name,
+        description: c.desc || '',
+        category: c.category || '🎵 Music',
+        emoji_banner: c.emoji || '🎬',
+        subscribers: c.subs || []
+      })), { onConflict: 'uuid' });
+    } catch (err) {}
+  }
+}
+
+// Message functions - Supabase only
+function getMessages() { return _messagesCache; }
+
 function setMessages(messages) { 
-  setDB('messages', messages); 
+  _messagesCache = messages;
+  // Messages stored in memory for now
 }
 
-// Notification functions
-function getNotifs() { return getDB('notifs', []); }
-function setNotifs(notifs) { 
-  setDB('notifs', notifs); 
-  // Supabase sync disabled - tables not set up yet
+// Notification functions - Supabase only
+function getNotifs() { return _notifsCache; }
+
+async function setNotifs(notifs) { 
+  _notifsCache = notifs;
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      await sb.from('notifications').upsert(notifs.slice(0, 50).map(n => ({
+        uuid: n.id,
+        clerk_id: n.userId,
+        type: n.type,
+        text: n.text,
+        read: n.read || false,
+        created_at: n.time ? new Date(n.time).toISOString() : new Date().toISOString()
+      })), { onConflict: 'uuid' });
+    } catch (err) {}
+  }
 }
 
-// Owner setup status
-function getOwnerSetup() { return getDB('owner_setup', false); }
-function setOwnerSetup(v) { setDB('owner_setup', v); }
+// Owner setup status - query Supabase
+async function checkOwnerExists() {
+  const sb = getSupabase();
+  if (!sb) return false;
+  try {
+    const { data } = await sb.from('users').select('uuid').eq('role', 'owner').limit(1);
+    return data && data.length > 0;
+  } catch (err) {
+    return false;
+  }
+}
+
+function setOwnerSetup(v) {
+  // Owner setup is determined by existence in Supabase now
+  // This function kept for compatibility but does nothing
+}
+
 function dismissOwnerSetup() {
-  setDB('owner_setup_dismissed', true);
   closeModal('modal-admin-setup');
 }
 
 // Beta users = real users (non-seed) who joined free
 function getBetaCount() {
-  const users = getUsers();
-  return users.filter(u => u.isBeta || u.role === 'owner').length;
+  return _usersCache.filter(u => u.isBeta || u.role === 'owner').length;
 }
 function getRealUserCount() {
-  return getUsers().filter(u => u.registered).length;
+  return _usersCache.filter(u => u.registered).length;
 }
 function getBetaSlotsLeft() {
   return Math.max(0, MAX_BETA_USERS - getRealUserCount());
@@ -2241,115 +2331,81 @@ function isBetaOpen() {
 }
 
 // Session
-let currentSession = getDB('session', null);
+// Session management - cookie based
+let currentSession = null;
+
+function getSession() {
+  if (currentSession) return currentSession;
+  const match = document.cookie.match(/vibe_session=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
 function getCurrentUser() {
-  if (!currentSession) return null;
-  return getUsers().find(u => u.username === currentSession);
+  const session = getSession();
+  if (!session) return null;
+  return _usersCache.find(u => u.username === session);
 }
 
 function setSession(username) {
   currentSession = username;
-  setDB('session', username);
+  document.cookie = 'vibe_session=' + encodeURIComponent(username) + ';path=/;max-age=2592000';
 }
 
 function clearSession() {
   currentSession = null;
-  setDB('session', null);
+  document.cookie = 'vibe_session=;path=/;expires=Thu, 01 Jan 1970 00:00:00';
 }
 
 // Navigation history for back button
 let navHistory = [];
 let currentView = null;
-function seedData() {
-  // Check if already seeded FIRST - before clearing anything
-  if (getDB('seeded', false)) return;
 
-  // FOR DEMO: Reset posts and activity but keep users
-  localStorage.removeItem('vh_posts');
-  localStorage.removeItem('vh_notifs');
-  localStorage.removeItem('vh_messages');
-  localStorage.removeItem('vh_vibeLikes');
-  localStorage.removeItem('vh_userWaves');
-  localStorage.removeItem('vh_friends');
-  localStorage.removeItem('vh_friendRequests');
-  localStorage.removeItem('vh_products');
-  localStorage.removeItem('vh_statusChannels');
-  localStorage.removeItem('vh_collabPosts');
-  localStorage.removeItem('vh_reputationCache');
-  localStorage.removeItem('vh_momentumData');
-
-  const users = [
-    { username:'skyvibes', name:'Sky Williams', email:'sky@vibe.com', password:'pass123', bio:'Just living. 🌈 Music lover. Creator.', theme:'purple', banner:'purple', song:{url:'',name:'Blinding Lights',artist:'The Weeknd'}, mood:{emoji:'☀️',text:'Living my best life'}, top8:['neoncat','djbeatrix','cosmicray','petalrose','hackernova','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*30, avatar:'🌈' },
-    { username:'neoncat', name:'Neon Cat', email:'neo@vibe.com', password:'pass123', bio:'🎮 Gamer. 🐱 Cat person. 💻 Developer.', theme:'cyan', banner:'cyan', song:{url:'',name:'Levitating',artist:'Dua Lipa'}, mood:{emoji:'🎵','text':'Vibing to music'}, top8:['skyvibes','djbeatrix','hackernova','cosmicray','petalrose','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*20, avatar:'🐱' },
-    { username:'djbeatrix', name:'DJ Beatrix', email:'bea@vibe.com', password:'pass123', bio:'🎵 DJ. Producer. Music is life.', theme:'pink', banner:'pink', song:{url:'',name:'Stay',artist:'Kid Laroi'}, mood:{emoji:'🔥','text':'On fire today'}, top8:['skyvibes','neoncat','cosmicray','hackernova','petalrose','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*15, avatar:'🎵' },
-    { username:'cosmicray', name:'Cosmic Ray', email:'ray@vibe.com', password:'pass123', bio:'✨ Space nerd. Artist. Always curious.', theme:'gold', banner:'gold', song:{url:'',name:'Space Song',artist:'Beach House'}, mood:{emoji:'💫','text':'Lost in thought'}, top8:['skyvibes','neoncat','djbeatrix','hackernova','petalrose','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*10, avatar:'✨' },
-    { username:'petalrose', name:'Petal Rose', email:'rose@vibe.com', password:'pass123', bio:'🌹 Fashion. Beauty. Self love.', theme:'pink', banner:'pink', song:{url:'',name:'Flowers',artist:'Miley Cyrus'}, mood:{emoji:'✌️','text':'Peace and love'}, top8:['skyvibes','neoncat','djbeatrix','cosmicray','hackernova','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*8, avatar:'🌹' },
-    { username:'hackernova', name:'HackerNova', email:'hack@vibe.com', password:'pass123', bio:'💻 Code. Build. Ship. Repeat.', theme:'green', banner:'green', song:{url:'',name:'Unstoppable',artist:'Sia'}, mood:{emoji:'🔥','text':'On fire today'}, top8:['skyvibes','neoncat','djbeatrix','cosmicray','petalrose','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*5, avatar:'💻' },
-    { username:'the_sage', name:'The Sage', email:'sage@vibe.com', password:'pass123', bio:'🧠 Philosophy. Deep thoughts. Tea.', theme:'purple', banner:'purple', song:{url:'',name:'Teardrop',artist:'Massive Attack'}, mood:{emoji:'😴','text':'Need coffee'}, top8:['skyvibes','neoncat','djbeatrix','cosmicray','petalrose','hackernova','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*3, avatar:'🧠' },
-    { username:'wanderlust', name:'Wanderlust', email:'wander@vibe.com', password:'pass123', bio:'✈️ Traveler. Storyteller. World citizen.', theme:'cyan', banner:'cyan', song:{url:'',name:'Adventure of a Lifetime',artist:'Coldplay'}, mood:{emoji:'✌️','text':'Peace and love'}, top8:['skyvibes','neoncat','djbeatrix','cosmicray','petalrose','hackernova','the_sage','sunsetkim'], role:'user', joined: Date.now()-86400000*2, avatar:'✈️' },
-    { username:'sunsetkim', name:'Sunset Kim', email:'kim@vibe.com', password:'pass123', bio:'🌅 Photographer. Sunset collector.', theme:'gold', banner:'gold', song:{url:'',name:'Golden Hour',artist:'JVKE'}, mood:{emoji:'☀️','text':'Living my best life'}, top8:['skyvibes','neoncat','djbeatrix','cosmicray','petalrose','hackernova','the_sage','wanderlust'], role:'user', joined: Date.now()-86400000*1, avatar:'📸' },
-  ];
-
-  const posts = [
-    { id:'p1', userId:'skyvibes', text:'Just dropped my new photography collection! Every shot is a vibe. 🌈 What do you think?', tags:['photography','art','vibes'], likes:['neoncat','djbeatrix','cosmicray','petalrose'], dislikes:[], comments:[{userId:'neoncat',text:'These are absolutely stunning!! 😍',time:Date.now()-3600000*2},{userId:'djbeatrix',text:'The colors!! Everything!',time:Date.now()-3600000}], time:Date.now()-86400000, type:'text' },
-    { id:'p2', userId:'djbeatrix', text:'Just finished a 3-hour set 🎵 The energy in the room was ELECTRIC. Sometimes music is the only thing that makes sense. ✌️', tags:['music','djlife','unity'], likes:['skyvibes','neoncat','cosmicray','hackernova','the_sage'], dislikes:['wanderlust'], comments:[{userId:'skyvibes',text:'Would have LOVED to be there!!',time:Date.now()-7200000},{userId:'cosmicray',text:'Next time tag me in!! 🙏',time:Date.now()-3600000}], time:Date.now()-86400000*2, type:'text' },
-    { id:'p3', userId:'neoncat', text:'Pro tip: debugging at 3am with lo-fi music hits different. Shipped a feature I\'ve been stuck on for weeks. 💻🐱 Flow state is real.', tags:['coding','developer','tech'], likes:['hackernova','skyvibes','the_sage'], dislikes:[], comments:[{userId:'hackernova',text:'Lo-fi + dark mode is literally a cheat code',time:Date.now()-1800000}], time:Date.now()-3600000*5, type:'text' },
-    { id:'p4', userId:'cosmicray', text:'Nobody talks about how humbling space is. One look at the James Webb images and suddenly all my problems feel manageable. ✨🌌', tags:['space','astronomy','philosophy'], likes:['skyvibes','neoncat','djbeatrix','petalrose','the_sage','wanderlust'], dislikes:[], comments:[{userId:'the_sage',text:'This is exactly the perspective shift we all need',time:Date.now()-900000},{userId:'petalrose',text:'those webb images literally made me cry 😭',time:Date.now()-600000}], time:Date.now()-3600000*8, type:'text' },
-    { id:'p5', userId:'petalrose', text:'Self care is not selfish. Repeat that. 🌹 Taking care of yourself is how you show up for others. Your energy matters.', tags:['selfcare','wellness','mentalhealth'], likes:['skyvibes','djbeatrix','wanderlust','sunsetkim','the_sage'], dislikes:[], comments:[{userId:'wanderlust',text:'Needed to read this today. Thank you 💙',time:Date.now()-1200000}], time:Date.now()-3600000*12, type:'text' },
-    { id:'p6', userId:'hackernova', text:'Open source contribution #100 is LIVE! 🎉 Two years ago I was afraid to even open a PR. Consistency is the real flex. #code #OpenSource', tags:['opensource','coding','achievement'], likes:['neoncat','skyvibes','cosmicray'], dislikes:[], comments:[{userId:'neoncat',text:'THIS IS HUGE!!! Congrats!!! 🎉🎉',time:Date.now()-2400000}], time:Date.now()-3600000*3, type:'text' },
-    { id:'p7', userId:'wanderlust', text:'Day 3 in Morocco. The medina in Marrakech smells like cumin and rose petals and old stories. Every alley has a secret. ✈️🌍', tags:['travel','morocco','adventure'], likes:['skyvibes','petalrose','sunsetkim','cosmicray','djbeatrix'], dislikes:[], comments:[{userId:'sunsetkim',text:'The golden hour photos from there must be INSANE',time:Date.now()-3000000}], time:Date.now()-3600000*6, type:'text' },
-    { id:'p8', userId:'sunsetkim', text:'Golden hour at 6:42pm was perfect today. No filter. Just light doing what light does. 🌅📸', tags:['photography','sunset','goldenhour'], likes:['skyvibes','wanderlust','petalrose','cosmicray','neoncat','djbeatrix'], dislikes:[], comments:[{userId:'petalrose',text:'Frameable!! 😍',time:Date.now()-500000}], time:Date.now()-3600000*2, type:'text' },
-    { id:'p9', userId:'the_sage', text:'Socrates said "I know that I know nothing." The more I learn, the more I realize he was right. Intellectual humility is a superpower. 🧠', tags:['philosophy','wisdom','learning'], likes:['cosmicray','skyvibes','hackernova'], dislikes:['neoncat'], comments:[{userId:'cosmicray',text:'The Dunning-Kruger effect in full display in the comments of every platform 😂',time:Date.now()-800000}], time:Date.now()-3600000*9, type:'text' },
-  ];
-
-  const channels = [
-    { id:'ch1', ownerId:'djbeatrix', name:'Beatrix Beats', desc:'Weekly DJ sets, production tutorials and behind-the-scenes music content.', category:'🎵 Music', emoji:'🎵', subs:['skyvibes','neoncat','cosmicray','hackernova','sunsetkim'], videos:[
-      { id:'v1', title:'Summer Mix 2025 🌴 3-Hour Deep House Set', desc:'Recorded live at Sunset Rooftop', emoji:'🎵', views:1243, time:Date.now()-86400000*5, tags:['djset','deephouse','summer'] },
-      { id:'v2', title:'How I Make Beats in 30 Minutes (Production Tutorial)', desc:'My full workflow revealed', emoji:'🎬', views:892, time:Date.now()-86400000*12, tags:['tutorial','production','beats'] },
-      { id:'v3', title:'Top 10 Tracks of 2025 So Far', desc:'My personal playlist picks', emoji:'🏆', views:654, time:Date.now()-86400000*3, tags:['music','playlist','2025'] },
-    ]},
-    { id:'ch2', ownerId:'neoncat', name:'NeonCode', desc:'Dev tutorials, coding tips and game dev projects. New video every Tuesday.', category:'💻 Tech', emoji:'💻', subs:['hackernova','skyvibes','cosmicray'], videos:[
-      { id:'v4', title:'Build a Social App from Scratch (Full Tutorial)', desc:'No frameworks, pure vanilla JS', emoji:'💻', views:3219, time:Date.now()-86400000*7, tags:['coding','tutorial','javascript'] },
-      { id:'v5', title:'10 VS Code Extensions That Changed My Life', desc:'Productivity unlocked', emoji:'⚡', views:1876, time:Date.now()-86400000*14, tags:['vscode','productivity','dev'] },
-    ]},
-    { id:'ch3', ownerId:'cosmicray', name:'Cosmic Art', desc:'Digital art speedpaints, space art and creative process videos.', category:'🎨 Art', emoji:'🎨', subs:['skyvibes','petalrose','wanderlust','djbeatrix'], videos:[
-      { id:'v6', title:'Galaxy Speedpaint — 4 Hours in 20 Minutes', desc:'My most complex piece yet', emoji:'🌌', views:2104, time:Date.now()-86400000*4, tags:['art','speedpaint','galaxy'] },
-    ]},
-    { id:'ch4', ownerId:'wanderlust', name:'Wandering World', desc:'Travel vlogs, budget travel tips and hidden gems around the globe.', category:'🌍 Travel', emoji:'✈️', subs:['skyvibes','sunsetkim','petalrose','neoncat'], videos:[
-      { id:'v7', title:'48 Hours in Marrakech — Budget Travel Guide', desc:'Everything for under $50/day', emoji:'🌍', views:4521, time:Date.now()-86400000*3, tags:['travel','morocco','budget'] },
-      { id:'v8', title:'Travel Hacks That Actually Work (2025)', desc:'No clickbait, real tips', emoji:'✈️', views:3102, time:Date.now()-86400000*18, tags:['travel','tips','hacks'] },
-    ]},
-    { id:'ch5', ownerId:'sunsetkim', name:'Golden Lens', desc:'Photography tutorials, golden hour guides and camera reviews.', category:'📸 Lifestyle', emoji:'📸', subs:['wanderlust','petalrose','skyvibes','cosmicray'], videos:[
-      { id:'v9', title:'How to Capture Perfect Golden Hour (Any Camera)', desc:'My complete process', emoji:'🌅', views:5234, time:Date.now()-86400000*6, tags:['photography','goldenhour','tutorial'] },
-    ]},
-  ];
-
-  const messages = {
-    'skyvibes-neoncat': [
-      { from:'skyvibes', text:'Hey! Love your latest video 💙', time: Date.now()-86400000 },
-      { from:'neoncat', text:'Thanks!! Been working on a new one 🐱', time: Date.now()-86400000+3600000 },
-      { from:'skyvibes', text:'Can\'t wait to see it!', time: Date.now()-3600000 },
-    ],
-    'skyvibes-djbeatrix': [
-      { from:'djbeatrix', text:'Are you coming to the show Saturday?', time: Date.now()-7200000 },
-      { from:'skyvibes', text:'YES!! Front row energy 🔥', time: Date.now()-3600000 },
-    ],
-  };
-
-  const notifs = [
-    { id:'n1', type:'like', fromUser:'neoncat', text:'liked your post', postId:'p1', time:Date.now()-1800000, read:false },
-    { id:'n2', type:'comment', fromUser:'djbeatrix', text:'commented on your post', postId:'p1', time:Date.now()-3600000, read:false },
-    { id:'n3', type:'follow', fromUser:'cosmicray', text:'started following you', time:Date.now()-7200000, read:true },
-    { id:'n4', type:'like', fromUser:'petalrose', text:'liked your post', postId:'p1', time:Date.now()-86400000, read:true },
-  ];
-
-  setUsers(users);
-  setPosts(posts);
-  setChannels(channels);
-  setMessages(messages);
-  setNotifs(notifs);
-  setDB('seeded', true);
+// Seed demo data to Supabase
+async function seedDemoData() {
+  const sb = getSupabase();
+  if (!sb) return;
+  
+  try {
+    // Check if demo users already exist
+    const { data: existing } = await sb.from('users').select('uuid').like('uuid', 'demo_%').limit(1);
+    if (existing && existing.length > 0) {
+      console.log('Demo users already exist in Supabase');
+      return;
+    }
+    
+    const demoUsers = [
+      { username:'skyvibes', name:'Sky Williams', email:'sky@vibe.com', password:'pass123', bio:'Just living. 🌈 Music lover. Creator.', theme:'purple', banner:'purple', song:{url:'',name:'Blinding Lights',artist:'The Weeknd'}, mood:{emoji:'☀️',text:'Living my best life'}, top8:['neoncat','djbeatrix','cosmicray','petalrose','hackernova','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*30, avatar:'🌈', isBeta:false },
+      { username:'neoncat', name:'Neon Cat', email:'neo@vibe.com', password:'pass123', bio:'🎮 Gamer. 🐱 Cat person. 💻 Developer.', theme:'cyan', banner:'cyan', song:{url:'',name:'Levitating',artist:'Dua Lipa'}, mood:{emoji:'🎵',text:'Vibing to music'}, top8:['skyvibes','djbeatrix','hackernova','cosmicray','petalrose','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*20, avatar:'🐱', isBeta:false },
+      { username:'djbeatrix', name:'DJ Beatrix', email:'bea@vibe.com', password:'pass123', bio:'🎵 DJ. Producer. Music is life.', theme:'pink', banner:'pink', song:{url:'',name:'Stay',artist:'Kid Laroi'}, mood:{emoji:'🔥',text:'On fire today'}, top8:['skyvibes','neoncat','cosmicray','hackernova','petalrose','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*15, avatar:'🎵', isBeta:false },
+      { username:'cosmicray', name:'Cosmic Ray', email:'ray@vibe.com', password:'pass123', bio:'✨ Space nerd. Artist. Always curious.', theme:'gold', banner:'gold', song:{url:'',name:'Space Song',artist:'Beach House'}, mood:{emoji:'💫',text:'Lost in thought'}, top8:['skyvibes','neoncat','djbeatrix','hackernova','petalrose','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*10, avatar:'✨', isBeta:false },
+      { username:'petalrose', name:'Petal Rose', email:'rose@vibe.com', password:'pass123', bio:'🌹 Fashion. Beauty. Self love.', theme:'pink', banner:'pink', song:{url:'',name:'Flowers',artist:'Miley Cyrus'}, mood:{emoji:'✌️',text:'Peace and love'}, top8:['skyvibes','neoncat','djbeatrix','cosmicray','hackernova','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*8, avatar:'🌹', isBeta:false },
+      { username:'hackernova', name:'HackerNova', email:'hack@vibe.com', password:'pass123', bio:'💻 Code. Build. Ship. Repeat.', theme:'green', banner:'green', song:{url:'',name:'Unstoppable',artist:'Sia'}, mood:{emoji:'🔥',text:'On fire today'}, top8:['skyvibes','neoncat','djbeatrix','cosmicray','petalrose','the_sage','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*5, avatar:'💻', isBeta:false },
+      { username:'the_sage', name:'The Sage', email:'sage@vibe.com', password:'pass123', bio:'🧠 Philosophy. Deep thoughts. Tea.', theme:'purple', banner:'purple', song:{url:'',name:'Teardrop',artist:'Massive Attack'}, mood:{emoji:'😴',text:'Need coffee'}, top8:['skyvibes','neoncat','djbeatrix','cosmicray','petalrose','hackernova','wanderlust','sunsetkim'], role:'user', joined: Date.now()-86400000*3, avatar:'🧠', isBeta:false },
+      { username:'wanderlust', name:'Wanderlust', email:'wander@vibe.com', password:'pass123', bio:'✈️ Traveler. Storyteller. World citizen.', theme:'cyan', banner:'cyan', song:{url:'',name:'Adventure of a Lifetime',artist:'Coldplay'}, mood:{emoji:'✌️',text:'Peace and love'}, top8:['skyvibes','neoncat','djbeatrix','cosmicray','petalrose','hackernova','the_sage','sunsetkim'], role:'user', joined: Date.now()-86400000*2, avatar:'✈️', isBeta:false },
+      { username:'sunsetkim', name:'Sunset Kim', email:'kim@vibe.com', password:'pass123', bio:'🌅 Photographer. Sunset collector.', theme:'gold', banner:'gold', song:{url:'',name:'Golden Hour',artist:'JVKE'}, mood:{emoji:'☀️',text:'Living my best life'}, top8:['skyvibes','neoncat','djbeatrix','cosmicray','petalrose','hackernova','the_sage','wanderlust'], role:'user', joined: Date.now()-86400000*1, avatar:'📸', isBeta:false },
+    ];
+    
+    await sb.from('users').upsert(demoUsers.map(u => ({
+      uuid: 'demo_' + u.username,
+      username: u.username,
+      email: u.email,
+      name: u.name,
+      bio: u.bio,
+      avatar_url: u.avatar,
+      theme: u.theme,
+      banner_url: u.banner,
+      role: u.role,
+      isBeta: u.isBeta,
+      paid: false,
+      created_at: new Date(u.joined).toISOString()
+    })), { onConflict: 'uuid' });
+    
+    // Reload data
+    await initDataStore();
+    console.log('Demo users created in Supabase');
+  } catch (err) {
+    console.error('Failed to seed demo data:', err);
+  }
 }
 
 // Navigate function
@@ -2574,13 +2630,7 @@ function doLogin() {
 
   if (!user) { toast('Wrong username or password', 'error'); return; }
 
-  // Handle stay logged in
-  if (stayLoggedIn) {
-    localStorage.setItem('vh_stay_logged_in', 'true');
-  } else {
-    localStorage.removeItem('vh_stay_logged_in');
-  }
-
+  // Session is handled via cookies in setSession()
   setSession(user.username);
   launchApp();
   toast('Welcome back, ' + user.name + '! ✌️', 'success');
@@ -2717,8 +2767,7 @@ function doAdminLogin() {
     sb.from('users').select('*').then(({ data, error }) => {
       if (error) {
         console.error('Error fetching from Supabase:', error);
-        // Fallback to localStorage
-        checkLocalUsers();
+        toast('Server error. Try again.', 'error');
         return;
       }
       // Check using recovery phrase (password not stored in Supabase)
@@ -2729,36 +2778,21 @@ function doAdminLogin() {
       // Success - login
       closeModal('modal-admin-login');
       setSession(username);
-      // Also save to localStorage
-      const localUsers = getUsers();
-      if (!localUsers.find(u => u.username === username)) {
-        localUsers.push({...user, password: pass});
-        setUsers(localUsers);
+      // Add to local cache if not exists
+      if (!_usersCache.find(u => u.username === username)) {
+        _usersCache.push({...user, password: pass});
       }
       launchApp();
       navigate('admin');
       toast('Welcome back, ' + user.name + ' 👑', 'success');
     });
   } else {
-    // Supabase not ready, check local
-    checkLocalUsers();
-  }
-  
-  function checkLocalUsers() {
-    const users = getUsers();
-    const user = users.find(u => u.username === username && u.password === pass);
-    if (!user) { toast('Invalid credentials', 'error'); return; }
-    if (user.role !== 'owner') { toast('Only owner can login here', 'error'); return; }
-    closeModal('modal-admin-login');
-    setSession(username);
-    launchApp();
-    navigate('admin');
-    toast('Welcome back, ' + user.name + ' 👑', 'success');
+    // Supabase not ready
+    toast('Please wait, connecting to server...', 'info');
   }
 }
 
 function doLogout() {
-  localStorage.removeItem('vh_stay_logged_in');
   clearSession();
 
   // Also sign out from Clerk so auth state is cleared across devices
@@ -3440,12 +3474,15 @@ let syncSpacesData = [
   { id: 's3', name: 'Dev Chat', creator: 'neoncat', users: [], messages: 0, expiresAt: Date.now() + 3600000 * 6 },
 ];
 
+// In-memory sync spaces
+let _syncSpacesCache = [];
+
 function getSyncSpaces() {
-  return JSON.parse(localStorage.getItem('vibehub_sync_spaces') || '[]');
+  return _syncSpacesCache.length ? _syncSpacesCache : syncSpacesData;
 }
 
 function setSyncSpaces(spaces) {
-  localStorage.setItem('vibehub_sync_spaces', JSON.stringify(spaces));
+  _syncSpacesCache = spaces;
 }
 
 function renderSyncSpaces() {
@@ -5323,37 +5360,53 @@ window.VibeSyncEngine = VibeSyncEngine;
 // ══════════════════════════════════════
 // INIT
 // ══════════════════════════════════════
-function init() {
+async function init() {
   // Attach button listeners
   addNavItems();
   
-  // Check for admin setup URL - show setup even if owner exists (for recovery)
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.get('vibe-control-7x9kq2m')) {
-    // Admin URL - allow re-setup if needed
-    showPage('admin-setup');
-    document.getElementById('modal-admin-setup').classList.remove('hidden');
-  }
-  
-  // Initialize Supabase client
+  // Initialize Supabase client first
   initSupabaseClient();
   
-  // Seed demo data if needed
-  seedData();
-  
-  // Check for existing session
-  const session = getDB('session', null);
-  if (session) {
-    const user = getCurrentUser();
-    if (user) {
-      launchApp();
+  // Wait a moment for Supabase to initialize, then load data
+  setTimeout(async () => {
+    await initDataStore();
+    
+    // Check for admin URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const isAdminURL = urlParams.get('vibe-control-7x9kq2m');
+    
+    if (isAdminURL) {
+      // Admin URL - check Supabase for owner
+      const ownerExists = await checkOwnerExists();
+      if (ownerExists) {
+        // Owner exists in Supabase - show login
+        showPage('login');
+        toast('Log in with your owner account 👑', 'info');
+      } else {
+        // No owner - show setup
+        showPage('admin-setup');
+        document.getElementById('modal-admin-setup').classList.remove('hidden');
+      }
       return;
     }
-  }
-  
-  // Show landing page
-  showPage('landing');
-  if (typeof updateBetaUI === 'function') updateBetaUI();
+    
+    // Check for existing session
+    const session = getSession();
+    if (session) {
+      const user = _usersCache.find(u => u.username === session);
+      if (user) {
+        launchApp();
+        return;
+      }
+    }
+    
+    // Seed demo data in Supabase
+    await seedDemoData();
+    
+    // Show landing page
+    showPage('landing');
+    if (typeof updateBetaUI === 'function') updateBetaUI();
+  }, 500);
 }
 
 // Simple init - handled by init() at bottom of file
