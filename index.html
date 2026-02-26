@@ -5351,18 +5351,17 @@ function init() {
   // Clear localStorage but keep session flags
   const stayLoggedIn = localStorage.getItem('vh_stay_logged_in');
   const currentSession = localStorage.getItem('vh_session');
-  const ownerSetup = localStorage.getItem('vh_owner_setup');
+  // owner_setup flag is no longer restored from localStorage; rely on Supabase state
   
   // Clear everything
   Object.keys(localStorage).forEach(key => {
     if (key.startsWith('vh_')) localStorage.removeItem(key);
   });
   
-  // Restore essential flags
+  // Restore essential flags (stay logged in and session only)
   if (stayLoggedIn) localStorage.setItem('vh_stay_logged_in', 'true');
   if (currentSession) localStorage.setItem('vh_session', currentSession);
-  if (ownerSetup) localStorage.setItem('vh_owner_setup', ownerSetup);
-
+  // owner_setup not restored from localStorage
   // Update currentSession variable
   currentSession = getDB('session', null);
 
@@ -5485,7 +5484,9 @@ async function fetchFromSupabaseFirst() {
 function continueInit() {
   // Check for admin slug in URL AFTER data is loaded
   if (window.location.hash.includes(ADMIN_SLUG) || window.location.search.includes(ADMIN_SLUG)) {
-    if (!getOwnerSetup()) {
+    // Determine owner existence from Supabase data (in local cache)
+    const hasOwner = (getUsers() || []).some(u => u.role === 'owner');
+    if (!hasOwner) {
       document.getElementById('modal-admin-setup').classList.remove('hidden');
       document.getElementById('page-landing').classList.remove('hidden');
       return;
