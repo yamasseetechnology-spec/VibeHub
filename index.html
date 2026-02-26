@@ -1258,6 +1258,12 @@ if (window.FIREBASE_READY) {
       <label>Password</label>
       <input type="password" id="login-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="stay-logged-in" style="width:auto;">
+        <span>Stay Logged In</span>
+      </label>
+    </div>
     <button class="btn btn-primary w-full" style="justify-content:center;padding:13px;" onclick="doLogin()">Log In</button>
     <div class="auth-switch">Don't have an account? <a href="#" onclick="showPage('register')">Join VibeHub</a></div>
     <div class="auth-switch" style="margin-top:6px;"><a href="#" onclick="showPage('landing')" style="color:var(--text3);font-size:13px;">← Back to Home</a></div>
@@ -2259,7 +2265,7 @@ function syncWithSupabase() {
       if (!merged.find(ln => ln.id === sn.id)) {
         merged.push({
           id: sn.id,
-          userId: sn.clerk_id,
+          userId: sn.user_id,
           type: sn.type,
           text: sn.text,
           read: sn.read || false,
@@ -2663,6 +2669,7 @@ function handleSearch(val) {
 function doLogin() {
   const userVal = document.getElementById('login-user').value.trim();
   const pass = document.getElementById('login-pass').value;
+  const stayLoggedIn = document.getElementById('stay-logged-in')?.checked;
 
   if (!userVal || !pass) { toast('Fill in all fields', 'error'); return; }
 
@@ -2670,6 +2677,13 @@ function doLogin() {
   const user = users.find(u => (u.username === userVal || u.email === userVal) && u.password === pass);
 
   if (!user) { toast('Wrong username or password', 'error'); return; }
+
+  // Handle stay logged in
+  if (stayLoggedIn) {
+    localStorage.setItem('vh_stay_logged_in', 'true');
+  } else {
+    localStorage.removeItem('vh_stay_logged_in');
+  }
 
   setSession(user.username);
   launchApp();
@@ -2789,6 +2803,7 @@ function doAdminLogin() {
 }
 
 function doLogout() {
+  localStorage.removeItem('vh_stay_logged_in');
   clearSession();
   showPage('landing');
 }
@@ -5343,10 +5358,56 @@ window.VibeSyncEngine = VibeSyncEngine;
 // INIT
 // ══════════════════════════════════════
 function init() {
-  seedData();
-  addNavItems();
+  // Clear localStorage but keep session flags
+  const stayLoggedIn = localStorage.getItem('vh_stay_logged_in');
+  const currentSession = localStorage.getItem('vh_session');
+  const ownerSetup = localStorage.getItem('vh_owner_setup');
+  
+  // Clear everything
+  Object.keys(localStorage).forEach(key => {
+    if (key.startsWith('vh_')) localStorage.removeItem(key);
+  });
+  
+  // Restore essential flags
+  if (stayLoggedIn) localStorage.setItem('vh_stay_logged_in', 'true');
+  if (currentSession) localStorage.setItem('vh_session', currentSession);
+  if (ownerSetup) localStorage.setItem('vh_owner_setup', ownerSetup);
 
-  // Attach event listeners to landing page buttons (fallback if onclick fails)
+  // Update currentSession variable
+  currentSession = getDB('session', null);
+
+  // Attach button listeners (these work even before data loads)
+  addNavItems();
+  attachLandingButtons();
+
+  // Check for admin slug in URL first
+  if (window.location.hash.includes(ADMIN_SLUG) || window.location.search.includes(ADMIN_SLUG)) {
+    if (!getOwnerSetup()) {
+      document.getElementById('modal-admin-setup').classList.remove('hidden');
+      document.getElementById('page-landing').classList.remove('hidden');
+      return;
+    } else {
+      document.getElementById('modal-admin-login').classList.remove('hidden');
+      document.getElementById('page-landing').classList.remove('hidden');
+      return;
+    }
+  }
+
+  // Try to fetch from Supabase first
+  if (supabase) {
+    fetchFromSupabaseFirst().then(() => {
+      continueInit();
+    }).catch(() => {
+      // If Supabase fails, continue anyway
+      continueInit();
+    });
+  } else {
+    // No Supabase, just continue
+    continueInit();
+  }
+}
+
+function attachLandingButtons() {
   var navLoginBtn = document.getElementById('nav-login-btn');
   var landingJoinBtn = document.getElementById('landing-join-btn');
   var heroJoinBtn = document.getElementById('hero-join-btn');
@@ -5356,22 +5417,84 @@ function init() {
   if (navLoginBtn) navLoginBtn.onclick = function() { showPage('login'); };
   if (heroJoinBtn) heroJoinBtn.onclick = function() { showPage('register'); };
   if (heroLoginBtn) heroLoginBtn.onclick = function() { showPage('login'); };
+}
 
-  // Check for admin slug in URL
-  if (window.location.hash.includes(ADMIN_SLUG) || window.location.search.includes(ADMIN_SLUG)) {
-    if (!getOwnerSetup()) {
-      // No owner yet - show setup modal
-      document.getElementById('modal-admin-setup').classList.remove('hidden');
-      document.getElementById('page-landing').classList.remove('hidden');
-      return;
-    } else {
-      // Owner exists - show login modal
-      document.getElementById('modal-admin-login').classList.remove('hidden');
-      document.getElementById('page-landing').classList.remove('hidden');
-      return;
-    }
+async function fetchFromSupabaseFirst() {
+  if (!supabase) return;
+  
+  // Show loading state on landing
+  showPage('landing');
+  
+  // Fetch users
+  const { data: users } = await supabase.from('users').select('*');
+  if (users && users.length > 0) {
+    const formattedUsers = users.map(su => ({
+      id: su.id,
+      username: su.username,
+      email: su.email,
+      name: su.name,
+      bio: su.bio || '',
+      avatar: su.avatar || '',
+      theme: su.theme || 'purple',
+      banner: su.banner || 'purple',
+      role: su.role || 'user',
+      registered: true,
+      password: su.password || ''
+    }));
+    setDB('users', formattedUsers);
   }
+  
+  // Fetch posts
+  const { data: posts } = await supabase.from('posts').select('*').order('created_at', { ascending: false });
+  if (posts && posts.length > 0) {
+    const formattedPosts = posts.map(p => ({
+      id: p.id,
+      userId: p.user_id || p.username,
+      text: p.text,
+      tags: p.tags || [],
+      likes: p.likes || [],
+      dislikes: p.dislikes || [],
+      comments: p.comments || [],
+      reactions: p.reactions || { cap: [], relate: [], wild: [], facts: [] },
+      type: p.media_type || p.type || 'text',
+      imageData: p.image_data || p.media_url || '',
+      videoData: p.video_data || '',
+      time: new Date(p.created_at).getTime()
+    }));
+    setDB('posts', formattedPosts);
+  }
+  
+  // Fetch channels
+  const { data: channels } = await supabase.from('channels').select('*');
+  if (channels && channels.length > 0) {
+    const formattedChannels = channels.map(sc => ({
+      id: sc.id,
+      ownerId: sc.owner_id,
+      name: sc.name,
+      desc: sc.description,
+      category: sc.category,
+      emoji: sc.emoji_banner,
+      subs: sc.subscribers || []
+    }));
+    setDB('channels', formattedChannels);
+  }
+  
+  // Fetch notifications
+  const { data: notifs } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
+  if (notifs && notifs.length > 0) {
+    const formattedNotifs = notifs.map(sn => ({
+      id: sn.id,
+      userId_id,
+      type: sn.type,
+      text: sn.text,
+      read: sn.read || false,
+      time: new Date(sn.created_at).getTime()
+    }));
+    setDB('notifs', formattedNotifs);
+  }
+}
 
+function continueInit() {
   // Check for existing session
   if (currentSession && getCurrentUser()) {
     launchApp();
@@ -5380,7 +5503,7 @@ function init() {
     updateBetaUI();
   }
   
-  // Background sync with Supabase - non-blocking
+  // Start background sync
   syncWithSupabase();
 }
 
