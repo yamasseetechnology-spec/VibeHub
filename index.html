@@ -7,7 +7,15 @@
 <link rel="icon" href="https://i.ibb.co/Fqnj3JKp/1000001392.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function() {
+  var s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+  s.onload = function() { window.supabaseReady = true; console.log('Supabase loaded'); };
+  s.onerror = function() { console.log('Supabase failed - using localStorage'); };
+  document.head.appendChild(s);
+})();
+</script>
 <style>
 :root {
   --bg: #08080f;
@@ -1995,19 +2003,19 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 let supabase = null;
 
-// Initialize Supabase only if the library is loaded
-(function initSupabase() {
+// Initialize Supabase - waits for async load
+function initSupabase() {
   try {
-    if (typeof window !== 'undefined' && window.supabase) {
+    if (window.supabaseReady && window.supabase) {
       supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       console.log('Supabase connected');
     } else {
-      console.log('Supabase library not loaded, using localStorage only');
+      console.log('Supabase not ready, using localStorage only');
     }
   } catch(e) {
     console.log('Supabase init failed:', e.message);
   }
-})();
+}
 
 // ══════════════════════════════════════
 // DATA STORE (localStorage + Supabase Background Sync)
@@ -5272,6 +5280,7 @@ document.addEventListener('click', e => {
 
 try {
   init();
+  initSupabase();
 } catch(e) {
   console.error('Init error:', e);
   // Fallback: show landing page anyway
