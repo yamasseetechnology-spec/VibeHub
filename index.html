@@ -2076,14 +2076,8 @@ if (window.FIREBASE_READY) {
 // ══════════════════════════════════════
 // CONSTANTS & CONFIG
 // ══════════════════════════════════════
-// DEMO_MODE is controlled via window.VIBEHUB_DEMO_MODE.
-// In production, leave window.VIBEHUB_DEMO_MODE undefined/false so Clerk is the only auth source.
-const DEMO_MODE = !!window.VIBEHUB_DEMO_MODE;
-// Owner/admin setup flows are restricted to demo/staging only.
-// In production, admins should be created via migrations or server-side tooling,
-// not via a client-exposed key or slug.
-const OWNER_SETUP_KEY = DEMO_MODE ? 'vibehub-owner-2025' : null;
-const ADMIN_SLUG = DEMO_MODE ? 'vibe-control-7x9kq2m' : null;
+// All data stored in Supabase - no localStorage fallback
+const ADMIN_SLUG = 'vibe-control-7x9kq2m';
 const MAX_BETA_USERS = 10; // First 10 users get in FREE
 
 // Square Payment Links (Production)
@@ -2140,6 +2134,204 @@ function getSupabase() {
   return supabaseClient;
 }
 
+// ══════════════════════════════════════
+// CLOUD DATA MANAGER (Supabase-Only Storage)
+// ══════════════════════════════════════
+
+// In-memory cache for cloud data
+let cloudCache = {
+  users: [],
+  posts: [],
+  channels: [],
+  notifications: [],
+  messages: {},
+  products: [],
+  friends: {},
+  friendRequests: [],
+  statusChannels: [],
+  collabPosts: [],
+  syncSpaces: [],
+  session: null,
+  ownerSetup: false,
+  loaded: false
+};
+
+// Initialize all cloud data from Supabase
+async function initCloudData() {
+  if (cloudCache.loaded) return cloudCache;
+  
+  if (!supabaseClient) {
+    console.log('Waiting for Supabase...');
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return initCloudData();
+  }
+  
+  try {
+    // Load all data in parallel
+    const [users, posts, channels, notifications, products, friends, friendRequests, statusChannels, syncSpaces] = await Promise.all([
+      loadUsers(),
+      loadPosts(),
+      loadChannels(),
+      loadNotifications(),
+      loadProducts(),
+      loadFriends(),
+      loadFriendRequests(),
+      loadStatusChannels(),
+      loadSyncSpaces()
+    ]);
+    
+    // Check owner status
+    cloudCache.ownerSetup = cloudCache.users.some(u => u.role === 'owner');
+    cloudCache.loaded = true;
+    
+    console.log('Cloud data initialized:', {
+      users: cloudCache.users.length,
+      posts: cloudCache.posts.length,
+      channels: cloudCache.channels.length,
+      notifications: cloudCache.notifications.length,
+      ownerSetup: cloudCache.ownerSetup
+    });
+    
+    return cloudCache;
+  } catch (err) {
+    console.error('Failed to init cloud data:', err);
+    return cloudCache;
+  }
+}
+
+// Individual data loaders
+async function loadUsers() {
+  try {
+    const { data } = await supabaseClient.from('users').select('*');
+    cloudCache.users = data || [];
+    return cloudCache.users;
+  } catch (err) {
+    console.error('loadUsers error:', err);
+    cloudCache.users = [];
+    return [];
+  }
+}
+
+async function loadPosts() {
+  try {
+    const { data } = await supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
+    cloudCache.posts = data || [];
+    return cloudCache.posts;
+  } catch (err) {
+    console.error('loadPosts error:', err);
+    cloudCache.posts = [];
+    return [];
+  }
+}
+
+async function loadChannels() {
+  try {
+    const { data } = await supabaseClient.from('channels').select('*');
+    cloudCache.channels = data || [];
+    return cloudCache.channels;
+  } catch (err) {
+    console.error('loadChannels error:', err);
+    cloudCache.channels = [];
+    return [];
+  }
+}
+
+async function loadNotifications() {
+  try {
+    const { data } = await supabaseClient.from('notifications').select('*').order('created_at', { ascending: false });
+    cloudCache.notifications = data || [];
+    return cloudCache.notifications;
+  } catch (err) {
+    console.error('loadNotifications error:', err);
+    cloudCache.notifications = [];
+    return [];
+  }
+}
+
+async function loadProducts() {
+  try {
+    const { data } = await supabaseClient.from('marketplace').select('*');
+    cloudCache.products = data || [];
+    return cloudCache.products;
+  } catch (err) {
+    console.error('loadProducts error:', err);
+    cloudCache.products = [];
+    return [];
+  }
+}
+
+async function loadFriends() {
+  try {
+    const { data } = await supabaseClient.from('friendships').select('*');
+    cloudCache.friends = data || {};
+    return cloudCache.friends;
+  } catch (err) {
+    console.error('loadFriends error:', err);
+    cloudCache.friends = {};
+    return {};
+  }
+}
+
+async function loadFriendRequests() {
+  try {
+    const { data } = await supabaseClient.from('friend_requests').select('*');
+    cloudCache.friendRequests = data || [];
+    return cloudCache.friendRequests;
+  } catch (err) {
+    console.error('loadFriendRequests error:', err);
+    cloudCache.friendRequests = [];
+    return [];
+  }
+}
+
+async function loadStatusChannels() {
+  try {
+    const { data } = await supabaseClient.from('status_channels').select('*');
+    cloudCache.statusChannels = data || [];
+    return cloudCache.statusChannels;
+  } catch (err) {
+    console.error('loadStatusChannels error:', err);
+    cloudCache.statusChannels = [];
+    return [];
+  }
+}
+
+async function loadSyncSpaces() {
+  try {
+    const { data } = await supabaseClient.from('sync_spaces').select('*').order('created_at', { ascending: false });
+    cloudCache.syncSpaces = data || [];
+    return cloudCache.syncSpaces;
+  } catch (err) {
+    console.error('loadSyncSpaces error:', err);
+    cloudCache.syncSpaces = [];
+    return [];
+  }
+}
+
+// Session management
+function setCloudSession(username) {
+  cloudCache.session = username;
+}
+
+function getCloudSession() {
+  return cloudCache.session;
+}
+
+function clearCloudSession() {
+  cloudCache.session = null;
+}
+
+// Refresh a specific data type
+async function refreshUsers() { return loadUsers(); }
+async function refreshPosts() { return loadPosts(); }
+async function refreshChannels() { return loadChannels(); }
+async function refreshNotifications() { return loadNotifications(); }
+async function refreshProducts() { return loadProducts(); }
+async function refreshFriends() { return loadFriends(); }
+async function refreshFriendRequests() { return loadFriendRequests(); }
+async function refreshStatusChannels() { return loadStatusChannels(); }
+async function refreshSyncSpaces() { return loadSyncSpaces(); }
+
 // PAGE ROUTING - defined early so buttons work
 function showPage(page) {
   document.getElementById('page-landing').classList.add('hidden');
@@ -2161,206 +2353,176 @@ function showPage(page) {
 // DATA STORE (localStorage + Supabase Background Sync)
 // ══════════════════════════════════════
 function getDB(key, def) {
-  try { return JSON.parse(localStorage.getItem('vh_' + key)) ?? def; }
-  catch { return def; }
+  // Legacy function - redirects to cloud cache
+  if (key === 'users') return cloudCache.users;
+  if (key === 'posts') return cloudCache.posts;
+  if (key === 'channels') return cloudCache.channels;
+  if (key === 'notifs') return cloudCache.notifications;
+  if (key === 'messages') return cloudCache.messages;
+  if (key === 'products') return cloudCache.products;
+  if (key === 'friends') return cloudCache.friends;
+  if (key === 'friendRequests') return cloudCache.friendRequests;
+  if (key === 'statusChannels') return cloudCache.statusChannels;
+  if (key === 'collabPosts') return cloudCache.collabPosts;
+  if (key === 'owner_setup') return cloudCache.ownerSetup;
+  if (key === 'session') return cloudCache.session;
+  return def;
 }
 function setDB(key, val) {
-  localStorage.setItem('vh_' + key, JSON.stringify(val));
+  // Legacy function - no-op, data goes through setX functions now
 }
 
-function getUsers() { return getDB('users', []); }
-function setUsers(users) { 
-  setDB('users', users); 
-  console.log('Saving users to Supabase, count:', users.length);
-  // Save to Supabase if client is ready
+// Cloud-first get/set functions
+function getUsers() { 
+  return cloudCache.users || []; 
+}
+
+async function setUsers(users) { 
+  cloudCache.users = users;
   if (supabaseClient) {
-    supabaseClient.from('users').upsert(users.slice(0, 50).map(u => ({
-      id: u.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
-      username: u.username,
-      email: u.email,
-      name: u.name,
-      bio: u.bio || '',
-      avatar: u.avatar || '',
-      theme: u.theme || 'purple',
-      banner: u.banner || 'purple',
-      role: u.role || 'user',
-      password: u.password || '',
-      recovery: u.recovery || '',
-      paid: u.paid || false,
-      registered: u.registered || false,
-      isBeta: u.isBeta || false,
-      joined: u.joined || Date.now(),
-      owner_setup: u.owner_setup || false
-    })), { onConflict: 'id' }).then(() => {
-      console.log('Users saved to Supabase successfully');
-    }).catch((err) => {
+    try {
+      await supabaseClient.from('users').upsert(users.slice(0, 50).map(u => ({
+        id: u.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
+        username: u.username,
+        email: u.email,
+        name: u.name,
+        bio: u.bio || '',
+        avatar: u.avatar || '',
+        theme: u.theme || 'purple',
+        banner: u.banner || 'purple',
+        role: u.role || 'user',
+        password: u.password || '',
+        recovery: u.recovery || '',
+        paid: u.paid || false,
+        registered: u.registered || false,
+        isBeta: u.isBeta || false,
+        joined: u.joined || Date.now(),
+        owner_setup: u.owner_setup || false,
+        created_at: new Date().toISOString()
+      })), { onConflict: 'id' });
+      console.log('Users saved to Supabase, count:', users.length);
+    } catch (err) {
       console.error('Failed to save users to Supabase:', err);
-    });
-  } else {
-    console.log('Supabase not ready, users saved to local only');
+    }
   }
 }
 
-function getPosts() { return getDB('posts', []); }
-function setPosts(posts) { 
-  setDB('posts', posts); 
-  // Save to Supabase if client is ready
+function getPosts() { 
+  return cloudCache.posts || []; 
+}
+
+async function setPosts(posts) { 
+  cloudCache.posts = posts;
   if (supabaseClient) {
-    supabaseClient.from('posts').upsert(posts.slice(0, 50).map(p => ({
-      id: p.id,
-      user_id: p.userId,
-      username: p.userId,
-      text: p.text,
-      tags: p.tags || [],
-      likes: p.likes || [],
-      dislikes: p.dislikes || [],
-      reactions: p.reactions || { cap: [], relate: [], wild: [], facts: [] },
-      media_type: p.type || 'none',
-      image_data: p.imageData || '',
-      video_data: p.videoData || '',
-      created_at: new Date(p.time).toISOString()
-    })), { onConflict: 'id' }).then(() => {}).catch(() => {});
+    try {
+      await supabaseClient.from('posts').upsert(posts.slice(0, 50).map(p => ({
+        id: p.id,
+        user_id: p.userId,
+        username: p.userId,
+        text: p.text,
+        tags: p.tags || [],
+        likes: p.likes || [],
+        dislikes: p.dislikes || [],
+        reactions: p.reactions || { cap: [], relate: [], wild: [], facts: [] },
+        media_type: p.type || 'none',
+        image_data: p.imageData || '',
+        video_data: p.videoData || '',
+        created_at: p.time ? new Date(p.time).toISOString() : new Date().toISOString()
+      })), { onConflict: 'id' });
+    } catch (err) {
+      console.error('Failed to save posts:', err);
+    }
   }
 }
 
-// Background sync with Supabase - non-blocking
-function syncWithSupabase() {
-  // Background sync is only used in demo mode. In production, the
-  // app should rely on authenticated reads via vhDb/Clerk-backed flows.
-  if (!DEMO_MODE || !supabaseClient) return;
-  
-  // Fetch users from Supabase and merge
-  supabaseClient.from('users').select('*').then(({ data }) => {
-    if (!data || data.length === 0) return;
-    const localUsers = getUsers();
-    const supabaseClientUsers = data;
-    const merged = [...localUsers];
-    supabaseClientUsers.forEach(su => {
-      if (!merged.find(lu => lu.username === su.username)) {
-        merged.push({
-          id: su.id,
-          username: su.username,
-          email: su.email,
-          name: su.name,
-          bio: su.bio || '',
-          avatar: su.avatar || '',
-          theme: su.theme || 'purple',
-          banner: su.banner || 'purple',
-          role: su.role || 'user',
-          registered: true
-        });
-      }
-    });
-    setDB('users', merged);
-  });
-  
-  // Fetch posts from Supabase and merge
-  supabaseClient.from('posts').select('*').order('created_at', { ascending: false }).then(({ data }) => {
-    if (!data || data.length === 0) return;
-    const localPosts = getPosts();
-    const supabaseClientPosts = data.map(p => ({
-      id: p.id,
-      userId: p.user_id || p.username,
-      text: p.text,
-      tags: p.tags || [],
-      likes: p.likes || [],
-      dislikes: p.dislikes || [],
-      comments: p.comments || [],
-      reactions: p.reactions || { cap: [], relate: [], wild: [], facts: [] },
-      type: p.media_type || p.type || 'text',
-      imageData: p.image_data || p.media_url || '',
-      videoData: p.video_data || '',
-      time: new Date(p.created_at).getTime()
-    }));
-    const merged = [...localPosts];
-    supabaseClientPosts.forEach(sp => {
-      if (!merged.find(lp => lp.id === sp.id)) {
-        merged.push(sp);
-      }
-    });
-    merged.sort((a, b) => b.time - a.time);
-    setDB('posts', merged);
-    if (typeof renderFeed === 'function') renderFeed();
-  });
-  
-  // Fetch channels from Supabase and merge
-  supabaseClient.from('channels').select('*').then(({ data }) => {
-    if (!data || data.length === 0) return;
-    const localChannels = getChannels();
-    const merged = [...localChannels];
-    data.forEach(sc => {
-      if (!merged.find(lc => lc.id === sc.id)) {
-        merged.push({
-          id: sc.id,
-          ownerId: sc.owner_id,
-          name: sc.name,
-          desc: sc.description,
-          category: sc.category,
-          emoji: sc.emoji_banner,
-          subs: sc.subscribers || []
-        });
-      }
-    });
-    setDB('channels', merged);
-  });
-  
-  // Fetch notifications from Supabase and merge
-  supabaseClient.from('notifications').select('*').order('created_at', { ascending: false }).then(({ data }) => {
-    if (!data || data.length === 0) return;
-    const localNotifs = getNotifs();
-    const merged = [...localNotifs];
-    data.forEach(sn => {
-      if (!merged.find(ln => ln.id === sn.id)) {
-        merged.push({
-          id: sn.id,
-          userId: sn.user_id,
-          type: sn.type,
-          text: sn.text,
-          read: sn.read || false,
-          time: new Date(sn.created_at).getTime()
-        });
-      }
-    });
-    setDB('notifs', merged);
-  });
+// Background sync - now uses cloud cache, no need for old sync function
+// Data is kept in sync via setX functions which update both cache and Supabase
+
+// Channel functions - cloud-first
+function getChannels() { 
+  return cloudCache.channels || []; 
 }
-function getChannels() { return getDB('channels', []); }
-function setChannels(channels) { 
-  setDB('channels', channels); 
-  // Save to Supabase if client is ready
+
+async function setChannels(channels) { 
+  cloudCache.channels = channels;
   if (supabaseClient) {
-    supabaseClient.from('channels').upsert(channels.slice(0, 50).map(c => ({
-      id: c.id,
-      owner_id: c.ownerId,
-      name: c.name,
-      description: c.desc || '',
-      category: c.category || '🎵 Music',
-      emoji_banner: c.emoji || '🎬',
-      subscribers: c.subs || []
-    })), { onConflict: 'id' }).then(() => {}).catch(() => {});
+    try {
+      await supabaseClient.from('channels').upsert(channels.slice(0, 50).map(c => ({
+        id: c.id,
+        owner_id: c.ownerId,
+        name: c.name,
+        description: c.desc || '',
+        category: c.category || '🎵 Music',
+        emoji_banner: c.emoji || '🎬',
+        subscribers: c.subs || []
+      })), { onConflict: 'id' });
+    } catch (err) {
+      console.error('Failed to save channels:', err);
+    }
   }
 }
-function getMessages() { return getDB('messages', {}); }
-function setMessages(messages) { 
-  setDB('messages', messages); 
+
+// Message functions - cloud-first
+function getMessages() { 
+  return cloudCache.messages || {}; 
 }
-function getNotifs() { return getDB('notifs', []); }
-function setNotifs(notifs) { 
-  setDB('notifs', notifs); 
-  // Save to Supabase if client is ready
+
+async function setMessages(messages) { 
+  cloudCache.messages = messages;
   if (supabaseClient) {
-    supabaseClient.from('notifications').upsert(notifs.slice(0, 50).map(n => ({
-      id: n.id,
-      clerk_id: n.userId,
-      type: n.type,
-      text: n.text,
-      read: n.read || false,
-      created_at: new Date(n.time).toISOString()
-    })), { onConflict: 'id' }).then(() => {}).catch(() => {});
+    try {
+      // Save each conversation
+      for (const [convId, msgs] of Object.entries(messages)) {
+        for (const msg of msgs) {
+          await supabaseClient.from('messages').upsert({
+            id: msg.id,
+            conversation_id: convId,
+            sender_id: msg.senderId,
+            sender_username: msg.senderUsername,
+            receiver_id: msg.receiverId,
+            text: msg.text,
+            read: msg.read || false,
+            created_at: msg.time ? new Date(msg.time).toISOString() : new Date().toISOString()
+          }, { onConflict: 'id' });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to save messages:', err);
+    }
   }
 }
-function getOwnerSetup() { return getDB('owner_setup', false); }
-function setOwnerSetup(v) { setDB('owner_setup', v); }
+
+// Notification functions - cloud-first
+function getNotifs() { 
+  return cloudCache.notifications || []; 
+}
+
+async function setNotifs(notifs) { 
+  cloudCache.notifications = notifs;
+  if (supabaseClient) {
+    try {
+      await supabaseClient.from('notifications').upsert(notifs.slice(0, 50).map(n => ({
+        id: n.id,
+        clerk_id: n.userId,
+        type: n.type,
+        text: n.text,
+        read: n.read || false,
+        created_at: n.time ? new Date(n.time).toISOString() : new Date().toISOString()
+      })), { onConflict: 'id' });
+    } catch (err) {
+      console.error('Failed to save notifications:', err);
+    }
+  }
+}
+
+// Owner setup status - from cloud cache
+function getOwnerSetup() { 
+  return cloudCache.ownerSetup; 
+}
+
+function setOwnerSetup(v) { 
+  cloudCache.ownerSetup = v;
+}
 
 // Beta users = real users (non-seed) who joined free
 function getBetaCount() {
@@ -2379,40 +2541,23 @@ function isBetaOpen() {
   return getRealUserCount() < MAX_BETA_USERS;
 }
 
-// Session
-// In production (DEMO_MODE === false), Clerk/vhAuth is the single source of truth for auth.
-// The localStorage-backed session is only used when explicitly running in demo mode.
-let currentSession = DEMO_MODE ? getDB('session', null) : null;
-async function getCurrentUser() {
-  // In production, derive the current user from Clerk/vhAuth.
-  if (!DEMO_MODE && window.vhAuth && typeof window.vhAuth.getVibeHubUser === 'function') {
-    try {
-      const vhUser = await window.vhAuth.getVibeHubUser();
-      return vhUser || null;
-    } catch (e) {
-      console.warn('Error getting current user from Clerk/vhAuth:', e);
-      return null;
-    }
-  }
+// Session - cloud-based (no localStorage)
+let currentSession = null;
 
-  // In demo mode, fall back to the localStorage-backed session.
-  if (!DEMO_MODE) return null;
+async function getCurrentUser() {
   if (!currentSession) return null;
-  return getUsers().find(u => u.username === currentSession);
+  // Find user in cloud cache
+  return cloudCache.users?.find(u => u.username === currentSession) || null;
 }
+
 function setSession(username) {
-  if (!DEMO_MODE) {
-    console.warn('setSession() called while DEMO_MODE is disabled. Ignoring local session update; use Clerk for auth.');
-    return;
-  }
   currentSession = username;
-  setDB('session', username);
+  cloudCache.session = username;
 }
+
 function clearSession() {
   currentSession = null;
-  if (DEMO_MODE) {
-    localStorage.removeItem('vh_session');
-  }
+  cloudCache.session = null;
 }
 
 // Navigation history for back button
@@ -5476,116 +5621,64 @@ const VibeSyncEngine = {
 window.VibeSyncEngine = VibeSyncEngine;
 
 // ══════════════════════════════════════
-// INIT
+// INIT - Cloud-based (no localStorage)
 // ══════════════════════════════════════
-function init() {
-  // Clear localStorage but keep session flags when running in demo mode.
-  // In production, we do not restore any vh_session value and instead rely on Clerk.
-  const stayLoggedIn = localStorage.getItem('vh_stay_logged_in');
-  const persistedDemoSession = DEMO_MODE ? localStorage.getItem('vh_session') : null;
-  
-  // Clear everything
-  Object.keys(localStorage).forEach(key => {
-    if (key.startsWith('vh_')) localStorage.removeItem(key);
-  });
-  
-  // Restore essential flags (stay logged in and session only)
-  if (stayLoggedIn) localStorage.setItem('vh_stay_logged_in', 'true');
-  if (DEMO_MODE && persistedDemoSession) localStorage.setItem('vh_session', persistedDemoSession);
-  
-  // Update global currentSession variable from DB only in demo mode
-  currentSession = DEMO_MODE ? getDB('session', null) : null;
+async function init() {
+  // Clear any old localStorage data (legacy cleanup)
+  try {
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('vh_')) localStorage.removeItem(key);
+    });
+  } catch(e) {}
 
   // Attach button listeners (these work even before data loads)
   addNavItems();
   attachLandingButtons();
 
-  // Initialize Clerk (if configured) before continuing app init so that
-  // vhAuth.getVibeHubUser can reliably sync the Supabase users row
-  // for any already-signed-in Clerk user.
-  if (window.vhAuth && typeof window.vhAuth.initClerk === 'function') {
-    window.vhAuth
-      .initClerk()
-      .then(() => {
-        preInit();
-      })
-      .catch(() => {
-        // Even if Clerk fails, continue with the rest of the init flow.
-        preInit();
-      });
-  } else {
-    preInit();
-  }
+  // Initialize Supabase client first
+  initSupabase();
+
+  // Wait a moment for Supabase to initialize, then load cloud data
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // Initialize cloud data from Supabase
+  await initCloudData();
+  
+  // Now check admin URL and handle auth flow
+  handleAuthFlow();
 }
 
-// Pre-init logic that prepares data (demo Supabase fetch, etc.) and then
-// delegates into continueInit(), which relies on vhAuth.isSignedIn /
-// vhAuth.getVibeHubUser to centralize auth state.
-function preInit() {
-
-  // Check if we're on admin URL - always check Supabase for existing owner
+// Handle authentication flow based on URL and owner status
+async function handleAuthFlow() {
+  // Check if we're on admin URL
   if (window.location.hash.includes('vibe-control-7x9kq2m') || window.location.search.includes('vibe-control-7x9kq2m')) {
     console.log('Admin URL detected, checking for owner...');
     
-    // Show setup modal by default
-    document.getElementById('modal-admin-setup').classList.remove('hidden');
-    document.getElementById('page-landing').classList.remove('hidden');
+    // Refresh cloud data to get latest
+    await refreshUsers();
+    const hasOwner = cloudCache.users.some(u => u.role === 'owner');
     
-    // Check Supabase for existing owner
-    function checkForOwner() {
-      if (supabaseClient) {
-        supabaseClient.from('users').select('*').then(({ data }) => {
-          console.log('Fetched users from Supabase:', data?.length || 0);
-          if (data && data.some(u => u.role === 'owner')) {
-            console.log('Owner found in Supabase, showing login');
-            document.getElementById('modal-admin-setup').classList.add('hidden');
-            document.getElementById('modal-admin-login').classList.remove('hidden');
-            // Save to localStorage
-            const formattedUsers = data.map(su => ({
-              id: su.id,
-              username: su.username,
-              email: su.email,
-              name: su.name,
-              bio: su.bio || '',
-              avatar: su.avatar || '',
-              theme: su.theme || 'purple',
-              banner: su.banner || 'purple',
-              role: su.role || 'user',
-              password: su.password || '',
-              recovery: su.recovery || '',
-              paid: su.paid || false,
-              registered: su.registered || false,
-              isBeta: su.isBeta || false,
-              joined: su.joined || Date.now(),
-              owner_setup: su.owner_setup || false
-            }));
-            setDB('users', formattedUsers);
-          } else {
-            console.log('No owner found in Supabase, showing setup');
-          }
-        }).catch((err) => {
-          console.error('Error fetching from Supabase:', err);
-        });
-      } else {
-        // Supabase not ready, try again
-        setTimeout(checkForOwner, 200);
-      }
+    if (hasOwner) {
+      console.log('Owner found in Supabase, showing login');
+      document.getElementById('modal-admin-setup').classList.add('hidden');
+      document.getElementById('modal-admin-login').classList.remove('hidden');
+      document.getElementById('page-landing').classList.remove('hidden');
+    } else {
+      console.log('No owner found in Supabase, showing setup');
+      document.getElementById('modal-admin-setup').classList.remove('hidden');
+      document.getElementById('page-landing').classList.remove('hidden');
     }
-    
-    // Start checking after a short delay
-    setTimeout(checkForOwner, 500);
-    return;
+  } else {
+    // Normal flow - continue to app
+    continueInit();
   }
+}
 
-  // Try to fetch from Supabase first to sync data
-  if (supabaseClient) {
-    fetchFromSupabaseFirst()
-      .then(() => {
-        continueInit();
-      })
-      .catch(() => {
-        // If Supabase fails, continue anyway
-        continueInit();
+// Pre-init logic - now handled by init() with cloud data
+// Kept for compatibility
+function preInit() {
+  continueInit();
+}
       });
   } else {
     // No Supabase, just continue
@@ -5605,129 +5698,30 @@ function attachLandingButtons() {
   if (heroLoginBtn) heroLoginBtn.onclick = function() { showPage('login'); };
 }
 
+// Legacy function - now uses initCloudData
 async function fetchFromSupabaseFirst() {
-  // Only used in demo mode for local/demo data hydration.
-  if (!DEMO_MODE || !supabaseClient) return;
-  
-  // Show loading state on landing
-  showPage('landing');
-  
-  // Fetch users
-  const { data: users } = await supabaseClient.from('users').select('*');
-  if (users && users.length > 0) {
-    const formattedUsers = users.map(su => ({
-      id: su.id,
-      username: su.username,
-      email: su.email,
-      name: su.name,
-      bio: su.bio || '',
-      avatar: su.avatar || '',
-      theme: su.theme || 'purple',
-      banner: su.banner || 'purple',
-      role: su.role || 'user',
-      password: su.password || '',
-      recovery: su.recovery || '',
-      paid: su.paid || false,
-      registered: su.registered || false,
-      isBeta: su.isBeta || false,
-      joined: su.joined || Date.now(),
-      owner_setup: su.owner_setup || false
-    }));
-    setDB('users', formattedUsers);
-    
-    // Check if owner exists and set owner_setup flag
-    const hasOwner = formattedUsers.some(u => u.role === 'owner');
-    if (hasOwner) {
-      setDB('owner_setup', true);
-    }
-  }
-  
-  // Fetch posts
-  const { data: posts } = await supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
-  if (posts && posts.length > 0) {
-    const formattedPosts = posts.map(p => ({
-      id: p.id,
-      userId: p.user_id || p.username,
-      text: p.text,
-      tags: p.tags || [],
-      likes: p.likes || [],
-      dislikes: p.dislikes || [],
-      comments: p.comments || [],
-      reactions: p.reactions || { cap: [], relate: [], wild: [], facts: [] },
-      type: p.media_type || p.type || 'text',
-      imageData: p.image_data || p.media_url || '',
-      videoData: p.video_data || '',
-      time: new Date(p.created_at).getTime()
-    }));
-    setDB('posts', formattedPosts);
-  }
-  
-  // Fetch channels
-  const { data: channels } = await supabaseClient.from('channels').select('*');
-  if (channels && channels.length > 0) {
-    const formattedChannels = channels.map(sc => ({
-      id: sc.id,
-      ownerId: sc.owner_id,
-      name: sc.name,
-      desc: sc.description,
-      category: sc.category,
-      emoji: sc.emoji_banner,
-      subs: sc.subscribers || []
-    }));
-    setDB('channels', formattedChannels);
-  }
-  
-  // Fetch notifications
-  const { data: notifs } = await supabaseClient.from('notifications').select('*').order('created_at', { ascending: false });
-  if (notifs && notifs.length > 0) {
-    const formattedNotifs = notifs.map(sn => ({
-      id: sn.id,
-      userId_id,
-      type: sn.type,
-      text: sn.text,
-      read: sn.read || false,
-      time: new Date(sn.created_at).getTime()
-    }));
-    setDB('notifs', formattedNotifs);
-  }
+  // Cloud data is now loaded via initCloudData() in init()
+  // This function kept for compatibility
+  return initCloudData();
 }
 
 async function continueInit() {
-  // Prefer Clerk as the source of truth for auth in production.
-  let hasSession = false;
-
-  if (window.vhAuth && typeof window.vhAuth.isSignedIn === 'function') {
-    try {
-      const signedIn = await window.vhAuth.isSignedIn();
-      if (signedIn && typeof window.vhAuth.getVibeHubUser === 'function') {
-        const vhUser = await window.vhAuth.getVibeHubUser();
-        if (vhUser && vhUser.username) {
-          // Keep currentSession in sync with the Clerk-backed VibeHub user.
-          currentSession = vhUser.username;
-          if (DEMO_MODE) {
-            setDB('session', currentSession);
-          }
-          hasSession = true;
-        }
-      }
-    } catch (e) {
-      console.warn('Error checking Clerk session during init:', e);
+  // Cloud-based auth - check if user is logged in via session
+  if (currentSession && cloudCache.session) {
+    // User has session, launch app
+    const user = await getCurrentUser();
+    if (user) {
+      launchApp();
+      return;
     }
   }
-
-  // In demo mode, fall back to the localStorage session if Clerk is not configured.
-  if (!hasSession && DEMO_MODE && currentSession && getCurrentUser()) {
-    hasSession = true;
+  
+  // No session - show landing page
+  showPage('landing');
+  if (typeof updateBetaUI === 'function') {
+    updateBetaUI();
   }
-
-  if (hasSession) {
-    launchApp();
-  } else {
-    showPage('landing');
-    if (typeof updateBetaUI === 'function') {
-      updateBetaUI();
-    }
-  }
+}
   
   // Start background sync
   syncWithSupabase();
