@@ -2151,7 +2151,14 @@ function setUsers(users) {
       avatar: u.avatar || '',
       theme: u.theme || 'purple',
       banner: u.banner || 'purple',
-      role: u.role || 'user'
+      role: u.role || 'user',
+      password: u.password || '',
+      recovery: u.recovery || '',
+      paid: u.paid || false,
+      registered: u.registered || false,
+      isBeta: u.isBeta || false,
+      joined: u.joined || Date.now(),
+      owner_setup: u.owner_setup || false
     })), { onConflict: 'id' }).then(() => {}).catch(() => {});
   }
 }
@@ -2438,25 +2445,7 @@ function seedData() {
   setDB('seeded', true);
 }
 
-// ══════════════════════════════════════
-// PAGE ROUTING
-// ══════════════════════════════════════
-function showPage(page) {
-  document.getElementById('page-landing').classList.add('hidden');
-  document.getElementById('page-login').classList.add('hidden');
-  document.getElementById('page-register').classList.add('hidden');
-  document.getElementById('app-shell').classList.add('hidden');
-
-  if (page === 'landing') { document.getElementById('page-landing').classList.remove('hidden'); updateBetaUI(); }
-  else if (page === 'login') document.getElementById('page-login').classList.remove('hidden');
-  else if (page === 'register') { document.getElementById('page-register').classList.remove('hidden'); updateBetaUI(); }
-  else if (page === 'admin-setup') {
-    if (getOwnerSetup()) { toast('Owner account already created.', 'error'); showPage('login'); return; }
-    document.getElementById('modal-admin-setup').classList.remove('hidden');
-    document.getElementById('page-landing').classList.remove('hidden');
-  }
-}
-
+// Navigate function
 function navigate(view, param) {
   // Push to history
   if (currentView && currentView !== view) {
@@ -2770,7 +2759,8 @@ function createOwnerAccount() {
     role: 'owner',
     recovery,
     joined: Date.now(),
-    avatar: '👑'
+    avatar: '👑',
+    owner_setup: true
   };
 
   users.push(owner);
@@ -5380,19 +5370,6 @@ function init() {
   addNavItems();
   attachLandingButtons();
 
-  // Check for admin slug in URL first
-  if (window.location.hash.includes(ADMIN_SLUG) || window.location.search.includes(ADMIN_SLUG)) {
-    if (!getOwnerSetup()) {
-      document.getElementById('modal-admin-setup').classList.remove('hidden');
-      document.getElementById('page-landing').classList.remove('hidden');
-      return;
-    } else {
-      document.getElementById('modal-admin-login').classList.remove('hidden');
-      document.getElementById('page-landing').classList.remove('hidden');
-      return;
-    }
-  }
-
   // Try to fetch from Supabase first
   if (supabase) {
     fetchFromSupabaseFirst().then(() => {
@@ -5438,10 +5415,21 @@ async function fetchFromSupabaseFirst() {
       theme: su.theme || 'purple',
       banner: su.banner || 'purple',
       role: su.role || 'user',
-      registered: true,
-      password: su.password || ''
+      password: su.password || '',
+      recovery: su.recovery || '',
+      paid: su.paid || false,
+      registered: su.registered || false,
+      isBeta: su.isBeta || false,
+      joined: su.joined || Date.now(),
+      owner_setup: su.owner_setup || false
     }));
     setDB('users', formattedUsers);
+    
+    // Check if owner exists and set owner_setup flag
+    const hasOwner = formattedUsers.some(u => u.role === 'owner');
+    if (hasOwner) {
+      setDB('owner_setup', true);
+    }
   }
   
   // Fetch posts
@@ -5495,6 +5483,19 @@ async function fetchFromSupabaseFirst() {
 }
 
 function continueInit() {
+  // Check for admin slug in URL AFTER data is loaded
+  if (window.location.hash.includes(ADMIN_SLUG) || window.location.search.includes(ADMIN_SLUG)) {
+    if (!getOwnerSetup()) {
+      document.getElementById('modal-admin-setup').classList.remove('hidden');
+      document.getElementById('page-landing').classList.remove('hidden');
+      return;
+    } else {
+      document.getElementById('modal-admin-login').classList.remove('hidden');
+      document.getElementById('page-landing').classList.remove('hidden');
+      return;
+    }
+  }
+
   // Check for existing session
   if (currentSession && getCurrentUser()) {
     launchApp();
@@ -5515,6 +5516,22 @@ document.addEventListener('click', e => {
     if (payBtn) { payBtn.textContent = 'Pay $1 & Join VibeHub 🚀'; payBtn.disabled = false; }
   }
 });
+
+// Attach button listeners immediately - before anything else
+(function attachButtonsNow() {
+  var btnIds = ['nav-login-btn', 'landing-join-btn', 'hero-join-btn', 'hero-login-btn'];
+  btnIds.forEach(function(id) {
+    var btn = document.getElementById(id);
+    if (btn && !btn._hasListener) {
+      btn._hasListener = true;
+      if (id === 'nav-login-btn' || id === 'hero-login-btn') {
+        btn.onclick = function() { showPage('login'); };
+      } else {
+        btn.onclick = function() { showPage('register'); };
+      }
+    }
+  });
+})();
 
 try {
   init();
