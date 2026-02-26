@@ -1704,22 +1704,11 @@ if (window.FIREBASE_READY) {
           <div class="payment-feature">Profile music player + Top 8</div>
         </div>
       </div>
-      <div class="form-group">
-        <label>Card Number (Demo)</label>
-        <input type="text" placeholder="4242 4242 4242 4242" id="card-number" maxlength="19" oninput="formatCard(this)">
-      </div>
-      <div class="flex gap-3">
-        <div class="form-group" style="flex:1;">
-          <label>Expiry</label>
-          <input type="text" placeholder="MM/YY" maxlength="5">
-        </div>
-        <div class="form-group" style="flex:1;">
-          <label>CVV</label>
-          <input type="text" placeholder="123" maxlength="3">
-        </div>
-      </div>
       <button class="btn btn-primary w-full" style="justify-content:center;padding:14px;" onclick="processPayment()">Pay $1 & Join VibeHub 🚀</button>
-      <div style="text-align:center;margin-top:12px;font-size:12px;color:var(--text3);">🔒 Demo only — no real charges made</div>
+      <div style="text-align:center;margin-top:12px;font-size:12px;color:var(--text3);">You'll be redirected to complete secure payment</div>
+      <div style="text-align:center;margin-top:8px;">
+        <button type="button" onclick="completeRegistration()" style="background:none;border:none;color:var(--purple);cursor:pointer;font-size:13px;text-decoration:underline;">I've already paid — Complete Registration</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1994,6 +1983,10 @@ const OWNER_SETUP_KEY = 'vibehub-owner-2025';
 const ADMIN_SLUG = 'vibe-control-7x9kq2m'; // In production, keep this secret
 const MAX_BETA_USERS = 10; // First 10 users get in FREE
 
+// Square Payment Links (Production)
+const SQUARE_SIGNUP_LINK = 'https://square.link/u/ROZgfUxo';
+const SQUARE_MARKETPLACE_LINK = 'https://square.link/u/82tj2UXK';
+
 // ══════════════════════════════════════
 // SUPABASE CONFIG
 // ══════════════════════════════════════
@@ -2001,14 +1994,20 @@ const SUPABASE_URL = 'https://osfqlabtuqpynqcdmwff.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zZnFsYWJ0dXFweW5xY2Rtd2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5ODQ3OTEsImV4cCI6MjA4NzU2MDc5MX0.LXZ-lbLiarXHSSlu8NXi0c_uvIVFxh8mw6amXGJAwtA';
 
 let supabase = null;
-if (typeof window !== 'undefined' && window.supabase) {
+
+// Initialize Supabase only if the library is loaded
+(function initSupabase() {
   try {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    console.log('Supabase connected');
+    if (typeof window !== 'undefined' && window.supabase) {
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      console.log('Supabase connected');
+    } else {
+      console.log('Supabase library not loaded, using localStorage only');
+    }
   } catch(e) {
-    console.log('Supabase unavailable, using localStorage only');
+    console.log('Supabase init failed:', e.message);
   }
-}
+})();
 
 // ══════════════════════════════════════
 // DATA STORE (localStorage + Supabase Background Sync)
@@ -2523,6 +2522,7 @@ async function doRegisterFree() {
     top8: [],
     role: 'user',
     isBeta: true,
+    paid: true,
     registered: true,
     joined: Date.now(),
     avatar: name[0]?.toUpperCase() || '?'
@@ -2581,18 +2581,9 @@ function showPaymentModal() {
 }
 
 function processPayment() {
-  const card = document.getElementById('card-number').value.replace(/\s/g,'');
-  if (card.length < 13) { toast('Enter a valid card number', 'error'); return; }
-
-  // Simulate processing
-  const btn = event.target;
-  btn.textContent = '⏳ Processing...';
-  btn.disabled = true;
-
-  setTimeout(() => {
-    closeModal('modal-payment');
-    completeRegistration();
-  }, 1500);
+  // Open Square payment link in new tab
+  window.open(SQUARE_SIGNUP_LINK, '_blank');
+  toast('Please complete payment in the new window, then return and click "I\'ve already paid"', 'info');
 }
 
 async function completeRegistration() {
@@ -2610,6 +2601,7 @@ async function completeRegistration() {
     top8: [],
     role: 'user',
     registered: true,
+    paid: true,
     isBeta: false,
     joined: Date.now(),
     avatar: name[0]?.toUpperCase() || '?'
@@ -5278,7 +5270,13 @@ document.addEventListener('click', e => {
   }
 });
 
-init();
+try {
+  init();
+} catch(e) {
+  console.error('Init error:', e);
+  // Fallback: show landing page anyway
+  document.getElementById('page-landing').classList.remove('hidden');
+}
 </script>
 </body>
 </html>
