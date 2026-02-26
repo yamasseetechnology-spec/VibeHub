@@ -2198,7 +2198,7 @@ async function setUsers(users) {
   if (sb) {
     try {
       await sb.from('users').upsert(users.slice(0, 50).map(u => ({
-        uuid: u.id || u.uuid || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
+        id: u.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
         username: u.username,
         email: u.email,
         name: u.name,
@@ -2212,7 +2212,7 @@ async function setUsers(users) {
         isBeta: u.isBeta || false,
         owner_setup: u.owner_setup || false,
         created_at: u.joined ? new Date(u.joined).toISOString() : new Date().toISOString()
-      })), { onConflict: 'uuid' });
+      })), { onConflict: 'id' });
       console.log('Users saved to Supabase');
     } catch (err) {
       console.error('Failed to save users:', err);
@@ -2229,7 +2229,7 @@ async function setPosts(posts) {
   if (sb) {
     try {
       await sb.from('posts').upsert(posts.slice(0, 50).map(p => ({
-        uuid: p.id,
+        id: p.id,
         user_id: p.userId,
         username: p.userId,
         text: p.text,
@@ -2241,7 +2241,7 @@ async function setPosts(posts) {
         image_data: p.imageData || '',
         video_data: p.videoData || '',
         created_at: p.time ? new Date(p.time).toISOString() : new Date().toISOString()
-      })), { onConflict: 'uuid' });
+      })), { onConflict: 'id' });
     } catch (err) {}
   }
 }
@@ -2255,14 +2255,14 @@ async function setChannels(channels) {
   if (sb) {
     try {
       await sb.from('channels').upsert(channels.slice(0, 50).map(c => ({
-        uuid: c.id,
+        id: c.id,
         owner_id: c.ownerId,
         name: c.name,
         description: c.desc || '',
         category: c.category || '🎵 Music',
         emoji_banner: c.emoji || '🎬',
         subscribers: c.subs || []
-      })), { onConflict: 'uuid' });
+      })), { onConflict: 'id' });
     } catch (err) {}
   }
 }
@@ -2284,13 +2284,13 @@ async function setNotifs(notifs) {
   if (sb) {
     try {
       await sb.from('notifications').upsert(notifs.slice(0, 50).map(n => ({
-        uuid: n.id,
+        id: n.id,
         clerk_id: n.userId,
         type: n.type,
         text: n.text,
         read: n.read || false,
         created_at: n.time ? new Date(n.time).toISOString() : new Date().toISOString()
-      })), { onConflict: 'uuid' });
+      })), { onConflict: 'id' });
     } catch (err) {}
   }
 }
@@ -2300,11 +2300,17 @@ async function checkOwnerExists() {
   const sb = getSupabase();
   if (!sb) return false;
   try {
-    const { data } = await sb.from('users').select('uuid').eq('role', 'owner').limit(1);
+    const { data } = await sb.from('users').select('id').eq('role', 'owner').limit(1);
     return data && data.length > 0;
   } catch (err) {
     return false;
   }
+}
+
+function getOwnerSetup() {
+  // Check if owner exists in the cache
+  const owner = _usersCache.find(u => u.role === 'owner');
+  return !!owner;
 }
 
 function setOwnerSetup(v) {
@@ -2367,7 +2373,7 @@ async function seedDemoData() {
   
   try {
     // Check if demo users already exist
-    const { data: existing } = await sb.from('users').select('uuid').like('uuid', 'demo_%').limit(1);
+    const { data: existing } = await sb.from('users').select('id').like('id', 'demo_%').limit(1);
     if (existing && existing.length > 0) {
       console.log('Demo users already exist in Supabase');
       return;
@@ -2386,7 +2392,7 @@ async function seedDemoData() {
     ];
     
     await sb.from('users').upsert(demoUsers.map(u => ({
-      uuid: 'demo_' + u.username,
+        id: 'demo_' + u.username,
       username: u.username,
       email: u.email,
       name: u.name,
@@ -2398,7 +2404,7 @@ async function seedDemoData() {
       isBeta: u.isBeta,
       paid: false,
       created_at: new Date(u.joined).toISOString()
-    })), { onConflict: 'uuid' });
+    })), { onConflict: 'id' });
     
     // Reload data
     await initDataStore();
@@ -2726,7 +2732,7 @@ function createOwnerAccount() {
   const sb = getSupabase();
   if (sb) {
     sb.from('users').upsert({
-      uuid: owner.id,
+        id: owner.id,
       username: owner.username,
       email: owner.email,
       name: owner.name,
@@ -2740,7 +2746,7 @@ function createOwnerAccount() {
       isBeta: true,
       owner_setup: true,
       created_at: new Date().toISOString()
-    }, { onConflict: 'uuid' }).then(() => {
+    }, { onConflict: 'id' }).then(() => {
       console.log('Owner saved to Supabase');
     }).catch((err) => {
       console.error('Failed to save owner to Supabase:', err);
