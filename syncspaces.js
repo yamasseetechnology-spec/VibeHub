@@ -8,6 +8,10 @@
 const MAX_ROOM_USERS = 125;
 const ROOM_DURATION_HOURS = 24;
 
+// Shared Supabase client (singleton from vhSupabase)
+const supabaseClient =
+  (window.vhSupabase && window.vhSupabase.getClient()) || null;
+
 // Glow levels based on messages sent
 const GLOW_LEVELS = [
   { min: 0, max: 5, color: null, name: 'silent' },

@@ -2,15 +2,17 @@
 // VIBEHUB BACKEND - SUPABASE CLIENT
 // =============================================
 // This file handles all database operations
+// using the shared vhSupabase client.
 // =============================================
 
-const { createClient } = supabase;
+const supabaseClient =
+  (window.vhSupabase && window.vhSupabase.getClient()) || null;
 
-// Initialize Supabase client
-const supabaseClient = createClient(
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY
-);
+if (!supabaseClient) {
+  console.error(
+    'Supabase client not initialized. Ensure backend/supabaseClient.js runs before backend/supabase.js.'
+  );
+}
 
 // =============================================
 // USER OPERATIONS

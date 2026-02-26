@@ -6,6 +6,7 @@
 
 // Clerk configuration
 const CLERK_PUBLISHABLE_KEY = CLERK_PUBLISHABLE_KEY || '';
+const DEMO_MODE = !!window.VIBEHUB_DEMO_MODE;
 const CLERK_SIGN_IN_URL = '/sign-in';
 const CLERK_SIGN_UP_URL = '/sign-up';
 const CLERK_AFTER_SIGN_IN_URL = '/';
@@ -206,6 +207,11 @@ async function isAdmin() {
 let demoUser = null;
 
 function initDemoMode() {
+  if (!DEMO_MODE) {
+    console.warn('initDemoMode() called while DEMO_MODE is disabled. No demo session will be created.');
+    return null;
+  }
+
   // Check for demo session
   const demoSession = localStorage.getItem('vibehub_demo_session');
   if (demoSession) {
@@ -229,6 +235,10 @@ function initDemoMode() {
 }
 
 function getDemoUser() {
+  if (!DEMO_MODE) {
+    return null;
+  }
+
   if (!demoUser) {
     initDemoMode();
   }
@@ -236,6 +246,9 @@ function getDemoUser() {
 }
 
 function clearDemoSession() {
+  if (!DEMO_MODE) {
+    return;
+  }
   localStorage.removeItem('vibehub_demo_session');
   demoUser = null;
 }
