@@ -2309,8 +2309,21 @@ async function checkOwnerExists() {
 
 function getOwnerSetup() {
   // Check if owner exists in the cache
-  const owner = _usersCache.find(u => u.role === 'owner');
-  return !!owner;
+  if (_usersCache && _usersCache.length > 0) {
+    const owner = _usersCache.find(u => u.role === 'owner');
+    if (owner) return true;
+  }
+  // If we have a session, assume owner (user logged in before)
+  const session = getSession();
+  if (session) return true;
+  // Check URL - if admin URL, we want to show login since owner exists in Supabase
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('vibe-control-7x9kq2m')) {
+    // Admin URL - owner was created in Supabase, show login
+    return true;
+  }
+  // Default to showing setup
+  return false;
 }
 
 function setOwnerSetup(v) {
@@ -2504,14 +2517,17 @@ function bottomAdminClick() {
   } else if (!appShell.classList.contains('hidden')) {
     toast('Owner access only 🛡️', 'error');
   } else {
-    // On landing/auth pages — show admin setup (unless dismissed)
+    // On landing/auth pages — check if owner exists in Supabase
     if (getOwnerSetup()) {
-      showPage('login');
+      // Show admin login modal
+      showPage('landing');
+      document.getElementById('modal-admin-login').classList.remove('hidden');
       setTimeout(() => {
-        document.getElementById('login-user').focus();
-        toast('Log in with your owner account 👑', 'info');
+        document.getElementById('admin-login-user').focus();
       }, 100);
-    } else if (!getDB('owner_setup_dismissed', false)) {
+    } else {
+      // Show setup modal
+      showPage('landing');
       document.getElementById('modal-admin-setup').classList.remove('hidden');
     }
   }
