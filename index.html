@@ -1105,7 +1105,7 @@ if (window.FIREBASE_READY) {
 <nav class="landing-nav">
     <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" class="site-logo-lg" onclick="showPage('landing')" alt="VibeHub">
     <div class="flex gap-2">
-      <button class="btn btn-outline btn-sm" onclick="showPage('login')">Log In</button>
+      <button class="btn btn-outline btn-sm" onclick="showPage('login')" id="nav-login-btn">Log In</button>
       <button class="btn btn-primary btn-sm" onclick="showPage('register')" id="landing-join-btn">Create Free Beta Account</button>
     </div>
   </nav>
@@ -1117,7 +1117,7 @@ if (window.FIREBASE_READY) {
     <div id="landing-beta-status" style="margin-bottom:16px;"></div>
     <div class="landing-ctas">
       <button class="btn btn-primary" onclick="showPage('register')" id="hero-join-btn" style="padding:14px 32px;font-size:16px;">Create Free Beta Account 🚀</button>
-      <button class="btn btn-outline" onclick="showPage('login')" style="padding:14px 32px;font-size:16px;">Already a member</button>
+      <button class="btn btn-outline" onclick="showPage('login')" id="hero-login-btn" style="padding:14px 32px;font-size:16px;">Already a member</button>
     </div>
   </div>
 
@@ -2014,6 +2014,23 @@ function initSupabase() {
     }
   } catch(e) {
     console.log('Supabase init failed:', e.message);
+  }
+}
+
+// PAGE ROUTING - defined early so buttons work
+function showPage(page) {
+  document.getElementById('page-landing').classList.add('hidden');
+  document.getElementById('page-login').classList.add('hidden');
+  document.getElementById('page-register').classList.add('hidden');
+  document.getElementById('app-shell').classList.add('hidden');
+
+  if (page === 'landing') { document.getElementById('page-landing').classList.remove('hidden'); if(typeof updateBetaUI==='function')updateBetaUI(); }
+  else if (page === 'login') document.getElementById('page-login').classList.remove('hidden');
+  else if (page === 'register') { document.getElementById('page-register').classList.remove('hidden'); if(typeof updateBetaUI==='function')updateBetaUI(); }
+  else if (page === 'admin-setup') {
+    if (typeof getOwnerSetup !== 'undefined' && getOwnerSetup()) { if(typeof toast==='function')toast('Owner account already created.', 'error'); showPage('login'); return; }
+    document.getElementById('modal-admin-setup').classList.remove('hidden');
+    document.getElementById('page-landing').classList.remove('hidden');
   }
 }
 
@@ -5241,6 +5258,17 @@ window.VibeSyncEngine = VibeSyncEngine;
 function init() {
   seedData();
   addNavItems();
+
+  // Attach event listeners to landing page buttons (fallback if onclick fails)
+  var navLoginBtn = document.getElementById('nav-login-btn');
+  var landingJoinBtn = document.getElementById('landing-join-btn');
+  var heroJoinBtn = document.getElementById('hero-join-btn');
+  var heroLoginBtn = document.getElementById('hero-login-btn');
+  
+  if (landingJoinBtn) landingJoinBtn.onclick = function() { showPage('register'); };
+  if (navLoginBtn) navLoginBtn.onclick = function() { showPage('login'); };
+  if (heroJoinBtn) heroJoinBtn.onclick = function() { showPage('register'); };
+  if (heroLoginBtn) heroLoginBtn.onclick = function() { showPage('login'); };
 
   // Check for admin slug in URL
   if (window.location.hash.includes(ADMIN_SLUG) || window.location.search.includes(ADMIN_SLUG)) {
