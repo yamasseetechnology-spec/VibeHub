@@ -1297,6 +1297,7 @@ label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px
   display: flex;
   flex-direction: column;
   align-items: center;
+  filter: drop-shadow(0 0 20px rgba(255,255,255,0.3));
   animation: reactionPop 900ms ease-out forwards;
 }
 .reaction-feedback-emoji { font-size: 48px; }
@@ -1306,10 +1307,10 @@ label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px
   text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
 @keyframes reactionPop {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
-  20% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
-  40% { transform: translate(-50%, -50%) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -60%); }
+  0% { opacity: 0; transform: translate(-50%, -50%) translateY(0) scale(0.5); }
+  20% { opacity: 1; transform: translate(-50%, -50%) translateY(-10px) scale(1.2); }
+  40% { transform: translate(-50%, -50%) translateY(-5px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translateY(-30px) scale(1); }
 }
 
 /* ── WAVE BUTTON ── */
@@ -4100,6 +4101,7 @@ function renderPostCard(post, isFeatured = false) {
 
 // Show reaction feedback overlay with emoji and name
 function showReactionFeedback(emoji, reactionName) {
+  console.log('showReactionFeedback called:', emoji, reactionName);
   const overlay = document.createElement('div');
   overlay.className = 'reaction-feedback-overlay';
   overlay.innerHTML = `
@@ -4107,7 +4109,11 @@ function showReactionFeedback(emoji, reactionName) {
     <div class="reaction-feedback-text">${reactionName}</div>
   `;
   document.body.appendChild(overlay);
-  setTimeout(() => overlay.remove(), 900);
+  console.log('Overlay element created and appended to body');
+  setTimeout(() => {
+    console.log('Removing overlay');
+    overlay.remove();
+  }, 900);
 }
 
 function toggleReaction(postId, type) {
@@ -4182,6 +4188,7 @@ function toggleReaction(postId, type) {
         sendLiveReaction(postId, emojiMap[type]);
         // Show feedback overlay
         const reactionNamesLocal = { cap: 'Cap', relate: 'Relate', wild: 'Wild', facts: 'Facts', heart: 'Heart', fire: 'Fire' };
+        console.log('Showing feedback for:', type, 'emoji:', emojiMap[type], 'name:', reactionNamesLocal[type]);
         showReactionFeedback(emojiMap[type], reactionNamesLocal[type] || type);
       }
       if (post.userId !== me.username) {
