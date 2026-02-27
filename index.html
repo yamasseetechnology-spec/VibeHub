@@ -2142,6 +2142,134 @@ function getSupabase() {
   return supabaseClient;
 }
 
+// Upload file to Supabase Storage
+async function uploadMedia(file, bucket) {
+  const sb = getSupabase();
+  if (!sb) { console.error('Supabase not ready'); return null; }
+  
+  try {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+    
+    const { data, error } = await sb.storage
+      .from(bucket)
+      .upload(fileName, file, { cacheControl: '3600', upsert: false });
+    
+    if (error) {
+      console.error('Upload error:', error);
+      return null;
+    }
+    
+    // Get public URL
+    const { data: urlData } = sb.storage.from(bucket).getPublicUrl(fileName);
+    return urlData.publicUrl;
+  } catch (err) {
+    console.error('Upload failed:', err);
+    return null;
+  }
+}
+
+// Real-time subscriptions
+let _postsSubscription = null;
+let _channelsSubscription = null;
+let _notifsSubscription = null;
+
+function initRealtimeSubscriptions() {
+  const sb = getSupabase();
+  if (!sb) return;
+  
+  // Subscribe to new posts
+  if (!_postsSubscription) {
+    _postsSubscription = sb.channel('realtime-posts')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload) => {
+        const newPost = payload.new;
+        const posts = getPosts();
+        const exists = posts.find(p => p.id === newPost.id);
+        if (!exists) {
+          posts.unshift({
+            ...newPost,
+            userId: newPost.user_id,
+            time: new Date(newPost.created_at).getTime()
+          });
+          _postsCache = posts;
+          if (document.getElementById('feed-posts')) {
+            renderFeed('all');
+          }
+        }
+      })
+      .subscribe();
+  }
+  
+  // Subscribe to new channel videos
+  if (!_channelsSubscription) {
+    _channelsSubscription = sb.channel('realtime-channels')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'channels' }, (payload) => {
+        const updatedChannel = payload.new;
+        const channels = getChannels();
+        const idx = channels.findIndex(c => c.id === updatedChannel.id);
+        if (idx !== -1) {
+          channels[idx] = {
+            ...channels[idx],
+            ...updatedChannel,
+            ownerId: updatedChannel.owner_id,
+            desc: updatedChannel.description,
+            emoji: updatedChannel.emoji_banner,
+            subs: updatedChannel.subscribers,
+            videos: updatedChannel.videos || []
+          };
+          _channelsCache = channels;
+        }
+      })
+      .subscribe();
+  }
+  
+  // Subscribe to new notifications
+  if (!_notifsSubscription) {
+    _notifsSubscription = sb.channel('realtime-notifs')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
+        const newNotif = payload.new;
+        const me = getCurrentUser();
+        if (newNotif.user_id === me?.username) {
+          const notifs = getNotifs();
+          notifs.unshift({
+            id: newNotif.id,
+            type: newNotif.type,
+            fromUser: newNotif.clerk_id,
+            toUser: newNotif.user_id,
+            text: newNotif.message,
+            time: new Date(newNotif.created_at).getTime(),
+            read: false
+          });
+          _notifsCache = notifs;
+          // Update notification badge
+          const badge = document.getElementById('notif-badge');
+          if (badge) {
+            badge.textContent = notifs.filter(n => !n.read).length;
+            badge.style.display = notifs.filter(n => !n.read).length > 0 ? 'block' : 'none';
+          }
+        }
+      })
+      .subscribe();
+  }
+  
+  console.log('Realtime subscriptions initialized');
+}
+
+function cleanupRealtimeSubscriptions() {
+  if (_postsSubscription) {
+    _postsSubscription.unsubscribe();
+    _postsSubscription = null;
+  }
+  if (_channelsSubscription) {
+    _channelsSubscription.unsubscribe();
+    _channelsSubscription = null;
+  }
+  if (_notifsSubscription) {
+    _notifsSubscription.unsubscribe();
+    _notifsSubscription = null;
+  }
+}
+
 // Run on page load
 initSupabaseClient();
 
@@ -2239,7 +2367,8 @@ async function initDataStore() {
         ownerId: c.owner_id,
         desc: c.description,
         emoji: c.emoji_banner,
-        subs: c.subscribers
+        subs: c.subscribers,
+        videos: c.videos || []
       }));
     } catch (e) { console.log('Channels table not available'); }
     
@@ -2399,10 +2528,27 @@ async function setChannels(channels) {
         description: c.desc || '',
         category: c.category || '🎵 Music',
         emoji_banner: c.emoji || '🎬',
-        subscribers: c.subs || []
+        subscribers: c.subs || [],
+        videos: c.videos || []
       })), { onConflict: 'id' });
-    } catch (err) {}
+    } catch (err) {
+      console.error('Failed to save channels:', err);
+    }
   }
+}
+
+// Notify channel subscribers when new video is uploaded
+function notifyChannelSubscribers(channelId, videoTitle) {
+  const channels = getChannels();
+  const channel = channels.find(c => c.id === channelId);
+  if (!channel || !channel.subs) return;
+  
+  const me = getCurrentUser();
+  channel.subs.forEach(sub => {
+    if (sub !== me.username) {
+      addNotif(sub, 'video', me.username, `uploaded "${videoTitle}" to ${channel.name}`, channelId);
+    }
+  });
 }
 
 // Message functions - Supabase only
@@ -2773,6 +2919,7 @@ function doLogin() {
         _usersCache.push({...user, password: pass});
       }
       launchApp();
+      initRealtimeSubscriptions();
       toast('Welcome back, ' + user.name + '! ✌️', 'success');
     });
   } else {
@@ -2925,6 +3072,7 @@ function doAdminLogin() {
         _usersCache.push({...user, password: pass});
       }
       launchApp();
+      initRealtimeSubscriptions();
       navigate('admin');
       toast('Welcome back, ' + user.name + ' 👑', 'success');
     });
@@ -2985,14 +3133,21 @@ function switchFeedTab(tab, btn) {
 
 let postImageData = null;
 let postVideoData = null;
+let postImageFile = null;
+let postVideoFile = null;
 
 function handlePostImage(input) {
   const file = input.files[0];
   if (!file) return;
+  
+  // Store file for upload
+  postImageFile = file;
+  postVideoFile = null;
+  
+  // Show preview using file API
   const reader = new FileReader();
   reader.onload = e => {
     postImageData = e.target.result;
-    postVideoData = null;
     document.getElementById('composer-preview').innerHTML = `<img src="${e.target.result}" style="max-height:200px;border-radius:8px;margin-top:4px;">`;
   };
   reader.readAsDataURL(file);
@@ -3001,10 +3156,15 @@ function handlePostImage(input) {
 function handlePostVideo(input) {
   const file = input.files[0];
   if (!file) return;
+  
+  // Store file for upload
+  postVideoFile = file;
+  postImageFile = null;
+  
+  // Show preview using file API
   const reader = new FileReader();
   reader.onload = e => {
     postVideoData = e.target.result;
-    postImageData = null;
     document.getElementById('composer-preview').innerHTML = `<video src="${e.target.result}" controls style="max-height:200px;border-radius:8px;margin-top:4px;width:100%;"></video>`;
   };
   reader.readAsDataURL(file);
@@ -3032,6 +3192,20 @@ async function createPost() {
   const user = getCurrentUser();
   const tags = (text.match(/#(\w+)/g) || []).map(t => t.slice(1));
 
+  let mediaUrl = '';
+  let mediaType = 'text';
+  
+  // Upload image or video if present
+  if (postImageFile) {
+    toast('Uploading image...', 'info');
+    mediaUrl = await uploadMedia(postImageFile, 'posts');
+    mediaType = 'image';
+  } else if (postVideoFile) {
+    toast('Uploading video...', 'info');
+    mediaUrl = await uploadMedia(postVideoFile, 'posts');
+    mediaType = 'video';
+  }
+
   const post = {
     id: 'p_' + Date.now(),
     userId: user.username,
@@ -3041,9 +3215,9 @@ async function createPost() {
     dislikes: [],
     comments: [],
     time: Date.now(),
-    type: postVideoData ? 'video' : postImageData ? 'image' : 'text',
-    imageData: postImageData,
-    videoData: postVideoData
+    type: mediaType,
+    imageData: mediaType === 'image' ? mediaUrl : null,
+    videoData: mediaType === 'video' ? mediaUrl : null
   };
 
   const posts = getPosts();
@@ -3054,6 +3228,8 @@ async function createPost() {
   document.getElementById('composer-preview').innerHTML = '';
   postImageData = null;
   postVideoData = null;
+  postImageFile = null;
+  postVideoFile = null;
 
   renderFeed('all');
   toast('Vibe posted! ✌️', 'success');
@@ -4462,11 +4638,23 @@ let editBanner = null;
 let editMood = null;
 let editTop8 = null;
 let editAvatarImage = null;
+let editAvatarFile = null;
 
-function selectTheme(color, el) {
-  editTheme = color;
-  document.querySelectorAll('#theme-color-picker .color-swatch').forEach(s => s.classList.remove('active'));
-  el.classList.add('active');
+function handleProfileImageUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  
+  // Store file for upload
+  editAvatarFile = file;
+  
+  // Show preview
+  const reader = new FileReader();
+  reader.onload = e => {
+    editAvatarImage = e.target.result;
+    document.getElementById('profile-image-preview').innerHTML = 
+      `<img src="${e.target.result}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;">`;
+  };
+  reader.readAsDataURL(file);
 }
 
 function selectBanner(color, el) {
@@ -4545,7 +4733,7 @@ function renderTop8Editor_preview() {
   }).join('');
 }
 
-function saveProfile() {
+async function saveProfile() {
   const me = getCurrentUser();
   const users = getUsers();
   const idx = users.findIndex(u => u.username === me.username);
@@ -4573,10 +4761,21 @@ function saveProfile() {
   // Profile Background
   users[idx].profileBackground = document.getElementById('edit-profile-background').value.trim();
   
-  // Profile Image (handled by compressImage function)
-  if (editAvatarImage) {
-    users[idx].avatarImage = editAvatarImage;
-    users[idx].avatar = editAvatarImage;
+  // Profile Image - upload to Supabase Storage if file provided
+  if (editAvatarFile) {
+    toast('Uploading profile picture...', 'info');
+    const avatarUrl = await uploadMedia(editAvatarFile, 'avatars');
+    if (avatarUrl) {
+      users[idx].avatarImage = avatarUrl;
+      users[idx].avatar = avatarUrl;
+      users[idx].avatar_url = avatarUrl;
+    } else {
+      // Fallback to base64 if upload fails
+      if (editAvatarImage) {
+        users[idx].avatarImage = editAvatarImage;
+        users[idx].avatar = editAvatarImage;
+      }
+    }
   }
   
   if (editTheme) users[idx].theme = editTheme;
@@ -4585,7 +4784,7 @@ function saveProfile() {
   if (editTop8) users[idx].top8 = editTop8.filter(Boolean);
 
   setUsers(users);
-  editTheme = null; editBanner = null; editMood = null; editTop8 = null; editAvatarImage = null;
+  editTheme = null; editBanner = null; editMood = null; editTop8 = null; editAvatarImage = null; editAvatarFile = null;
   updateSidebarUser();
   toast('Profile saved! Looking fresh ✨', 'success');
   navigate('profile', me.username);
