@@ -2274,7 +2274,7 @@ async function setUsers(users) {
   if (sb) {
     try {
       await sb.from('users').upsert(users.slice(0, 50).map(u => ({
-        id: u.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
+        uuid: u.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
         username: u.username,
         email: u.email,
         name: u.name,
@@ -2284,11 +2284,11 @@ async function setUsers(users) {
         banner_url: u.banner || u.banner_url || 'purple',
         role: u.role || 'user',
         recovery: u.recovery || '',
-        paid: u.paid || false,
-        isBeta: u.isBeta || false,
+        is_beta: u.isBeta || u.is_beta || false,
         owner_setup: u.owner_setup || false,
+        paid: u.paid || false,
         created_at: u.joined ? new Date(u.joined).toISOString() : new Date().toISOString()
-      })), { onConflict: 'id' });
+      })), { onConflict: 'uuid' });
       console.log('Users saved to Supabase');
     } catch (err) {
       console.error('Failed to save users:', err);
@@ -2304,21 +2304,35 @@ async function setPosts(posts) {
   const sb = getSupabase();
   if (sb) {
     try {
-      await sb.from('posts').upsert(posts.slice(0, 50).map(p => ({
-        id: p.id,
-        user_id: p.userId,
-        username: p.userId,
-        text: p.text,
-        tags: p.tags || [],
-        likes: p.likes || [],
-        dislikes: p.dislikes || [],
-        reactions: p.reactions || { cap: [], relate: [], wild: [], facts: [] },
-        media_type: p.type || 'none',
-        image_data: p.imageData || '',
-        video_data: p.videoData || '',
-        created_at: p.time ? new Date(p.time).toISOString() : new Date().toISOString()
-      })), { onConflict: 'id' });
-    } catch (err) {}
+      await sb.from('posts').upsert(posts.slice(0, 50).map(p => {
+        // Combine image and video URLs into media_url
+        let mediaUrl = '';
+        if (p.imageData) mediaUrl = p.imageData;
+        if (p.videoData) mediaUrl = mediaUrl ? mediaUrl + '|' + p.videoData : p.videoData;
+        
+        return {
+          id: p.id,
+          user_id: p.userId, // Keep as text for now
+          username: p.username || p.userId,
+          text: p.text,
+          tags: p.tags || [],
+          likes: p.likes || [],
+          dislikes: p.dislikes || [],
+          reactions: p.reactions || { cap: [], relate: [], wild: [], facts: [] },
+          media_type: p.type || 'none',
+          media_url: mediaUrl,
+          created_at: p.time ? new Date(p.time).toISOString() : new Date().toISOString(),
+          clerk_id: '',
+          user_avatar: p.avatar || '',
+          comment_count: 0,
+          link_preview: null,
+          mood: p.mood || ''
+        };
+      }), { onConflict: 'id' });
+      console.log('Posts saved to Supabase');
+    } catch (err) {
+      console.error('Failed to save posts:', err);
+    }
   }
 }
 
@@ -2751,7 +2765,9 @@ function createOwnerAccount() {
     recovery,
     joined: Date.now(),
     avatar: '👑',
-    owner_setup: true
+    owner_setup: true,
+    isBeta: true,
+    paid: true
   };
 
   users.push(owner);
@@ -2761,7 +2777,7 @@ function createOwnerAccount() {
   const sb = getSupabase();
   if (sb) {
     sb.from('users').upsert({
-        id: owner.id,
+        uuid: owner.id,
       username: owner.username,
       email: owner.email,
       name: owner.name,
@@ -2772,10 +2788,10 @@ function createOwnerAccount() {
       role: owner.role,
       recovery: owner.recovery,
       paid: true,
-      isBeta: true,
+      is_beta: true,
       owner_setup: true,
       created_at: new Date().toISOString()
-    }, { onConflict: 'id' }).then(() => {
+    }, { onConflict: 'uuid' }).then(() => {
       console.log('Owner saved to Supabase');
     }).catch((err) => {
       console.error('Failed to save owner to Supabase:', err);
