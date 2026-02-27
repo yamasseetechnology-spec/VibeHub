@@ -1085,13 +1085,36 @@ label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px
 
 /* ── VIBE LIKE BUTTON ── */
 .vibe-like-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 16px; border-radius: 50px; border: 1px solid var(--border2);
-  background: transparent; color: var(--text2); font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: all .2s;
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  padding: 8px 16px;
+  border-radius: 50px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .15s;
 }
 .vibe-like-btn:hover { border-color: var(--pink); color: var(--pink); background: rgba(236,72,153,0.1); }
 .vibe-like-btn.liked { border-color: var(--pink); color: var(--pink); background: rgba(236,72,153,0.15); }
+
+/* We Vibin Tab */
+.feed-tab[data-wevibin] { background: linear-gradient(135deg, var(--purple), var(--pink)); }
+.feed-tab[data-wevibin].active { box-shadow: 0 0 20px rgba(139,92,246,0.4); }
+
+/* Content Tags */
+.content-tags-selector { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.content-tag-option {
+  padding: 4px 10px; border-radius: 20px; font-size: 11px;
+  background: var(--bg3); color: var(--text2); cursor: pointer;
+  border: 1px solid var(--border2); transition: all .15s;
+}
+.content-tag-option:hover { border-color: var(--purple); color: var(--purple); }
+.content-tag-option.selected { background: var(--purple); color: #fff; border-color: var(--purple); }
+
+/* Top 8 Supabase Indicator */
+.top8-sync-status { font-size: 10px; color: var(--text3); margin-top: 4px; }
+.top8-sync-status.synced { color: var(--green); }
 
 /* ── FRIEND REQUEST BUTTONS ── */
 .friend-req-btns { display: flex; gap: 8px; margin-top: 8px; }
@@ -1389,10 +1412,11 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
 
     <!-- HOME VIEW -->
     <div id="view-home" class="view hidden">
-      <div class="feed-tabs">
+<div class="feed-tabs">
         <button class="feed-tab active" onclick="switchFeedTab('all', this)">✨ All Vibes</button>
         <button class="feed-tab" onclick="switchFeedTab('friends', this)">👥 Friends</button>
         <button class="feed-tab" onclick="switchFeedTab('trending', this)">🔥 Trending</button>
+        <button class="feed-tab" onclick="switchFeedTab('wevibin', this)" data-wevibin>✨ We Vibin</button>
       </div>
 
       <div class="post-composer card">
@@ -2279,7 +2303,52 @@ function initRealtimeSubscriptions() {
   // Subscribe to online users presence
   subscribeToPresence();
   
+  // Subscribe to Top 8 Vibes changes
+  subscribeToTopVibes();
+  
+  // Subscribe to Vibe Likes
+  subscribeToVibeLikes();
+  
   console.log('Realtime subscriptions initialized');
+}
+
+// Subscribe to Top 8 Vibes changes
+function subscribeToTopVibes() {
+  const sb = getSupabase();
+  const user = getCurrentUser();
+  if (!sb || !user?.id) return;
+  
+  sb.channel('top_vibes_changes')
+    .on('postgres_changes', { 
+      event: '*', 
+      schema: 'public', 
+      table: 'top_vibes',
+      filter: `user_id=eq.${user.id}`
+    }, async (payload) => {
+      console.log('Top vibes changed:', payload);
+      await loadTopVibesToUser();
+      renderProfile(user.username);
+    })
+    .subscribe();
+}
+
+// Subscribe to Vibe Likes
+function subscribeToVibeLikes() {
+  const sb = getSupabase();
+  const user = getCurrentUser();
+  if (!sb || !user?.id) return;
+  
+  sb.channel('vibe_likes_changes')
+    .on('postgres_changes', { 
+      event: 'INSERT', 
+      schema: 'public', 
+      table: 'vibe_likes',
+      filter: `receiver_id=eq.${user.id}`
+    }, (payload) => {
+      console.log('New vibe like received:', payload);
+      addNotif(payload.new.sender_id, 'vibe_like', payload.new.from_username || 'Someone', 'liked your vibe!', null);
+    })
+    .subscribe();
 }
 
 // Subscribe to DM messages
@@ -2666,6 +2735,12 @@ async function initDataStore() {
         });
       }
     } catch (e) { console.log('Sync space messages table not available'); }
+    
+    // Load Top 8 Vibes from Supabase for current user
+    const me = getCurrentUser();
+    if (me?.id) {
+      await loadTopVibesToUser();
+    }
     
     _initialized = true;
     console.log('Data loaded from Supabase');
@@ -3540,6 +3615,11 @@ async function createPost() {
   
   await setPosts(posts);
 
+  // Update user interests based on post tags (for We Vibin)
+  if (tags.length > 0) {
+    updateInterestsOnPost(tags);
+  }
+
   document.getElementById('post-composer-input').value = '';
   document.getElementById('composer-preview').innerHTML = '';
   postImageData = null;
@@ -3590,6 +3670,15 @@ function renderFeed(tab) {
       };
       return calcScore(b) - calcScore(a);
     });
+  } else if (tab === 'wevibin') {
+    loadWeVibinFeed().then(wevibinPosts => {
+      if (wevibinPosts.length === 0) {
+        container.innerHTML = `<div class="empty-state"><div class="empty-icon">✨</div><div class="empty-title">No similar vibes yet</div><div class="empty-desc">Post with tags to find your vibe match!</div></div>`;
+      } else {
+        container.innerHTML = wevibinPosts.map(p => renderPostCard(p)).join('');
+      }
+    });
+    return;
   }
 
   if (posts.length === 0) {
@@ -3982,6 +4071,286 @@ function sharePost(postId) {
     .then(() => toast('Link copied!', 'success'))
     .catch(() => toast('Post #' + postId + ' — share link ready!', 'success'));
   toast('Share link copied to clipboard!', 'success');
+}
+
+// ============================================
+// TOP 8 VIBES - SUPABASE BACKED
+// ============================================
+
+async function fetchTopVibesFromSupabase(userId) {
+  const sb = getSupabase();
+  if (!sb || !userId) return [];
+  
+  try {
+    const { data, error } = await sb
+      .from('top_vibes')
+      .select('friend_id, position, users(username, avatar_url)')
+      .eq('user_id', userId)
+      .order('position');
+    
+    if (error) { console.error('fetchTopVibes error:', error); return []; }
+    return data || [];
+  } catch (err) { console.error('fetchTopVibes exception:', err); return []; }
+}
+
+async function addToTopVibes(friendUsername) {
+  const me = getCurrentUser();
+  const sb = getSupabase();
+  if (!me || !sb) { toast('Please log in', 'error'); return; }
+  
+  const friendUser = users.find(u => u.username === friendUsername);
+  if (!friendUser?.id) { toast('User not found', 'error'); return; }
+  
+  try {
+    const { count } = await sb
+      .from('top_vibes')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', me.id);
+    
+    if (count >= 8) {
+      toast('Top 8 is full! Remove someone first.', 'error');
+      return;
+    }
+    
+    const maxPos = await sb
+      .from('top_vibes')
+      .select('position')
+      .eq('user_id', me.id)
+      .order('position', { ascending: false })
+      .limit(1)
+      .single();
+    
+    const nextPos = (maxPos.data?.position || 0) + 1;
+    
+    const { error } = await sb
+      .from('top_vibes')
+      .insert({ user_id: me.id, friend_id: friendUser.id, position: nextPos });
+    
+    if (error) { toast(error.message, 'error'); return; }
+    
+    toast('Added to Top 8! ⭐', 'success');
+    renderProfile(me.username);
+  } catch (err) { console.error('addToTopVibes error:', err); toast('Failed to add', 'error'); }
+}
+
+async function removeFromTopVibes(friendUsername) {
+  const me = getCurrentUser();
+  const sb = getSupabase();
+  if (!me || !sb) return;
+  
+  const friendUser = users.find(u => u.username === friendUsername);
+  if (!friendUser?.id) return;
+  
+  try {
+    await sb.from('top_vibes').delete()
+      .eq('user_id', me.id)
+      .eq('friend_id', friendUser.id);
+    
+    await reorderTopVibesPositions();
+    toast('Removed from Top 8', 'success');
+    renderProfile(me.username);
+  } catch (err) { console.error('removeFromTopVibes error:', err); }
+}
+
+async function reorderTopVibesPositions() {
+  const me = getCurrentUser();
+  const sb = getSupabase();
+  if (!me || !sb) return;
+  
+  try {
+    const { data } = await sb
+      .from('top_vibes')
+      .select('id')
+      .eq('user_id', me.id)
+      .order('position');
+    
+    for (let i = 0; i < (data?.length || 0); i++) {
+      await sb.from('top_vibes').update({ position: i + 1 }).eq('id', data[i].id);
+    }
+  } catch (err) { console.error('reorderTopVibesPositions error:', err); }
+}
+
+async function loadTopVibesToUser() {
+  const me = getCurrentUser();
+  if (!me?.id) return;
+  
+  const sb = getSupabase();
+  if (!sb) return;
+  
+  try {
+    const { data } = await sb
+      .from('top_vibes')
+      .select('friend_id, position')
+      .eq('user_id', me.id)
+      .order('position');
+    
+    if (data?.length) {
+      const friendIds = data.map(d => d.friend_id);
+      const { data: friends } = await sb
+        .from('users')
+        .select('id, username, avatar_url')
+        .in('id', friendIds);
+      
+      if (friends?.length) {
+        const top8Array = data.map(d => {
+          const f = friends.find(friend => friend.id === d.friend_id);
+          return f?.username || '';
+        }).filter(Boolean);
+        
+        const usersList = getUsers();
+        const idx = usersList.findIndex(u => u.id === me.id);
+        if (idx !== -1) {
+          usersList[idx].top8 = top8Array;
+          setUsers(usersList);
+        }
+      }
+    }
+  } catch (err) { console.error('loadTopVibesToUser error:', err); }
+}
+
+// ============================================
+// WE VIBIN TIMELINE
+// ============================================
+
+async function loadWeVibinFeed() {
+  const me = getCurrentUser();
+  const sb = getSupabase();
+  if (!me?.id || !sb) {
+    return getPosts().filter(p => p.userId !== me?.username).slice(0, 20);
+  }
+  
+  try {
+    const { data, error } = await sb.rpc('get_we_vibin_timeline', {
+      current_user_id: me.id,
+      limit_count: 20
+    });
+    
+    if (error) { console.error('We Vibin error:', error); }
+    
+    if (data?.length) {
+      return data.map(p => ({
+        id: p.id,
+        userId: p.username,
+        text: p.text,
+        tags: p.tags,
+        created_at: p.created_at,
+        _wevibinScore: p.overlap_score
+      }));
+    }
+    
+    return getPosts().filter(p => p.userId !== me.username).slice(0, 20);
+  } catch (err) { console.error('loadWeVibinFeed error:', err); }
+  return [];
+}
+
+async function updateInterestsOnPost(tags) {
+  const me = getCurrentUser();
+  const sb = getSupabase();
+  if (!me?.id || !sb || !tags?.length) return;
+  
+  for (const tag of tags) {
+    try {
+      const interest = tag.toLowerCase().trim();
+      if (!interest) continue;
+      
+      const { data: existing } = await sb
+        .from('user_interests')
+        .select('id, weight')
+        .eq('user_id', me.id)
+        .eq('interest', interest)
+        .single();
+      
+      if (existing) {
+        await sb.from('user_interests')
+          .update({ weight: (existing.weight || 0) + 1 })
+          .eq('id', existing.id);
+      } else {
+        await sb.from('user_interests')
+          .insert({ user_id: me.id, interest: interest, weight: 1 });
+      }
+    } catch (err) { console.error('updateInterestsOnPost error:', err); }
+  }
+}
+
+// ============================================
+// I LIKE YOUR VIBE - SUPABASE BACKED
+// ============================================
+
+async function likeUserVibeSupabase(username) {
+  const me = getCurrentUser();
+  const sb = getSupabase();
+  if (!me || !sb) { toast('Please log in', 'error'); return; }
+  if (me.username === username) { toast("Can't vibe yourself 😅", 'error'); return; }
+  
+  const profileUser = users.find(u => u.username === username);
+  if (!profileUser?.id) { toast('User not found', 'error'); return; }
+  
+  try {
+    const { data: existing } = await sb
+      .from('vibe_likes')
+      .select('id')
+      .eq('sender_id', me.id)
+      .eq('receiver_id', profileUser.id)
+      .single();
+    
+    if (existing) {
+      await sb.from('vibe_likes').delete().eq('id', existing.id);
+      toast('Removed vibe like', 'info');
+    } else {
+      await sb.from('vibe_likes').insert({
+        sender_id: me.id,
+        receiver_id: profileUser.id
+      });
+      
+      await sb.from('notifications').insert({
+        user_id: profileUser.id,
+        clerk_id: me.username,
+        type: 'vibe_like',
+        from_user_id: me.id,
+        from_username: me.username,
+        message: 'liked your vibe!'
+      });
+      
+      toast('You like their vibe! 💜', 'success');
+    }
+    
+    renderProfile(username);
+  } catch (err) { console.error('likeUserVibeSupabase error:', err); toast('Failed', 'error'); }
+}
+
+async function getVibeLikeCountSupabase(username) {
+  const sb = getSupabase();
+  const profileUser = users.find(u => u.username === username);
+  if (!sb || !profileUser?.id) return 0;
+  
+  try {
+    const { count, error } = await sb
+      .from('vibe_likes')
+      .select('*', { count: 'exact', head: true })
+      .eq('receiver_id', profileUser.id);
+    
+    return count || 0;
+  } catch (err) { return 0; }
+}
+
+async function checkUserVibed(username) {
+  const me = getCurrentUser();
+  const sb = getSupabase();
+  if (!me?.id || !sb) return false;
+  
+  const profileUser = users.find(u => u.username === username);
+  if (!profileUser?.id) return false;
+  
+  try {
+    const { data } = await sb
+      .from('vibe_likes')
+      .select('id')
+      .eq('sender_id', me.id)
+      .eq('receiver_id', profileUser.id)
+      .single();
+    
+    return !!data;
+  } catch (err) { return false; }
 }
 
 function openComments(postId) {
@@ -5854,10 +6223,18 @@ function renderBadge(username) {
 function getVibeLikes() { return getDB('vibeLikes', {}); }
 function setVibeLikes(v) { setDB('vibeLikes', v); }
 
-function likeUserVibe(username) {
+async function likeUserVibe(username) {
   if (!currentSession) { toast('Log in first', 'error'); return; }
   const me = getCurrentUser();
   if (me.username === username) { toast("Can't vibe yourself 😅", 'error'); return; }
+  
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      await likeUserVibeSupabase(username);
+      return;
+    } catch (err) { console.error('Supabase vibe like failed, falling back:', err); }
+  }
   
   const likes = getVibeLikes();
   if (!likes[username]) likes[username] = [];
@@ -5876,7 +6253,14 @@ function likeUserVibe(username) {
   setNotifs(notifs);
 }
 
-function getVibeLikeCount(username) {
+async function getVibeLikeCount(username) {
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      const count = await getVibeLikeCountSupabase(username);
+      if (count > 0) return count;
+    } catch (err) { console.error('Supabase getVibeLikeCount failed:', err); }
+  }
   const likes = getVibeLikes();
   return likes[username]?.length || 0;
 }
