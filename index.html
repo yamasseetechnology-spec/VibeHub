@@ -2731,7 +2731,13 @@ async function completeRegistration() {
 
   const users = getUsers();
   users.push(newUser);
-  setUsers(users);
+  
+  try {
+    await setUsers(users);
+  } catch (err) {
+    toast('Failed to save account. Please try again.', 'error');
+    return;
+  }
 
   setSession(username);
   launchApp();
@@ -2773,31 +2779,6 @@ function createOwnerAccount() {
 
   users.push(owner);
   setUsers(users);
-  
-  // Save directly to Supabase immediately
-  const sb = getSupabase();
-  if (sb) {
-    sb.from('users').upsert({
-        id: owner.id,
-      username: owner.username,
-      email: owner.email,
-      name: owner.name,
-      bio: owner.bio,
-      avatar_url: owner.avatar,
-      theme: owner.theme,
-      banner_url: owner.banner,
-      role: owner.role,
-      recovery: owner.recovery,
-      paid: true,
-      is_beta: true,
-      owner_setup: true,
-      created_at: new Date().toISOString()
-    }, { onConflict: 'id' }).then(() => {
-      console.log('Owner saved to Supabase');
-    }).catch((err) => {
-      console.error('Failed to save owner to Supabase:', err);
-    });
-  }
   
   setOwnerSetup(true);
 
