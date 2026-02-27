@@ -4089,8 +4089,8 @@ function renderPostCard(post, isFeatured = false) {
         <button class="post-action commented" onclick="openComments('${post.id}')">
           💬 <span>${post.comments.length}</span>
         </button>
-        <button class="post-action" style="color:var(--red);" onclick="sendLiveReaction('${post.id}','❤️')" title="Send live reaction">❤️</button>
-        <button class="post-action" style="color:var(--orange);" onclick="sendLiveReaction('${post.id}','🔥')" title="Send live reaction">🔥</button>
+        <button class="post-action" style="color:var(--red);" onclick="toggleReaction('${post.id}','heart')" title="Heart">❤️</button>
+        <button class="post-action" style="color:var(--orange);" onclick="toggleReaction('${post.id}','fire')" title="Fire">🔥</button>
         <button class="post-action" onclick="sharePost('${post.id}')">🔗 Share</button>
       </div>
       ${commentPreview}
@@ -4127,7 +4127,9 @@ function toggleReaction(postId, type) {
     'cap': '🤥',
     'relate': '🙌',
     'wild': '🦄',
-    'facts': '📢'
+    'facts': '📢',
+    'heart': '❤️',
+    'fire': '🔥'
   };
   
   // Reaction names for feedback overlay
@@ -4137,7 +4139,9 @@ function toggleReaction(postId, type) {
     'cap': 'Cap',
     'relate': 'Relate',
     'wild': 'Wild',
-    'facts': 'Facts'
+    'facts': 'Facts',
+    'heart': 'Heart',
+    'fire': 'Fire'
   };
 
   if (type === 'like') {
@@ -4162,7 +4166,7 @@ function toggleReaction(postId, type) {
       showReactionFeedback('👎', 'Dislike');
     }
   } else {
-    // New reactions: cap, relate, wild, facts
+    // New reactions: cap, relate, wild, facts, heart, fire
     if (!post.reactions) post.reactions = {};
     if (!post.reactions[type]) post.reactions[type] = [];
     
@@ -4177,11 +4181,11 @@ function toggleReaction(postId, type) {
       if (emojiMap[type]) {
         sendLiveReaction(postId, emojiMap[type]);
         // Show feedback overlay
-        const reactionNames = { cap: 'Cap', relate: 'Relate', wild: 'Wild', facts: 'Facts' };
-        showReactionFeedback(emojiMap[type], reactionNames[type] || type);
+        const reactionNamesLocal = { cap: 'Cap', relate: 'Relate', wild: 'Wild', facts: 'Facts', heart: 'Heart', fire: 'Fire' };
+        showReactionFeedback(emojiMap[type], reactionNamesLocal[type] || type);
       }
       if (post.userId !== me.username) {
-        const notifText = { cap: 'called cap on', relate: 'related to', wild: 'said was wild about', facts: 'dropped facts on' };
+        const notifText = { cap: 'called cap on', relate: 'related to', wild: 'said was wild about', facts: 'dropped facts on', heart: 'admired', fire: 'doped' };
         addNotif(post.userId, type, me.username, notifText[type] + ' your post', postId);
       }
     }
