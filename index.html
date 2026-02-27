@@ -2212,24 +2212,80 @@ async function initDataStore() {
   try {
     // Load users first - this is critical
     const usersRes = await sb.from('users').select('*');
-    _usersCache = usersRes.data || [];
+    _usersCache = (usersRes.data || []).map(u => ({
+      ...u,
+      id: u.id,
+      avatar: u.avatar_url,
+      banner: u.banner_url,
+      isBeta: u.is_beta,
+      joined: new Date(u.created_at).getTime()
+    }));
     console.log('Users loaded from Supabase:', _usersCache.length);
     
     // Try to load other data but don't fail if they don't exist
     try {
       const postsRes = await sb.from('posts').select('*');
-      _postsCache = postsRes.data || [];
+      _postsCache = (postsRes.data || []).map(p => ({
+        ...p,
+        userId: p.user_id,
+        time: new Date(p.created_at).getTime()
+      }));
     } catch (e) { console.log('Posts table not available'); }
     
     try {
       const channelsRes = await sb.from('channels').select('*');
-      _channelsCache = channelsRes.data || [];
+      _channelsCache = (channelsRes.data || []).map(c => ({
+        ...c,
+        ownerId: c.owner_id,
+        desc: c.description,
+        emoji: c.emoji_banner,
+        subs: c.subscribers
+      }));
     } catch (e) { console.log('Channels table not available'); }
     
     try {
       const notifsRes = await sb.from('notifications').select('*');
-      _notifsCache = notifsRes.data || [];
+      const allNotifs = notifsRes.data || [];
+      _notifsCache = allNotifs.map(n => ({
+        ...n,
+        toUser: n.user_id,
+        fromUser: n.clerk_id,
+        text: n.message,
+        time: new Date(n.created_at).getTime()
+      }));
     } catch (e) { console.log('Notifications table not available'); }
+    
+    try {
+      const msgsRes = await sb.from('messages').select('*').order('created_at', { ascending: true });
+      const allMsgs = msgsRes.data || [];
+      const msgsByConvo = {};
+      allMsgs.forEach(m => {
+        const key = [m.sender_id, m.receiver_id].sort().join('-');
+        if (!msgsByConvo[key]) msgsByConvo[key] = [];
+        msgsByConvo[key].push({
+          id: m.id,
+          from: m.sender_id,
+          to: m.receiver_id,
+          text: m.message,
+          time: new Date(m.created_at).getTime(),
+          read: true
+        });
+      });
+      _messagesCache = msgsByConvo;
+    } catch (e) { console.log('Messages table not available'); }
+    
+    try {
+      const spacesRes = await sb.from('sync_spaces').select('*');
+      if (spacesRes.data && spacesRes.data.length > 0) {
+        _syncSpacesCache = spacesRes.data.map(s => ({
+          id: s.id,
+          name: s.name,
+          creator: s.creator,
+          users: s.users || [],
+          expiresAt: new Date(s.expires_at).getTime()
+        }));
+      }
+    } catch (e) { console.log('Sync spaces table not available'); }
     
     _initialized = true;
     console.log('Data loaded from Supabase');
@@ -2279,26 +2335,26 @@ async function setPosts(posts) {
   if (sb) {
     try {
       await sb.from('posts').upsert(posts.slice(0, 50).map(p => {
-        // Combine image and video URLs into media_url
         let mediaUrl = '';
         if (p.imageData) mediaUrl = p.imageData;
         if (p.videoData) mediaUrl = mediaUrl ? mediaUrl + '|' + p.videoData : p.videoData;
         
         return {
           id: p.id,
-          user_id: p.userId, // Keep as text for now
+          user_id: p.userId,
           username: p.username || p.userId,
           text: p.text,
           tags: p.tags || [],
           likes: p.likes || [],
           dislikes: p.dislikes || [],
           reactions: p.reactions || { cap: [], relate: [], wild: [], facts: [] },
+          comments: p.comments || [],
           media_type: p.type || 'none',
           media_url: mediaUrl,
           created_at: p.time ? new Date(p.time).toISOString() : new Date().toISOString(),
           clerk_id: '',
           user_avatar: p.avatar || '',
-          comment_count: 0,
+          comment_count: p.comments?.length || 0,
           link_preview: null,
           mood: p.mood || ''
         };
@@ -2334,9 +2390,28 @@ async function setChannels(channels) {
 // Message functions - Supabase only
 function getMessages() { return _messagesCache; }
 
-function setMessages(messages) { 
+async function setMessages(messages) { 
   _messagesCache = messages;
-  // Messages stored in memory for now
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      const msgsToSave = [];
+      Object.values(messages).forEach(convo => {
+        convo.forEach(m => {
+          msgsToSave.push({
+            id: m.id || 'm_' + Date.now() + Math.random().toString(36).substr(2, 9),
+            sender_id: m.from,
+            receiver_id: m.to,
+            message: m.text,
+            created_at: m.time ? new Date(m.time).toISOString() : new Date().toISOString()
+          });
+        });
+      });
+      await sb.from('messages').upsert(msgsToSave.slice(0, 100), { onConflict: 'id' });
+    } catch (err) {
+      console.error('Failed to save messages:', err);
+    }
+  }
 }
 
 // Notification functions - Supabase only
@@ -2349,7 +2424,8 @@ async function setNotifs(notifs) {
     try {
       await sb.from('notifications').upsert(notifs.slice(0, 50).map(n => ({
         id: n.id,
-        clerk_id: n.userId,
+        user_id: n.toUser,
+        clerk_id: n.fromUser,
         type: n.type,
         message: n.text,
         read: n.read || false,
@@ -3529,8 +3605,22 @@ function getSyncSpaces() {
   return _syncSpacesCache.length ? _syncSpacesCache : syncSpacesData;
 }
 
-function setSyncSpaces(spaces) {
+async function setSyncSpaces(spaces) {
   _syncSpacesCache = spaces;
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      await sb.from('sync_spaces').upsert(spaces.slice(0, 50).map(s => ({
+        id: s.id,
+        name: s.name,
+        creator: s.creator,
+        users: s.users || [],
+        expires_at: new Date(s.expiresAt).toISOString()
+      })), { onConflict: 'id' });
+    } catch (err) {
+      console.error('Failed to save sync spaces:', err);
+    }
+  }
 }
 
 function renderSyncSpaces() {
@@ -3777,7 +3867,7 @@ function sendDM(username) {
   const allMessages = getMessages();
   const key = [me.username, username].sort().join('-');
   if (!allMessages[key]) allMessages[key] = [];
-  allMessages[key].push({ from: me.username, text, time: Date.now(), read: false });
+  allMessages[key].push({ id: 'm_' + Date.now(), from: me.username, to: username, text, time: Date.now(), read: false });
   setMessages(allMessages);
 
   document.getElementById('chat-input-' + username).value = '';
@@ -3788,7 +3878,9 @@ function sendDM(username) {
 // NOTIFICATIONS
 // ══════════════════════════════════════
 function renderNotifications() {
-  const notifs = getNotifs();
+  const me = getCurrentUser();
+  const allNotifs = getNotifs();
+  const notifs = allNotifs.filter(n => n.toUser === me?.username);
   const users = getUsers();
 
   // Mark all read
@@ -3819,7 +3911,7 @@ function renderNotifications() {
 
 function addNotif(toUser, type, fromUser, text, postId) {
   const notifs = getNotifs();
-  notifs.unshift({ id: 'n_' + Date.now(), type, fromUser, text, postId, time: Date.now(), read: false });
+  notifs.unshift({ id: 'n_' + Date.now(), type, fromUser, toUser, text, postId, time: Date.now(), read: false });
   setNotifs(notifs.slice(0, 50));
 }
 
