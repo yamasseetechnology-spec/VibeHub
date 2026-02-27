@@ -1114,77 +1114,6 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
 }
 </style>
 
-<!-- ══════════════════════════════════════
-     FIREBASE SDK
-══════════════════════════════════════ -->
-<script type="module">
-/* ─────────────────────────────────────────────
-   FIREBASE SETUP — replace these values with
-   your actual Firebase project config from:
-   https://console.firebase.google.com
-   Project Settings → Your apps → Config
-
-   After adding your config:
-   1. Enable Email/Password auth in Firebase Console
-   2. Create a Firestore database
-   3. Set Firestore rules to allow authenticated users
-   4. The app will auto-sync to Firebase instead of localStorage
-──────────────────────────────────────────────── */
-const FIREBASE_CONFIG = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT.firebaseapp.com",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
-};
-
-// Detect if Firebase is configured
-window.FIREBASE_READY = FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY";
-
-if (window.FIREBASE_READY) {
-  // Dynamic import only if configured
-  import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js').then(({ initializeApp }) => {
-    import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js').then(({ getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged }) => {
-      import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js').then(({ getFirestore, collection, doc, setDoc, getDoc, getDocs, query, orderBy, onSnapshot, serverTimestamp }) => {
-        const app = initializeApp(FIREBASE_CONFIG);
-        window.fbAuth = getAuth(app);
-        window.fbDB  = getFirestore(app);
-
-        // Override localStorage auth with Firebase
-        window.fbRegister = async (email, password, userData) => {
-          const cred = await createUserWithEmailAndPassword(window.fbAuth, email, password);
-          await setDoc(doc(window.fbDB, 'users', cred.user.uid), { ...userData, uid: cred.user.uid });
-          return cred.user;
-        };
-
-        window.fbLogin = async (email, password) => {
-          const cred = await signInWithEmailAndPassword(window.fbAuth, email, password);
-          const snap = await getDoc(doc(window.fbDB, 'users', cred.user.uid));
-          return snap.data();
-        };
-
-        window.fbLogout = () => signOut(window.fbAuth);
-
-        window.fbSavePost = async (post) => {
-          await setDoc(doc(window.fbDB, 'posts', post.id), { ...post, createdAt: serverTimestamp() });
-        };
-
-        window.fbGetPosts = async () => {
-          const snap = await getDocs(query(collection(window.fbDB, 'posts'), orderBy('time', 'desc')));
-          return snap.docs.map(d => d.data());
-        };
-
-        console.log('✅ Firebase connected! VibeHub is now cloud-powered.');
-        window.dispatchEvent(new Event('firebase-ready'));
-      });
-    });
-  });
-} else {
-   console.log('ℹ️  Data stored in Supabase only. Add Firebase config for backup storage.');
-}
-</script>
-
 </head>
 <body>
 
@@ -2143,46 +2072,6 @@ function getSupabase() {
     );
   }
   return supabaseClient;
-}
-
-// Firebase Storage Functions
-function getFirebaseStorage() {
-  if (window.firebase_storage) return window.firebase_storage;
-  if (window.firebase && window.firebase.apps.length > 0) {
-    window.firebase_storage = window.firebase.storage();
-    return window.firebase_storage;
-  }
-  return null;
-}
-
-async function uploadToFirebase(file, path) {
-  const storage = getFirebaseStorage();
-  if (!storage) {
-    console.log('Firebase storage not available');
-    return null;
-  }
-  
-  try {
-    const storageRef = storage.ref(path);
-    const snapshot = await storageRef.put(file);
-    const url = await snapshot.ref.getDownloadURL();
-    console.log('Firebase upload success:', url);
-    return url;
-  } catch (err) {
-    console.error('Firebase upload error:', err);
-    return null;
-  }
-}
-
-async function uploadUserAvatar(file, username) {
-  const path = `avatars/${username}_${Date.now()}`;
-  return await uploadToFirebase(file, path);
-}
-
-async function uploadPostMedia(file, postId) {
-  const ext = file.name.split('.').pop();
-  const path = `posts/${postId}_${Date.now()}.${ext}`;
-  return await uploadToFirebase(file, path);
 }
 
 // Run on page load
