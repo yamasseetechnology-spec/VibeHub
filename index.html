@@ -16,24 +16,11 @@
   document.head.appendChild(s);
 })();
 </script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-storage.js"></script>
+<!-- Firebase disabled for now - will re-enable later with proper setup -->
 <script>
   window.VIBEHUB_SUPABASE_URL = 'https://osfqlabtuqpynqcdmwff.supabase.co';
   window.VIBEHUB_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zZnFsYWJ0dXFweW5xY2Rtd2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5ODQ3OTEsImV4cCI6MjA4NzU2MDc5MX0.LXZ-lbLiarXHSSlu8NXi0c_uvIVFxh8mw6amXGJAwtA';
-  
-  // Firebase configuration
-  window.VIBEHUB_FIREBASE_CONFIG = {
-    apiKey: "AIzaSyAlsyQmlEJjfcwZJEXxEciilJG7Vw8_cX8",
-    authDomain: "vibehub-f81f8.firebaseapp.com",
-    projectId: "vibehub-f81f8",
-    storageBucket: "vibehub-f81f8.firebasestorage.app",
-    appId: "1:1056861032290:web:a5b4f41b5326ba7134663b"
-  };
-  
-  // Initialize Firebase
-  if (window.firebase && window.firebase.apps) {
-    try {
+</script>
       window.firebase_app = window.firebase.initializeApp(window.VIBEHUB_FIREBASE_CONFIG);
       window.firebase_storage = window.firebase.storage();
       console.log('Firebase initialized');
@@ -2274,7 +2261,7 @@ async function setUsers(users) {
   if (sb) {
     try {
       await sb.from('users').upsert(users.slice(0, 50).map(u => ({
-        uuid: u.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
+        id: u.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
         username: u.username,
         email: u.email,
         name: u.name,
@@ -2288,7 +2275,7 @@ async function setUsers(users) {
         owner_setup: u.owner_setup || false,
         paid: u.paid || false,
         created_at: u.joined ? new Date(u.joined).toISOString() : new Date().toISOString()
-      })), { onConflict: 'uuid' });
+      })), { onConflict: 'id' });
       console.log('Users saved to Supabase');
     } catch (err) {
       console.error('Failed to save users:', err);
@@ -2377,11 +2364,13 @@ async function setNotifs(notifs) {
         id: n.id,
         clerk_id: n.userId,
         type: n.type,
-        text: n.text,
+        message: n.text,
         read: n.read || false,
         created_at: n.time ? new Date(n.time).toISOString() : new Date().toISOString()
       })), { onConflict: 'id' });
-    } catch (err) {}
+    } catch (err) {
+      console.error('Failed to save notifications:', err);
+    }
   }
 }
 
@@ -2777,7 +2766,7 @@ function createOwnerAccount() {
   const sb = getSupabase();
   if (sb) {
     sb.from('users').upsert({
-        uuid: owner.id,
+        id: owner.id,
       username: owner.username,
       email: owner.email,
       name: owner.name,
@@ -2791,7 +2780,7 @@ function createOwnerAccount() {
       is_beta: true,
       owner_setup: true,
       created_at: new Date().toISOString()
-    }, { onConflict: 'uuid' }).then(() => {
+    }, { onConflict: 'id' }).then(() => {
       console.log('Owner saved to Supabase');
     }).catch((err) => {
       console.error('Failed to save owner to Supabase:', err);
@@ -5427,6 +5416,16 @@ window.VibeSyncEngine = VibeSyncEngine;
 // INIT
 // ══════════════════════════════════════
 async function init() {
+  // Check for admin URL first - hide admin button if not on admin URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const isAdminURL = urlParams.get('vibe-control-7x9kq2m');
+  
+  // Hide admin button if not on admin URL
+  const adminBtn = document.getElementById('bottom-admin-btn');
+  if (adminBtn) {
+    adminBtn.style.display = isAdminURL ? '' : 'none';
+  }
+  
   // Attach button listeners
   addNavItems();
   
