@@ -2340,25 +2340,46 @@ async function initDataStore() {
   try {
     // Load users first - this is critical
     const usersRes = await sb.from('users').select('*');
+    console.log('Users response:', usersRes);
     _usersCache = (usersRes.data || []).map(u => ({
       ...u,
       id: u.id,
-      avatar: u.avatar_url,
-      banner: u.banner_url,
-      isBeta: u.is_beta,
-      joined: new Date(u.created_at).getTime()
+      username: u.username,
+      name: u.name || u.username,
+      email: u.email,
+      bio: u.bio || '',
+      avatar: u.avatar_url || u.avatar || '',
+      avatar_url: u.avatar_url || '',
+      avatarImage: u.avatar_url || '',
+      banner: u.banner_url || u.banner || 'purple',
+      banner_url: u.banner_url || '',
+      profileBackground: u.profileBackground || '',
+      theme: u.theme || 'purple',
+      role: u.role || 'user',
+      isBeta: u.is_beta || false,
+      joined: u.created_at ? new Date(u.created_at).getTime() : Date.now()
     }));
     console.log('Users loaded from Supabase:', _usersCache.length);
+    console.log('First user sample:', _usersCache[0]);
     
     // Try to load other data but don't fail if they don't exist
     try {
+      console.log('Loading posts from Supabase...');
       const postsRes = await sb.from('posts').select('*');
+      if (postsRes.error) {
+        console.error('Posts load error:', postsRes.error);
+      } else {
+        console.log('Posts loaded:', postsRes.data?.length || 0);
+      }
       _postsCache = (postsRes.data || []).map(p => ({
         ...p,
         userId: p.user_id,
+        imageData: p.media_url,
+        videoData: p.media_url,
         time: new Date(p.created_at).getTime()
       }));
-    } catch (e) { console.log('Posts table not available'); }
+      console.log('Posts in cache:', _postsCache.length);
+    } catch (e) { console.log('Posts table not available:', e); }
     
     try {
       const channelsRes = await sb.from('channels').select('*');
@@ -2481,7 +2502,8 @@ async function setPosts(posts) {
   const sb = getSupabase();
   if (sb) {
     try {
-      await sb.from('posts').upsert(posts.slice(0, 50).map(p => {
+      console.log('Saving posts to Supabase, count:', posts.length);
+      const postsToSave = posts.slice(0, 50).map(p => {
         let mediaUrl = '';
         if (p.imageData) mediaUrl = p.imageData;
         if (p.videoData) mediaUrl = mediaUrl ? mediaUrl + '|' + p.videoData : p.videoData;
@@ -2505,11 +2527,20 @@ async function setPosts(posts) {
           link_preview: null,
           mood: p.mood || ''
         };
-      }), { onConflict: 'id' });
-      console.log('Posts saved to Supabase');
+      });
+      console.log('Posts to save:', postsToSave);
+      
+      const { data, error } = await sb.from('posts').upsert(postsToSave, { onConflict: 'id' });
+      if (error) {
+        console.error('Posts save error:', error);
+      } else {
+        console.log('Posts saved to Supabase successfully');
+      }
     } catch (err) {
       console.error('Failed to save posts:', err);
     }
+  } else {
+    console.log('Supabase not available, posts not saved');
   }
 }
 
@@ -2956,6 +2987,8 @@ async function completeRegistration() {
   const pass = document.getElementById('reg-pass').value;
   const bio = document.getElementById('reg-bio').value.trim();
 
+  console.log('Creating new user:', username, name);
+  
   const newUser = {
     username, name, email, password: pass, bio,
     theme: 'purple', banner: 'purple',
@@ -2971,11 +3004,15 @@ async function completeRegistration() {
   };
 
   const users = getUsers();
+  console.log('Current users before:', users.length);
   users.push(newUser);
+  console.log('Users after push:', users.length);
   
   try {
     await setUsers(users);
+    console.log('User saved to Supabase');
   } catch (err) {
+    console.error('Failed to save user:', err);
     toast('Failed to save account. Please try again.', 'error');
     return;
   }
@@ -3190,6 +3227,7 @@ async function createPost() {
   if (!text && !postImageData && !postVideoData) { toast('Write something first!', 'error'); return; }
 
   const user = getCurrentUser();
+  console.log('Creating post, user:', user);
   const tags = (text.match(/#(\w+)/g) || []).map(t => t.slice(1));
 
   let mediaUrl = '';
@@ -3198,12 +3236,16 @@ async function createPost() {
   // Upload image or video if present
   if (postImageFile) {
     toast('Uploading image...', 'info');
+    console.log('Uploading image file:', postImageFile.name);
     mediaUrl = await uploadMedia(postImageFile, 'posts');
     mediaType = 'image';
+    console.log('Image uploaded, URL:', mediaUrl);
   } else if (postVideoFile) {
     toast('Uploading video...', 'info');
+    console.log('Uploading video file:', postVideoFile.name);
     mediaUrl = await uploadMedia(postVideoFile, 'posts');
     mediaType = 'video';
+    console.log('Video uploaded, URL:', mediaUrl);
   }
 
   const post = {
@@ -3219,10 +3261,14 @@ async function createPost() {
     imageData: mediaType === 'image' ? mediaUrl : null,
     videoData: mediaType === 'video' ? mediaUrl : null
   };
+  console.log('Created post object:', post);
 
   const posts = getPosts();
+  console.log('Current posts count before:', posts.length);
   posts.unshift(post);
-  setPosts(posts);
+  console.log('Posts count after unshift:', posts.length);
+  
+  await setPosts(posts);
 
   document.getElementById('post-composer-input').value = '';
   document.getElementById('composer-preview').innerHTML = '';
@@ -3279,9 +3325,19 @@ function renderFeed(tab) {
 
 function renderPostCard(post, isFeatured = false) {
   const users = getUsers();
-  const user = users.find(u => u.username === post.userId);
+  let user = users.find(u => u.username === post.userId);
+  // Use fallback user data if user not found - don't hide the post!
+  if (!user) {
+    user = { 
+      username: post.userId, 
+      name: post.userId, 
+      avatar: post.userId?.[0]?.toUpperCase() || '?',
+      avatar_url: '',
+      bio: '',
+      role: ''
+    };
+  }
   const me = getCurrentUser();
-  if (!user) return '';
 
   const liked = post.likes.includes(me?.username);
   const disliked = post.dislikes.includes(me?.username);
@@ -3295,10 +3351,12 @@ function renderPostCard(post, isFeatured = false) {
   const isPinned = isMyPost && (me.featuredPosts || []).includes(post.id);
   const canPin = isMyPost && (!me.featuredPosts || me.featuredPosts.length < 3);
 
-  const mediaHtml = post.type === 'image' && post.imageData
-    ? `<div class="post-media"><img src="${post.imageData}" alt="post image" loading="lazy"></div>`
-    : post.type === 'video' && post.videoData
-    ? `<div class="post-media"><video src="${post.videoData}" controls></video></div>`
+  // Handle media from both local (imageData/videoData) and Supabase (media_url)
+  const mediaUrl = post.imageData || post.videoData || post.media_url || '';
+  const mediaHtml = post.type === 'image' && mediaUrl
+    ? `<div class="post-media"><img src="${mediaUrl}" alt="post image" loading="lazy"></div>`
+    : post.type === 'video' && mediaUrl
+    ? `<div class="post-media"><video src="${mediaUrl}" controls></video></div>`
     : '';
 
   const tagsHtml = post.tags?.length
@@ -3324,7 +3382,7 @@ function renderPostCard(post, isFeatured = false) {
   return `
     <div class="post-card" id="post-${post.id}">
       <div class="post-header">
-        <div class="avatar avatar-sm" onclick="navigate('profile','${user.username}')" style="cursor:pointer;">${user.avatar || user.name[0]}</div>
+        <div class="avatar avatar-sm" onclick="navigate('profile','${user.username}')" style="cursor:pointer;${user.avatar_url ? 'background:url(' + user.avatar_url + ') center/cover;' : ''}">${user.avatar_url ? '' : (user.avatar || user.name?.[0] || '?')}</div>
         <div class="post-user-info">
           <div class="post-user-name" onclick="navigate('profile','${user.username}')">${user.name} ${user.role === 'owner' ? '<span class="verified" title="Platform Owner">👑</span>' : ''}${isPinned ? ' <span style="color:var(--gold);" title="Featured">⭐</span>' : ''}</div>
           <div class="post-meta">@${user.username} · ${timeAgo}</div>
@@ -4388,28 +4446,38 @@ function addNotif(toUser, type, fromUser, text, postId) {
 // ══════════════════════════════════════
 function renderProfile(username) {
   const users = getUsers();
+  console.log('Rendering profile for:', username);
+  console.log('Available users:', users.map(u => u.username));
   const user = users.find(u => u.username === username);
   const me = getCurrentUser();
-  if (!user) { navigate('home'); return; }
+  if (!user) { 
+    console.log('User not found, navigating home');
+    navigate('home'); 
+    return; 
+  }
+  console.log('User found:', user);
 
   const posts = getPosts().filter(p => p.userId === username);
   const channels = getChannels().filter(c => c.ownerId === username);
   const isMe = me?.username === username;
 
+  // Ensure avatar fields are set
+  const avatarUrl = user.avatar_url || user.avatarImage || user.avatar || '';
+  
   document.getElementById('topbar-title').textContent = user.name + '\'s Profile';
 
   document.getElementById('profile-content').innerHTML = `
     <div class="profile-page">
-      <div class="profile-banner theme-${user.banner || 'purple'}" ${user.profileBackground ? `style="background:url('${user.profileBackground}') center/cover;"` : ''}></div>
+      <div class="profile-banner theme-${user.banner || 'purple'}" ${user.profileBackground || user.banner_url ? `style="background:url('${user.profileBackground || user.banner_url}') center/cover;"` : ''}></div>
       <div class="profile-info-section">
         <div class="profile-avatar-wrap">
-          <div class="avatar avatar-xl" ${user.avatarImage ? `style="background:url('${user.avatarImage}') center/cover;"` : ''}>${user.avatarImage ? '' : (user.avatar || user.name[0])}</div>
+          <div class="avatar avatar-xl" ${avatarUrl ? `style="background:url('${avatarUrl}') center/cover;"` : ''}>${avatarUrl ? '' : (user.avatar || user.name?.[0] || '?')}</div>
           <div style="padding-bottom:8px;">
             ${user.role === 'owner' ? '<span class="badge badge-gold">👑 Owner</span>' : ''}
           </div>
         </div>
         <div class="profile-name">${user.name} ${user.role === 'owner' ? '👑' : ''}</div>
-        <div class="profile-handle">@${user.username} ${(function() { const r = getUserRank(username); return r.total > 1 ? '<span style="color:var(--gold);font-size:12px;margin-left:8px;">#' + r.rank + ' of ' + r.total + '</span>' : ''; })()}</div>
+        <div class="profile-handle">@${user.username}</div>
         ${(function() { const badges = calculateUserBadges(username); return badges.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0;">' + badges.map(b => '<span style="background:' + b.color + '22;border:1px solid ' + b.color + '55;color:' + b.color + ';padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;">' + b.icon + ' ' + b.label + '</span>').join('') + '</div>' : ''; })()}
         <div class="profile-bio">${user.bio || 'No bio yet.'}</div>
         ${(function() {
