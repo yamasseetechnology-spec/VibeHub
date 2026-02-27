@@ -2365,20 +2365,29 @@ async function initDataStore() {
     // Try to load other data but don't fail if they don't exist
     try {
       console.log('Loading posts from Supabase...');
-      const postsRes = await sb.from('posts').select('*');
+      const postsRes = await sb.from('posts').select('*').order('created_at', { ascending: false });
       if (postsRes.error) {
         console.error('Posts load error:', postsRes.error);
       } else {
         console.log('Posts loaded:', postsRes.data?.length || 0);
       }
       _postsCache = (postsRes.data || []).map(p => ({
-        ...p,
+        id: p.id,
         userId: p.user_id,
-        imageData: p.media_url,
-        videoData: p.media_url,
-        time: new Date(p.created_at).getTime()
+        username: p.username || p.user_id,
+        text: p.text || '',
+        tags: p.tags || [],
+        likes: p.likes || [],
+        dislikes: p.dislikes || [],
+        reactions: p.reactions || {},
+        comments: p.comments || [],
+        type: p.media_type || 'text',
+        imageData: p.media_type === 'image' ? p.media_url : null,
+        videoData: p.media_type === 'video' ? p.media_url : null,
+        time: p.created_at ? new Date(p.created_at).getTime() : Date.now()
       }));
       console.log('Posts in cache:', _postsCache.length);
+      console.log('Sample post:', _postsCache[0]);
     } catch (e) { console.log('Posts table not available:', e); }
     
     try {
@@ -2498,6 +2507,9 @@ async function setUsers(users) {
 function getPosts() { return _postsCache; }
 
 async function setPosts(posts) { 
+  // Sort by time (newest first) before saving
+  posts = posts.sort((a, b) => (b.time || 0) - (a.time || 0));
+  
   _postsCache = posts;
   const sb = getSupabase();
   if (sb) {
@@ -2505,27 +2517,29 @@ async function setPosts(posts) {
       console.log('Saving posts to Supabase, count:', posts.length);
       const postsToSave = posts.slice(0, 50).map(p => {
         let mediaUrl = '';
-        if (p.imageData) mediaUrl = p.imageData;
-        if (p.videoData) mediaUrl = mediaUrl ? mediaUrl + '|' + p.videoData : p.videoData;
+        let mediaType = 'text';
+        
+        if (p.imageData) {
+          mediaUrl = p.imageData;
+          mediaType = 'image';
+        } else if (p.videoData) {
+          mediaUrl = p.videoData;
+          mediaType = 'video';
+        }
         
         return {
           id: p.id,
           user_id: p.userId,
           username: p.username || p.userId,
-          text: p.text,
+          text: p.text || '',
           tags: p.tags || [],
           likes: p.likes || [],
           dislikes: p.dislikes || [],
           reactions: p.reactions || { cap: [], relate: [], wild: [], facts: [] },
           comments: p.comments || [],
-          media_type: p.type || 'none',
+          media_type: mediaType,
           media_url: mediaUrl,
-          created_at: p.time ? new Date(p.time).toISOString() : new Date().toISOString(),
-          clerk_id: '',
-          user_avatar: p.avatar || '',
-          comment_count: p.comments?.length || 0,
-          link_preview: null,
-          mood: p.mood || ''
+          created_at: p.time ? new Date(p.time).toISOString() : new Date().toISOString()
         };
       });
       console.log('Posts to save:', postsToSave);
@@ -2542,6 +2556,25 @@ async function setPosts(posts) {
   } else {
     console.log('Supabase not available, posts not saved');
   }
+}
+
+// Debug function to diagnose posts issues
+function diagnosePosts() {
+  console.log('=== POSTS DIAGNOSTIC ===');
+  console.log('Posts in cache:', _postsCache.length);
+  console.log('Posts:', JSON.stringify(_postsCache, null, 2));
+  console.log('Current user:', getCurrentUser());
+  console.log('Users in cache:', _usersCache.length);
+  console.log('Users:', _usersCache.map(u => u.username));
+  
+  // Check if posts have required fields
+  _postsCache.forEach((p, i) => {
+    console.log(`Post ${i}: id=${p.id}, userId=${p.userId}, text=${p.text?.substring(0, 30)}..., time=${p.time}`);
+  });
+  
+  // Check if renderFeed would work
+  const container = document.getElementById('feed-posts');
+  console.log('Feed container exists:', !!container);
 }
 
 // Channel functions - Supabase only
@@ -3285,11 +3318,18 @@ function renderFeed(tab) {
   const container = document.getElementById('feed-posts');
   let posts = getPosts();
   const user = getCurrentUser();
+  
+  console.log('Rendering feed, tab:', tab, 'posts count:', posts.length);
 
   // Update composer avatar
   const av = document.getElementById('composer-avatar');
   if (av && user) av.textContent = user.avatar || user.name[0];
 
+  // Sort ALL posts by time (newest first) for 'all' tab
+  if (tab === 'all') {
+    posts = [...posts].sort((a, b) => (b.time || 0) - (a.time || 0));
+  }
+  
   if (tab === 'friends') {
     posts = posts.filter(p => user.top8?.includes(p.userId) || p.userId === user.username);
   } else if (tab === 'trending') {
@@ -3320,6 +3360,7 @@ function renderFeed(tab) {
     return;
   }
 
+  console.log('Rendering', posts.length, 'posts');
   container.innerHTML = posts.map(p => renderPostCard(p)).join('');
 }
 
