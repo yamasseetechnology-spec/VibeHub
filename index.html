@@ -127,6 +127,56 @@
   50% { transform: translateY(-30px) scale(1.2); opacity: 1; }
 }
 
+/* Native App Feel - Smooth Transitions */
+html {
+  scroll-behavior: smooth;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn, .nav-item, .feed-tab, .post-action, .comment-reaction-btn {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn:active {
+  transform: scale(0.96);
+}
+
+.nav-item:active {
+  transform: scale(0.98);
+}
+
+.feed-tab:active {
+  transform: scale(0.95);
+}
+
+/* Smooth view transitions */
+.view {
+  animation: viewFadeIn 0.25s ease;
+}
+
+@keyframes viewFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Card hover effects */
+.card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Post card smooth render */
+.post-card {
+  animation: postFadeIn 0.3s ease;
+}
+
+@keyframes postFadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 :root {
   --bg: #08080f;
   --bg2: #0f0f1a;
@@ -1046,9 +1096,31 @@ label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px
   .bottom-bar { padding: 10px 16px; }
   .bottom-home-btn, .bottom-admin-btn { padding: 10px 16px; font-size: 13px; }
   
-  /* Feed tabs */
-  .feed-tabs { margin-bottom: 16px; }
-  .feed-tab { padding: 10px 8px; font-size: 12px; }
+/* Feed tabs - mobile icons only */
+  .feed-tabs { 
+    margin-bottom: 16px; 
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .feed-tabs::-webkit-scrollbar { display: none; }
+  .feed-tab { 
+    padding: 10px 6px; 
+    font-size: 11px; 
+    white-space: nowrap;
+    min-width: 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .feed-tab[data-icon]::before {
+    content: attr(data-icon);
+    font-size: 18px;
+    margin-bottom: 2px;
+  }
+  .feed-tab span {
+    display: none;
+  }
   
   /* Channels */
   .channels-grid { grid-template-columns: 1fr; gap: 12px; }
@@ -1540,10 +1612,10 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
     <!-- HOME VIEW -->
     <div id="view-home" class="view hidden">
 <div class="feed-tabs">
-        <button class="feed-tab active" onclick="switchFeedTab('all', this)">✨ All Vibes</button>
-        <button class="feed-tab" onclick="switchFeedTab('friends', this)">👥 Friends</button>
-        <button class="feed-tab" onclick="switchFeedTab('trending', this)">🔥 Trending</button>
-        <button class="feed-tab" onclick="switchFeedTab('wevibin', this)" data-wevibin>✨ We Vibin</button>
+        <button class="feed-tab active" data-icon="👁️" onclick="switchFeedTab('all', this)"><span>✨ All Vibes</span></button>
+        <button class="feed-tab" data-icon="👥" onclick="switchFeedTab('friends', this)"><span>👥 Friends</span></button>
+        <button class="feed-tab" data-icon="🔥" onclick="switchFeedTab('trending', this)"><span>🔥 Trending</span></button>
+        <button class="feed-tab" data-icon="✨" onclick="switchFeedTab('wevibin', this)" data-wevibin><span>✨ We Vibin</span></button>
       </div>
 
       <div class="post-composer card">
@@ -3121,7 +3193,9 @@ function getBetaSlotsLeft() {
   return Math.max(0, MAX_BETA_USERS - getRealUserCount());
 }
 function isBetaOpen() {
-  return getRealUserCount() < MAX_BETA_USERS;
+  // Check Supabase users first
+  const betaCount = _usersCache.filter(u => u.is_beta).length;
+  return betaCount < MAX_BETA_USERS;
 }
 
 // Session
@@ -3338,6 +3412,15 @@ async function doRegisterFree() {
   if (users.find(u => u.username === username)) { toast('Username already taken', 'error'); return; }
   if (users.find(u => u.email === email)) { toast('Email already registered', 'error'); return; }
 
+  // Check beta count - first 10 users are free, then $1
+  const betaCount = _usersCache.filter(u => u.is_beta).length;
+  const isFree = betaCount < 10;
+  
+  if (!isFree) {
+    showPaymentModal();
+    return;
+  }
+
   const newUser = {
     username, name, email, password: pass, bio,
     theme: 'purple', banner: 'purple',
@@ -3351,6 +3434,27 @@ async function doRegisterFree() {
     joined: Date.now(),
     avatar: name[0]?.toUpperCase() || '?'
   };
+
+  // Save to Supabase
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      await sb.from('users').insert({
+        username: username,
+        name: name,
+        email: email,
+        bio: bio || '',
+        theme: 'purple',
+        banner_gradient: 'purple',
+        role: 'user',
+        is_beta: true,
+        paid: true
+      });
+      console.log('User saved to Supabase');
+    } catch (e) {
+      console.error('Failed to save to Supabase:', e);
+    }
+  }
 
   users.push(newUser);
   setUsers(users);
@@ -4653,10 +4757,16 @@ function toggleCommentReaction(postId, userId, timestamp, type) {
         if (reply) {
           if (!reply.reactions) reply.reactions = {};
           if (!reply.reactions[type]) reply.reactions[type] = [];
-          const arr = reply.reactions[type];
+const arr = reply.reactions[type];
           const idx = arr.indexOf(me.username);
           if (idx > -1) arr.splice(idx, 1);
-          else arr.push(me.username);
+          else {
+            arr.push(me.username);
+            // Notify comment author they got a reaction
+            if (userId !== me.username) {
+              addNotif(userId, 'comment_reaction', me.username, 'reacted to your comment', postId);
+            }
+          }
           setPosts(posts);
           openComments(postId);
           return;
@@ -4669,10 +4779,16 @@ function toggleCommentReaction(postId, userId, timestamp, type) {
   if (!comment.reactions) comment.reactions = {};
   if (!comment.reactions[type]) comment.reactions[type] = [];
   
-  const arr = comment.reactions[type];
+const arr = comment.reactions[type];
   const idx = arr.indexOf(me.username);
   if (idx > -1) arr.splice(idx, 1);
-  else arr.push(me.username);
+  else {
+    arr.push(me.username);
+    // Notify comment author they got a reaction
+    if (userId !== me.username) {
+      addNotif(userId, 'comment_reaction', me.username, 'reacted to your comment', postId);
+    }
+  }
   
   setPosts(posts);
   openComments(postId);
