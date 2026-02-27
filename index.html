@@ -2257,6 +2257,7 @@ async function setUsers(users) {
         banner_url: u.banner || u.banner_url || 'purple',
         role: u.role || 'user',
         recovery: u.recovery || '',
+        password: u.password || '',
         is_beta: u.isBeta || u.is_beta || false,
         owner_setup: u.owner_setup || false,
         paid: u.paid || false,
@@ -2649,19 +2650,40 @@ function handleSearch(val) {
 function doLogin() {
   const userVal = document.getElementById('login-user').value.trim();
   const pass = document.getElementById('login-pass').value;
-  const stayLoggedIn = document.getElementById('stay-logged-in')?.checked;
 
   if (!userVal || !pass) { toast('Fill in all fields', 'error'); return; }
 
-  const users = getUsers();
-  const user = users.find(u => (u.username === userVal || u.email === userVal) && u.password === pass);
-
-  if (!user) { toast('Wrong username or password', 'error'); return; }
-
-  // Session is handled via cookies in setSession()
-  setSession(user.username);
-  launchApp();
-  toast('Welcome back, ' + user.name + '! ✌️', 'success');
+  const sb = getSupabase();
+  if (sb) {
+    sb.from('users').select('*').eq('username', userVal).then(({ data, error }) => {
+      if (error) {
+        console.error('Error fetching from Supabase:', error);
+        toast('Server error: ' + error.message, 'error');
+        return;
+      }
+      
+      if (!data || data.length === 0) {
+        toast('Wrong username or password', 'error');
+        return;
+      }
+      
+      const user = data[0];
+      
+      if (user.password !== pass) {
+        toast('Wrong username or password', 'error');
+        return;
+      }
+      
+      setSession(user.username);
+      if (!_usersCache.find(u => u.username === user.username)) {
+        _usersCache.push({...user, password: pass});
+      }
+      launchApp();
+      toast('Welcome back, ' + user.name + '! ✌️', 'success');
+    });
+  } else {
+    toast('Please wait, connecting to server...', 'info');
+  }
 }
 
 function showPaymentModal() {
