@@ -356,6 +356,58 @@ label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px
 }
 .topbar-search input:focus { box-shadow: none; }
 
+/* Mobile Navigation Dropdown */
+.mobile-nav-container {
+  display: none;
+  padding: 10px 16px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+}
+
+.mobile-nav-dropdown {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 15px;
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg3);
+  color: var(--text);
+  border: 1px solid var(--border2);
+  border-radius: 12px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23ffffff' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
+.mobile-nav-dropdown:focus {
+  outline: none;
+  border-color: var(--purple);
+}
+
+.mobile-nav-dropdown option {
+  background: var(--bg3);
+  color: var(--text);
+  padding: 12px;
+}
+
+/* Show mobile nav only on small screens */
+@media (max-width: 768px) {
+  .mobile-nav-container {
+    display: block;
+  }
+  
+  .sidebar {
+    display: none;
+  }
+  
+  .app-layout {
+    padding-left: 0;
+  }
+}
+
 /* Page views */
 .view { padding: 24px; max-width: 680px; margin: 0 auto; }
 .view-wide { padding: 24px; max-width: 1100px; margin: 0 auto; }
@@ -1300,6 +1352,22 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
       </div>
       <button class="btn btn-primary btn-sm" onclick="document.getElementById('post-composer-input')?.focus()">+ Post</button>
     </div>
+    
+    <!-- Mobile Navigation Dropdown -->
+    <div class="mobile-nav-container">
+      <select id="mobile-nav" class="mobile-nav-dropdown" onchange="handleMobileNav(this.value)">
+        <option value="">☰ Menu</option>
+        <option value="home">🏠 Home</option>
+        <option value="explore">🔍 Explore</option>
+        <option value="channels">📺 Channels</option>
+        <option value="sync-spaces">💬 Sync Spaces</option>
+        <option value="messages">💬 Messages</option>
+        <option value="notifications">🔔 Notifications</option>
+        <option value="profile">👤 Profile</option>
+        <option value="settings">⚙️ Settings</option>
+        <option value="admin" id="mobile-admin-option" style="display:none;">🛡️ Admin</option>
+      </select>
+    </div>
 
     <!-- HOME VIEW -->
     <div id="view-home" class="view hidden">
@@ -2078,6 +2146,35 @@ function getSupabase() {
 initSupabaseClient();
 
 // PAGE ROUTING - defined early so buttons work
+
+// Mobile Navigation Handler
+function handleMobileNav(value) {
+  if (!value) return;
+  
+  // Check if logged in
+  const session = getSession();
+  if (!session) {
+    showPage('landing');
+    return;
+  }
+  
+  // Navigate to selected page
+  navigate(value);
+  
+  // Reset dropdown to default
+  document.getElementById('mobile-nav').value = '';
+}
+
+// Update mobile admin option visibility
+function updateMobileAdminOption() {
+  const isAdminURL = window.location.search.includes('vibe-control-7x9kq2m');
+  const adminOption = document.getElementById('mobile-admin-option');
+  
+  if (adminOption) {
+    adminOption.style.display = isAdminURL ? 'block' : 'none';
+  }
+}
+
 function showPage(page) {
   document.getElementById('page-landing').classList.add('hidden');
   document.getElementById('page-login').classList.add('hidden');
@@ -5317,6 +5414,9 @@ async function init() {
   if (adminBtn && isAdminURL) {
     adminBtn.classList.add('admin-visible');
   }
+  
+  // Update mobile admin option visibility
+  updateMobileAdminOption();
   
   // Attach button listeners
   addNavItems();
