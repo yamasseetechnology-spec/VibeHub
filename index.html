@@ -27,7 +27,106 @@
   window.VIBEHUB_SUPABASE_URL = 'https://osfqlabtuqpynqcdmwff.supabase.co';
   window.VIBEHUB_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zZnFsYWJ0dXFweW5xY2Rtd2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5ODQ3OTEsImV4cCI6MjA4NzU2MDc5MX0.LXZ-lbLiarXHSSlu8NXi0c_uvIVFxh8mw6amXGJAwtA';
 </script>
+
+<!-- Splash Screen -->
+<div id="splash-screen" style="display:none;">
+  <div class="splash-particles">
+    <div class="particle purple" style="--x:10%;--y:20%;--d:3s;--s:20px;"></div>
+    <div class="particle purple" style="--x:80%;--y:15%;--d:4s;--s:15px;"></div>
+    <div class="particle purple" style="--x:30%;--y:70%;--d:5s;--s:25px;"></div>
+    <div class="particle purple" style="--x:70%;--y:60%;--d:3.5s;--s:18px;"></div>
+    <div class="particle orange" style="--x:20%;--y:40%;--d:4s;--s:22px;"></div>
+    <div class="particle orange" style="--x:60%;--y:30%;--d:3s;--s:16px;"></div>
+    <div class="particle orange" style="--x:40%;--y:80%;--d:5s;--s:20px;"></div>
+    <div class="particle orange" style="--x:90%;--y:70%;--d:4s;--s:18px;"></div>
+  </div>
+  <div class="splash-glow"></div>
+  <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" class="splash-logo" alt="VibeHub">
+  <div class="splash-spinner"></div>
+</div>
+
 <style>
+/* Splash Screen */
+#splash-screen {
+  position: fixed;
+  inset: 0;
+  background: #08080f;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.splash-glow {
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(139,92,246,0.4) 0%, transparent 70%);
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+.splash-logo {
+  height: 120px;
+  animation: logoFloat 2s ease-in-out infinite;
+  z-index: 1;
+}
+
+.splash-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(139,92,246,0.3);
+  border-top-color: #8b5cf6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-top: 30px;
+}
+
+.splash-particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  animation: float var(--d) ease-in-out infinite;
+  left: var(--x);
+  top: var(--y);
+  width: var(--s);
+  height: var(--s);
+}
+
+.particle.purple {
+  background: radial-gradient(circle, #8b5cf6 0%, transparent 70%);
+  box-shadow: 0 0 20px #8b5cf6;
+}
+
+.particle.orange {
+  background: radial-gradient(circle, #f59e0b 0%, transparent 70%);
+  box-shadow: 0 0 20px #f59e0b;
+}
+
+@keyframes glowPulse {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.2); opacity: 1; }
+}
+
+@keyframes logoFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.8; }
+  50% { transform: translateY(-30px) scale(1.2); opacity: 1; }
+}
+
 :root {
   --bg: #08080f;
   --bg2: #0f0f1a;
@@ -1074,6 +1173,32 @@ label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px
 }
 .reaction-popup button:hover { transform: scale(1.2); }
 
+/* ── REACTION FEEDBACK OVERLAY ── */
+.reaction-feedback-overlay {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: reactionPop 900ms ease-out forwards;
+}
+.reaction-feedback-emoji { font-size: 48px; }
+.reaction-feedback-text { 
+  font-size: 14px; font-weight: 600; 
+  margin-top: 8px; color: white;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+@keyframes reactionPop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+  40% { transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -60%); }
+}
+
 /* ── WAVE BUTTON ── */
 .post-action.waved { color: var(--cyan); background: rgba(6,182,212,0.1); }
 
@@ -1370,13 +1495,15 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
     <div class="sidebar-section" id="admin-section" style="display:none;">Owner</div>
     <button class="nav-item hidden" onclick="navigate('admin')" id="nav-admin"><span class="nav-icon">🛡️</span> Admin Panel</button>
 
-    <div class="sidebar-user" onclick="navigate('profile', getCurrentUser()?.username)">
+<div class="sidebar-user" onclick="navigate('profile', getCurrentUser()?.username)">
       <div class="avatar avatar-sm" id="sidebar-avatar">?</div>
       <div class="sidebar-user-info">
         <div class="sidebar-user-name" id="sidebar-name">Loading...</div>
         <div class="sidebar-user-handle" id="sidebar-handle">@...</div>
       </div>
-      <button class="btn-ghost btn btn-sm" onclick="event.stopPropagation();doLogout();" style="padding:4px 8px;font-size:16px;">↪</button>
+      <button class="btn-ghost" onclick="event.stopPropagation();doLogout();" title="Sign Out" style="display:flex;align-items:center;gap:4px;padding:6px 10px;font-size:13px;color:var(--text2);background:var(--bg3);border:1px solid var(--border2);border-radius:8px;">
+        <span>↪</span><span style="font-weight:500;">Sign Out</span>
+      </button>
     </div>
   </aside>
 
@@ -3027,8 +3154,24 @@ function clearSession() {
 let navHistory = [];
 let currentView = null;
 
+// Cleanup function for native SPA behavior
+function cleanupCurrentView() {
+  // Reset scroll position to top
+  window.scrollTo(0, 0);
+  
+  // Clean up any floating elements or overlays from previous view
+  const overlays = document.querySelectorAll('.modal-overlay:not(.hidden)');
+  // Don't close modals, just clean up any temp elements
+  
+  // Clear any pending timeouts related to current view
+  // This prevents memory leaks
+}
+
 // Navigate function
 function navigate(view, param) {
+  // Clean up previous view
+  cleanupCurrentView();
+  
   // Push to history
   if (currentView && currentView !== view) {
     navHistory.push({ view: currentView, param: currentView._param });
@@ -3798,6 +3941,18 @@ function renderPostCard(post, isFeatured = false) {
   `;
 }
 
+// Show reaction feedback overlay with emoji and name
+function showReactionFeedback(emoji, reactionName) {
+  const overlay = document.createElement('div');
+  overlay.className = 'reaction-feedback-overlay';
+  overlay.innerHTML = `
+    <div class="reaction-feedback-emoji">${emoji}</div>
+    <div class="reaction-feedback-text">${reactionName}</div>
+  `;
+  document.body.appendChild(overlay);
+  setTimeout(() => overlay.remove(), 900);
+}
+
 function toggleReaction(postId, type) {
   const me = getCurrentUser();
   if (!me) return;
@@ -3808,7 +3963,7 @@ function toggleReaction(postId, type) {
   const liked = post.likes.includes(me.username);
   const disliked = post.dislikes.includes(me.username);
 
-  // Map reaction types to emojis for flying animation
+  // Map reaction types to emojis for flying animation and feedback
   const emojiMap = {
     'like': '👍',
     'dislike': '👎',
@@ -3816,6 +3971,16 @@ function toggleReaction(postId, type) {
     'relate': '🙌',
     'wild': '🦄',
     'facts': '📢'
+  };
+  
+  // Reaction names for feedback overlay
+  const reactionNames = {
+    'like': 'Like',
+    'dislike': 'Dislike',
+    'cap': 'Cap',
+    'relate': 'Relate',
+    'wild': 'Wild',
+    'facts': 'Facts'
   };
 
   if (type === 'like') {
@@ -3825,6 +3990,8 @@ function toggleReaction(postId, type) {
       post.dislikes = post.dislikes.filter(u => u !== me.username);
       // Send live reaction animation
       sendLiveReaction(postId, '👍');
+      // Show feedback overlay
+      showReactionFeedback('👍', 'Like');
       if (post.userId !== me.username) addNotif(post.userId, 'like', me.username, 'liked your post', postId);
     }
   } else if (type === 'dislike') {
@@ -3834,6 +4001,8 @@ function toggleReaction(postId, type) {
       post.likes = post.likes.filter(u => u !== me.username);
       // Send live reaction animation
       sendLiveReaction(postId, '👎');
+      // Show feedback overlay
+      showReactionFeedback('👎', 'Dislike');
     }
   } else {
     // New reactions: cap, relate, wild, facts
@@ -3850,6 +4019,9 @@ function toggleReaction(postId, type) {
       // Send live reaction animation
       if (emojiMap[type]) {
         sendLiveReaction(postId, emojiMap[type]);
+        // Show feedback overlay
+        const reactionNames = { cap: 'Cap', relate: 'Relate', wild: 'Wild', facts: 'Facts' };
+        showReactionFeedback(emojiMap[type], reactionNames[type] || type);
       }
       if (post.userId !== me.username) {
         const notifText = { cap: 'called cap on', relate: 'related to', wild: 'said was wild about', facts: 'dropped facts on' };
@@ -6093,6 +6265,16 @@ function createProduct() {
 }
 
 function renderMarketplace(tab = 'all') {
+  // Verify authentication - check session from cookie as authoritative source
+  const session = getSession();
+  const me = getCurrentUser();
+  
+  if (!session || !me) {
+    const grid = document.getElementById('marketplace-grid');
+    grid.innerHTML = '<div class="empty-state"><div class="empty-icon">🔐</div><div class="empty-title">Please sign in</div><div class="empty-desc"><button class="btn btn-primary" onclick="showPage(\'login\')">Sign In</button></div></div>';
+    return;
+  }
+  
   let products = getProducts();
   if (tab !== 'all') {
     products = products.filter(p => p.category === tab);
@@ -6994,14 +7176,62 @@ window.VibeSyncEngine = VibeSyncEngine;
 // ══════════════════════════════════════
 // INIT
 // ══════════════════════════════════════
+
+// Clear conflicting local cache on boot - Supabase is source of truth
+function clearConflictingCache() {
+  const keysToClear = [
+    'vibeLikes', 'friends', 'friendRequests', 
+    'userWaves', 'reports', 'statusChannels', 'collabPosts', 'products'
+  ];
+  
+  keysToClear.forEach(key => {
+    try {
+      localStorage.removeItem('vibehub_' + key);
+      localStorage.removeItem(key);
+    } catch(e) {}
+  });
+  
+  console.log('Local cache cleared - Supabase is now source of truth');
+}
+
 async function init() {
+  // Show splash screen on every boot
+  const splash = document.getElementById('splash-screen');
+  if (splash) {
+    splash.style.display = 'flex';
+  }
+  
+  // Clear conflicting cache on every boot
+  clearConflictingCache();
+  
   // Check for admin URL - only show admin elements on admin URL
   const isAdminURL = window.location.search.includes('vibe-control-7x9kq2m');
   
-  // Show admin button only on admin URL
-  const adminBtn = document.getElementById('bottom-admin-btn');
-  if (adminBtn && isAdminURL) {
-    adminBtn.classList.add('admin-visible');
+  // Show admin elements on admin URL (regardless of login state)
+  if (isAdminURL) {
+    // Bottom admin button
+    const adminBtn = document.getElementById('bottom-admin-btn');
+    if (adminBtn) {
+      adminBtn.classList.add('admin-visible');
+    }
+    
+    // Sidebar admin section
+    const adminSection = document.getElementById('admin-section');
+    if (adminSection) {
+      adminSection.style.display = 'block';
+    }
+    
+    // Sidebar admin nav
+    const navAdmin = document.getElementById('nav-admin');
+    if (navAdmin) {
+      navAdmin.classList.remove('hidden');
+    }
+    
+    // Mobile admin option
+    const mobileAdminOption = document.getElementById('mobile-admin-option');
+    if (mobileAdminOption) {
+      mobileAdminOption.style.display = 'block';
+    }
   }
   
   // Update mobile admin option visibility
@@ -7016,6 +7246,12 @@ async function init() {
   // Wait a moment for Supabase to initialize, then load data
   setTimeout(async () => {
     await initDataStore();
+    
+    // Hide splash screen when data is ready
+    const splash = document.getElementById('splash-screen');
+    if (splash) {
+      splash.style.display = 'none';
+    }
     
     // Only check for admin features on admin URL
     const isAdminURL = window.location.search.includes('vibe-control-7x9kq2m');
