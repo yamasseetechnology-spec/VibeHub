@@ -16,9 +16,31 @@
   document.head.appendChild(s);
 })();
 </script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-storage.js"></script>
 <script>
   window.VIBEHUB_SUPABASE_URL = 'https://osfqlabtuqpynqcdmwff.supabase.co';
   window.VIBEHUB_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zZnFsYWJ0dXFweW5xY2Rtd2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5ODQ3OTEsImV4cCI6MjA4NzU2MDc5MX0.LXZ-lbLiarXHSSlu8NXi0c_uvIVFxh8mw6amXGJAwtA';
+  
+  // Firebase configuration
+  window.VIBEHUB_FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAlsyQmlEJjfcwZJEXxEciilJG7Vw8_cX8",
+    authDomain: "vibehub-f81f8.firebaseapp.com",
+    projectId: "vibehub-f81f8",
+    storageBucket: "vibehub-f81f8.firebasestorage.app",
+    appId: "1:1056861032290:web:a5b4f41b5326ba7134663b"
+  };
+  
+  // Initialize Firebase
+  if (window.firebase && window.firebase.apps) {
+    try {
+      window.firebase_app = window.firebase.initializeApp(window.VIBEHUB_FIREBASE_CONFIG);
+      window.firebase_storage = window.firebase.storage();
+      console.log('Firebase initialized');
+    } catch (e) {
+      console.log('Firebase init error:', e.message);
+    }
+  }
 </script>
 <style>
 :root {
@@ -2134,6 +2156,46 @@ function getSupabase() {
     );
   }
   return supabaseClient;
+}
+
+// Firebase Storage Functions
+function getFirebaseStorage() {
+  if (window.firebase_storage) return window.firebase_storage;
+  if (window.firebase && window.firebase.apps.length > 0) {
+    window.firebase_storage = window.firebase.storage();
+    return window.firebase_storage;
+  }
+  return null;
+}
+
+async function uploadToFirebase(file, path) {
+  const storage = getFirebaseStorage();
+  if (!storage) {
+    console.log('Firebase storage not available');
+    return null;
+  }
+  
+  try {
+    const storageRef = storage.ref(path);
+    const snapshot = await storageRef.put(file);
+    const url = await snapshot.ref.getDownloadURL();
+    console.log('Firebase upload success:', url);
+    return url;
+  } catch (err) {
+    console.error('Firebase upload error:', err);
+    return null;
+  }
+}
+
+async function uploadUserAvatar(file, username) {
+  const path = `avatars/${username}_${Date.now()}`;
+  return await uploadToFirebase(file, path);
+}
+
+async function uploadPostMedia(file, postId) {
+  const ext = file.name.split('.').pop();
+  const path = `posts/${postId}_${Date.now()}.${ext}`;
+  return await uploadToFirebase(file, path);
 }
 
 // Run on page load
