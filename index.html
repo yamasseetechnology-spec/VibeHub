@@ -1164,6 +1164,17 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
   0%, 100% { box-shadow: 0 0 10px rgba(139,92,246,0.3); }
   50% { box-shadow: 0 0 20px rgba(139,92,246,0.6); }
 }
+
+@keyframes flyUp {
+  0% { 
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% { 
+    opacity: 0;
+    transform: translateY(-100px) scale(1.5);
+  }
+}
 </style>
 
 </head>
@@ -2173,6 +2184,9 @@ async function uploadMedia(file, bucket) {
 let _postsSubscription = null;
 let _channelsSubscription = null;
 let _notifsSubscription = null;
+let _dmSubscription = null;
+let _presenceChannel = null;
+let _onlineUsers = {};
 
 function initRealtimeSubscriptions() {
   const sb = getSupabase();
@@ -2252,7 +2266,181 @@ function initRealtimeSubscriptions() {
       .subscribe();
   }
   
+  // Subscribe to new DM messages
+  subscribeToDMs();
+  
+  // Subscribe to online users presence
+  subscribeToPresence();
+  
   console.log('Realtime subscriptions initialized');
+}
+
+// Subscribe to DM messages
+function subscribeToDMs() {
+  const sb = getSupabase();
+  const user = getCurrentUser();
+  if (!sb || !user) return;
+  
+  // Unsubscribe from previous if any
+  if (_dmSubscription) {
+    _dmSubscription.unsubscribe();
+  }
+  
+  _dmSubscription = sb.channel('dm-messages')
+    .on('postgres_changes', { 
+      event: 'INSERT', 
+      schema: 'public', 
+      table: 'messages',
+      filter: `receiver_id=eq.${user.username}`
+    }, (payload) => {
+      const newMsg = payload.new;
+      console.log('New DM received:', newMsg);
+      
+      // Add to messages cache
+      const allMessages = getMessages();
+      const key = [newMsg.sender_id, newMsg.receiver_id].sort().join('-');
+      if (!allMessages[key]) allMessages[key] = [];
+      
+      // Check if message already exists
+      const exists = allMessages[key].find(m => m.id === newMsg.id);
+      if (!exists) {
+        allMessages[key].push({
+          id: newMsg.id,
+          from: newMsg.sender_id,
+          to: newMsg.receiver_id,
+          text: newMsg.message,
+          time: new Date(newMsg.created_at).getTime(),
+          read: false
+        });
+        _messagesCache = allMessages;
+        
+        // Show notification if in different conversation
+        const currentChat = document.getElementById('chat-area');
+        if (currentChat && !currentChat.classList.contains('hidden')) {
+          // Currently in chat - refresh
+          if (typeof openDM === 'function') {
+            const otherUser = Object.keys(allMessages).find(k => k.includes(user.username) && k !== key);
+            if (otherUser) openDM(otherUser.split('-').find(u => u !== user.username));
+          }
+        } else {
+          // Show toast notification
+          toast(`New message from ${newMsg.sender_id}`, 'info');
+        }
+      }
+    })
+    .subscribe();
+  
+  console.log('Subscribed to DM messages for:', user.username);
+}
+
+// Subscribe to online users presence
+function subscribeToPresence() {
+  const sb = getSupabase();
+  const user = getCurrentUser();
+  if (!sb || !user) return;
+  
+  // Unsubscribe from previous if any
+  if (_presenceChannel) {
+    _presenceChannel.unsubscribe();
+  }
+  
+  _presenceChannel = sb.channel('online-users')
+    .on('presence', { event: 'sync' }, () => {
+      const state = _presenceChannel.presenceState();
+      _onlineUsers = {};
+      Object.values(state).forEach(userList => {
+        userList.forEach(u => {
+          _onlineUsers[u.user] = u;
+        });
+      });
+      console.log('Online users:', Object.keys(_onlineUsers));
+      
+      // Update UI if online indicator exists
+      updateOnlineIndicators();
+    })
+    .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+      console.log('User joined:', key, newPresences);
+    })
+    .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+      console.log('User left:', key, leftPresences);
+    })
+    .subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await _presenceChannel.track({ user: user.username, online_at: Date.now() });
+        console.log('Presence tracking started for:', user.username);
+      }
+    });
+}
+
+// Update online indicators in UI
+function updateOnlineIndicators() {
+  // This can be called to update any UI element showing online status
+  const onlineCount = Object.keys(_onlineUsers).length;
+  console.log('Total online:', onlineCount);
+}
+
+// Check if user is online
+function isUserOnline(username) {
+  return !!_onlineUsers[username];
+}
+
+// Send live reaction to a post (Broadcast - ephemeral)
+function sendLiveReaction(postId, emoji) {
+  const sb = getSupabase();
+  const user = getCurrentUser();
+  if (!sb || !user) return;
+  
+  const channel = sb.channel('reactions:' + postId);
+  channel.send({
+    type: 'broadcast',
+    event: 'new_reaction',
+    payload: { emoji: emoji, user: user.username, postId: postId }
+  });
+}
+
+// Subscribe to live reactions for a post
+function subscribeToReactions(postId) {
+  const sb = getSupabase();
+  if (!sb) return;
+  
+  sb.channel('reactions:' + postId)
+    .on('broadcast', { event: 'new_reaction' }, (payload) => {
+      const { emoji, user, postId: reactionPostId } = payload.payload;
+      if (reactionPostId === postId) {
+        showFlyingEmoji(postId, emoji, user);
+      }
+    })
+    .subscribe();
+}
+
+// Show flying emoji animation
+function showFlyingEmoji(postId, emoji, fromUser) {
+  const postEl = document.getElementById('post-' + postId);
+  if (!postEl) return;
+  
+  // Create flying emoji element
+  const flyingEmoji = document.createElement('div');
+  flyingEmoji.textContent = emoji;
+  flyingEmoji.style.cssText = `
+    position: absolute;
+    font-size: 24px;
+    pointer-events: none;
+    animation: flyUp 1s ease-out forwards;
+    z-index: 1000;
+  `;
+  
+  // Random starting position
+  const randomX = Math.random() * 80 + 10;
+  flyingEmoji.style.left = randomX + '%';
+  flyingEmoji.style.top = '50%';
+  
+  postEl.style.position = 'relative';
+  postEl.appendChild(flyingEmoji);
+  
+  // Remove after animation
+  setTimeout(() => {
+    flyingEmoji.remove();
+  }, 1000);
 }
 
 function cleanupRealtimeSubscriptions() {
@@ -2267,6 +2455,14 @@ function cleanupRealtimeSubscriptions() {
   if (_notifsSubscription) {
     _notifsSubscription.unsubscribe();
     _notifsSubscription = null;
+  }
+  if (_dmSubscription) {
+    _dmSubscription.unsubscribe();
+    _dmSubscription = null;
+  }
+  if (_presenceChannel) {
+    _presenceChannel.unsubscribe();
+    _presenceChannel = null;
   }
 }
 
@@ -3365,6 +3561,9 @@ function renderFeed(tab) {
 }
 
 function renderPostCard(post, isFeatured = false) {
+  // Subscribe to live reactions for this post (so we see others' reactions)
+  subscribeToReactions(post.id);
+  
   const users = getUsers();
   let user = users.find(u => u.username === post.userId);
   // Use fallback user data if user not found - don't hide the post!
@@ -3460,6 +3659,8 @@ function renderPostCard(post, isFeatured = false) {
         <button class="post-action commented" onclick="openComments('${post.id}')">
           💬 <span>${post.comments.length}</span>
         </button>
+        <button class="post-action" style="color:var(--red);" onclick="sendLiveReaction('${post.id}','❤️')" title="Send live reaction">❤️</button>
+        <button class="post-action" style="color:var(--orange);" onclick="sendLiveReaction('${post.id}','🔥')" title="Send live reaction">🔥</button>
         <button class="post-action" onclick="sharePost('${post.id}')">🔗 Share</button>
       </div>
       ${commentPreview}
@@ -3477,11 +3678,23 @@ function toggleReaction(postId, type) {
   const liked = post.likes.includes(me.username);
   const disliked = post.dislikes.includes(me.username);
 
+  // Map reaction types to emojis for flying animation
+  const emojiMap = {
+    'like': '👍',
+    'dislike': '👎',
+    'cap': '🤥',
+    'relate': '🙌',
+    'wild': '🦄',
+    'facts': '📢'
+  };
+
   if (type === 'like') {
     if (liked) { post.likes = post.likes.filter(u => u !== me.username); }
     else {
       post.likes.push(me.username);
       post.dislikes = post.dislikes.filter(u => u !== me.username);
+      // Send live reaction animation
+      sendLiveReaction(postId, '👍');
       if (post.userId !== me.username) addNotif(post.userId, 'like', me.username, 'liked your post', postId);
     }
   } else if (type === 'dislike') {
@@ -3489,6 +3702,8 @@ function toggleReaction(postId, type) {
     else {
       post.dislikes.push(me.username);
       post.likes = post.likes.filter(u => u !== me.username);
+      // Send live reaction animation
+      sendLiveReaction(postId, '👎');
     }
   } else {
     // New reactions: cap, relate, wild, facts
@@ -3502,6 +3717,10 @@ function toggleReaction(postId, type) {
       arr.splice(idx, 1);
     } else {
       arr.push(me.username);
+      // Send live reaction animation
+      if (emojiMap[type]) {
+        sendLiveReaction(postId, emojiMap[type]);
+      }
       if (post.userId !== me.username) {
         const notifText = { cap: 'called cap on', relate: 'related to', wild: 'said was wild about', facts: 'dropped facts on' };
         addNotif(post.userId, type, me.username, notifText[type] + ' your post', postId);
@@ -4848,7 +5067,26 @@ async function saveProfile() {
   const idx = users.findIndex(u => u.username === me.username);
   if (idx === -1) return;
 
-  users[idx].name = document.getElementById('edit-display-name').value.trim() || me.name;
+  // Validation - Essential for solid code
+  const newName = document.getElementById('edit-display-name').value.trim();
+  if (newName && newName.length < 2) {
+    toast('Name is too short (min 2 characters)', 'error');
+    return;
+  }
+  
+  if (newName && newName.length > 50) {
+    toast('Name is too long (max 50 characters)', 'error');
+    return;
+  }
+
+  // Optimistic UI - Show saving state
+  const saveBtn = document.querySelector('#view-edit-profile .btn-primary');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+  }
+
+  users[idx].name = newName || me.name;
   users[idx].bio = document.getElementById('edit-bio').value.trim();
   users[idx].song = {
     url: document.getElementById('edit-song-url').value.trim(),
@@ -4892,11 +5130,25 @@ async function saveProfile() {
   if (editMood) users[idx].mood = editMood;
   if (editTop8) users[idx].top8 = editTop8.filter(Boolean);
 
-  setUsers(users);
-  editTheme = null; editBanner = null; editMood = null; editTop8 = null; editAvatarImage = null; editAvatarFile = null;
-  updateSidebarUser();
-  toast('Profile saved! Looking fresh ✨', 'success');
-  navigate('profile', me.username);
+  try {
+    await setUsers(users);
+    
+    // Clear form state
+    editTheme = null; editBanner = null; editMood = null; editTop8 = null; editAvatarImage = null; editAvatarFile = null;
+    
+    updateSidebarUser();
+    toast('Profile saved! Looking fresh ✨', 'success');
+    navigate('profile', me.username);
+  } catch (err) {
+    console.error('Failed to save profile:', err);
+    toast('Failed to save profile. Please try again.', 'error');
+  }
+  
+  // Reset button state
+  if (saveBtn) {
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save Changes';
+  }
 }
 
 // ══════════════════════════════════════
