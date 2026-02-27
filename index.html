@@ -2,7 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#8b5cf6">
+<meta name="description" content="VibeHub - Social media for the vibe generation">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VibeHub">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✌️</text></svg>">
+<link rel="manifest" href="manifest.json">
 <title>VibeHub — Where Your Vibe Lives</title>
 <link rel="icon" href="https://i.ibb.co/Fqnj3JKp/1000001392.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1326,7 +1333,7 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
     <button class="nav-item" onclick="navigate('channels')" id="nav-channels"><span class="nav-icon">📺</span> Channels</button>
     <button class="nav-item" onclick="navigate('sync-spaces')" id="nav-sync-spaces"><span class="nav-icon">💬</span> Sync Spaces</button>
     <button class="nav-item" onclick="navigate('messages')" id="nav-messages"><span class="nav-icon">💬</span> Messages <span class="nav-badge" id="msg-badge" style="display:none;">2</span></button>
-    <button class="nav-item" onclick="navigate('notifications')" id="nav-notifications"><span class="nav-icon">🔔</span> Notifications</button>
+    <button class="nav-item" onclick="navigate('notifications')" id="nav-notifications"><span class="nav-icon">🔔</span> Notifications <span class="nav-badge" id="notif-badge" style="display:none;">0</span></button>
 
     <div class="sidebar-section">You</div>
     <button class="nav-item" onclick="navigate('profile', getCurrentUser()?.username)" id="nav-profile"><span class="nav-icon">👤</span> My Profile</button>
@@ -3350,6 +3357,12 @@ function doAdminLogin() {
 
 function doLogout() {
   clearSession();
+  
+  // Clear last_seen interval
+  if (typeof lastSeenInterval !== 'undefined') {
+    clearInterval(lastSeenInterval);
+    lastSeenInterval = null;
+  }
 
   // Also sign out from Clerk so auth state is cleared across devices
   if (window.vhAuth && typeof window.vhAuth.signOut === 'function') {
@@ -3372,6 +3385,34 @@ function launchApp() {
   navHistory = [];
   document.getElementById('msg-badge').style.display = 'flex';
   navigate('home');
+  
+  // Update last_seen on login
+  updateLastSeen();
+  
+  // Set up periodic last_seen updates
+  if (typeof lastSeenInterval !== 'undefined') {
+    clearInterval(lastSeenInterval);
+  }
+  lastSeenInterval = setInterval(updateLastSeen, 60000); // Every minute
+}
+
+// Update user's last_seen timestamp
+let lastSeenInterval = null;
+
+async function updateLastSeen() {
+  const user = getCurrentUser();
+  if (!user) return;
+  
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      await sb.from('users').update({ 
+        last_seen: new Date().toISOString() 
+      }).eq('username', user.username);
+    } catch (err) {
+      // Silent fail - not critical
+    }
+  }
 }
 
 function updateSidebarUser() {
@@ -3740,6 +3781,168 @@ function deletePost(postId) {
   const el = document.getElementById('post-' + postId);
   if (el) el.remove();
   toast('Post deleted', 'success');
+}
+
+// ============================================
+// FOLLOW SYSTEM
+// ============================================
+
+async function followUser(username) {
+  const user = getCurrentUser();
+  if (!user || user.username === username) return;
+  
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      await sb.from('follows').insert({
+        follower_id: user.username,
+        following_id: username
+      });
+      addNotif(username, 'follow', user.username, 'started following you', null);
+      toast('Following ' + username, 'success');
+      
+      // Update local cache if exists
+      const users = getUsers();
+      const idx = users.findIndex(u => u.username === username);
+      if (idx !== -1) {
+        if (!users[idx].followers) users[idx].followers = [];
+        if (!users[idx].followers.includes(user.username)) {
+          users[idx].followers.push(user.username);
+          setUsers(users);
+        }
+      }
+    } catch (err) {
+      console.error('Follow error:', err);
+    }
+  }
+}
+
+async function unfollowUser(username) {
+  const user = getCurrentUser();
+  if (!user) return;
+  
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      await sb.from('follows').delete()
+        .eq('follower_id', user.username)
+        .eq('following_id', username);
+      toast('Unfollowed ' + username, 'success');
+      
+      // Update local cache
+      const users = getUsers();
+      const idx = users.findIndex(u => u.username === username);
+      if (idx !== -1 && users[idx].followers) {
+        users[idx].followers = users[idx].followers.filter(f => f !== user.username);
+        setUsers(users);
+      }
+    } catch (err) {
+      console.error('Unfollow error:', err);
+    }
+  }
+}
+
+function toggleFollow(username) {
+  const user = getCurrentUser();
+  if (!user || user.username === username) return;
+  
+  const users = getUsers();
+  const profileUser = users.find(u => u.username === username);
+  if (!profileUser) return;
+  
+  const isFollowing = profileUser.followers && profileUser.followers.includes(user.username);
+  if (isFollowing) {
+    unfollowUser(username);
+  } else {
+    followUser(username);
+  }
+}
+
+// ============================================
+// FRIENDS SYSTEM
+// ============================================
+
+async function sendFriendRequest(username) {
+  const user = getCurrentUser();
+  if (!user || user.username === username) return;
+  
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      await sb.from('friend_requests').insert({
+        requester_id: user.username,
+        receiver_id: username,
+        status: 'pending'
+      });
+      addNotif(username, 'friend_request', user.username, 'sent you a friend request', null);
+      toast('Friend request sent to ' + username, 'success');
+    } catch (err) {
+      console.error('Friend request error:', err);
+      toast('Failed to send friend request', 'error');
+    }
+  }
+}
+
+async function acceptFriendRequest(requestId, requesterUsername) {
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      await sb.from('friend_requests').update({ status: 'accepted' }).eq('id', requestId);
+      addNotif(requesterUsername, 'friend_accept', getCurrentUser().username, 'accepted your friend request', null);
+      toast('Friend request accepted!', 'success');
+      
+      // Refresh friends list
+      if (typeof renderMessages === 'function') renderMessages();
+    } catch (err) {
+      console.error('Accept error:', err);
+    }
+  }
+}
+
+async function rejectFriendRequest(requestId) {
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      await sb.from('friend_requests').update({ status: 'rejected' }).eq('id', requestId);
+      toast('Friend request rejected', 'success');
+    } catch (err) {
+      console.error('Reject error:', err);
+    }
+  }
+}
+
+// ============================================
+// WAVES SYSTEM
+// ============================================
+
+let lastWaveTime = 0;
+const WAVE_COOLDOWN = 60000; // 1 minute
+
+async function sendWave(username) {
+  const user = getCurrentUser();
+  if (!user || user.username === username) return;
+  
+  const now = Date.now();
+  if (now - lastWaveTime < WAVE_COOLDOWN) {
+    toast('Wait before sending another wave! 👋', 'error');
+    return;
+  }
+  
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      await sb.from('waves').upsert({
+        sender_id: user.username,
+        receiver_id: username
+      }, { onConflict: 'sender_id,receiver_id' });
+      
+      addNotif(username, 'wave', user.username, 'waved at you 👋', null);
+      lastWaveTime = now;
+      toast('Wave sent! 👋', 'success');
+    } catch (err) {
+      console.error('Wave error:', err);
+    }
+  }
 }
 
 function togglePinPost(postId) {
@@ -4679,20 +4882,75 @@ function renderNotifications() {
     return;
   }
 
-  const icons = { like:'👍', comment:'💬', follow:'👤', system:'✨' };
+  const icons = { 
+    like:'👍', 
+    comment:'💬', 
+    follow:'👤', 
+    friend_request:'🤝',
+    friend_accept:'✅',
+    wave:'👋',
+    video:'🎬',
+    cap:'🤥',
+    relate:'🙌',
+    wild:'🦄',
+    facts:'📢',
+    system:'✨' 
+  };
+  
   el.innerHTML = notifs.map(n => {
     const fromUser = users.find(u => u.username === n.fromUser);
+    const icon = icons[n.type] || '✨';
+    
     return `
-      <div class="card" style="margin-bottom:10px;padding:16px;display:flex;align-items:center;gap:12px;${!n.read?'border-color:var(--purple);':''}" >
-        <div style="font-size:24px;">${icons[n.type] || '✨'}</div>
+      <div class="card" style="margin-bottom:10px;padding:16px;display:flex;align-items:center;gap:12px;cursor:pointer;${!n.read?'border:2px solid var(--purple);':''}" onclick="handleNotificationClick('${n.type}','${n.postId || ''}','${n.fromUser || ''}')">
+        <div style="font-size:24px;">${icon}</div>
         <div style="flex:1;">
           ${fromUser ? `<strong>${fromUser.name}</strong> ` : ''}${n.text}
           <div style="font-size:12px;color:var(--text3);margin-top:2px;">${getTimeAgo(n.time)}</div>
         </div>
-        ${!n.read ? '<div class="notif-dot"></div>' : ''}
+        ${!n.read ? '<div style="width:8px;height:8px;border-radius:50%;background:var(--purple);"></div>' : ''}
       </div>
     `;
   }).join('');
+  
+  // Update badge count in nav
+  updateNotificationBadge();
+}
+
+function handleNotificationClick(type, postId, fromUser) {
+  if (type === type === 'comment 'like' ||' || type === 'cap' || type === 'relate' || type === 'wild' || type === 'facts') {
+    if (postId) {
+      navigate('home');
+      // Scroll to post
+      setTimeout(() => {
+        const postEl = document.getElementById('post-' + postId);
+        if (postEl) postEl.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  } else if (type === 'follow' || type === 'friend_request' || type === 'friend_accept') {
+    if (fromUser) {
+      navigate('profile', fromUser);
+    }
+  } else if (type === 'wave') {
+    if (fromUser) {
+      navigate('messages');
+    }
+  }
+}
+
+function updateNotificationBadge() {
+  const me = getCurrentUser();
+  if (!me) return;
+  
+  const notifs = getNotifs().filter(n => n.toUser === me.username);
+  const unread = notifs.filter(n => !n.read).length;
+  
+  // Update nav badge
+  const badge = document.getElementById('notif-badge');
+  if (badge) {
+    badge.textContent = unread;
+    badge.style.display = unread > 0 ? 'flex' : 'none';
+  }
 }
 
 function addNotif(toUser, type, fromUser, text, postId) {
@@ -6470,6 +6728,35 @@ try {
   // Fallback: show landing page anyway
   document.getElementById('page-landing').classList.remove('hidden');
 }
+</script>
+<script>
+// Register Service Worker for PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('SW registered:', reg.scope))
+      .catch(err => console.log('SW registration failed:', err));
+  });
+}
+
+// Global Error Handler
+window.onerror = function(msg, url, lineNo, columnNo, error) {
+  console.error('Error:', msg, 'at line', lineNo);
+  return false;
+};
+
+window.onunhandledrejection = function(event) {
+  console.error('Unhandled promise rejection:', event.reason);
+};
+
+// Offline Detection
+window.addEventListener('online', () => {
+  if (typeof toast === 'function') toast('Back online!', 'success');
+});
+
+window.addEventListener('offline', () => {
+  if (typeof toast === 'function') toast('You are offline. Changes will sync when back online.', 'error');
+});
 </script>
 </body>
 </html>
