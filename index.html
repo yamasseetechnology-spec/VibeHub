@@ -658,6 +658,37 @@ label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px
 }
 .post-media img { width: 100%; height: 100%; object-fit: cover; }
 .post-media video { width: 100%; max-height: 400px; }
+
+/* Autoplay video container */
+.post-video-container {
+  position: relative;
+  cursor: pointer;
+}
+.post-video-container video {
+  width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+  background: #000;
+}
+.post-video-container video.paused {
+  opacity: 0.7;
+}
+.video-unmute-hint {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+.post-video-container:hover .video-unmute-hint {
+  opacity: 1;
+}
 .post-tags { padding: 8px 20px; display: flex; flex-wrap: wrap; gap: 6px; }
 .post-tag {
   font-size: 12px; color: var(--purple); font-weight: 500; cursor: pointer;
@@ -3928,8 +3959,74 @@ async function createPost() {
   postImageFile = null;
   postVideoFile = null;
 
-  renderFeed('all');
+renderFeed('all');
   toast('Vibe posted! ✌️', 'success');
+}
+
+// Video Autoplay Observer - Facebook style (only center video plays)
+let videoObserver = null;
+
+function initVideoAutoplay() {
+  // Disconnect existing observer if any
+  if (videoObserver) {
+    videoObserver.disconnect();
+  }
+  
+  const videos = document.querySelectorAll('.autoplay-video');
+  if (!videos.length) return;
+  
+  const options = {
+    root: null,
+    rootMargin: '-40% 0px -40% 0px', // Only middle 20% of screen triggers
+    threshold: 0
+  };
+  
+  videoObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const video = entry.target;
+      
+      if (entry.isIntersecting) {
+        // Video is in center - play it, pause others
+        document.querySelectorAll('.autoplay-video').forEach(v => {
+          if (v !== video) {
+            v.pause();
+            v.classList.add('paused');
+          }
+        });
+        video.play().catch(() => {}); // Ignore autoplay errors
+        video.classList.remove('paused');
+      } else {
+        // Video left center - pause it
+        video.pause();
+        video.classList.add('paused');
+      }
+    });
+  }, options);
+  
+  // Observe all videos
+  videos.forEach(video => {
+    // Add click to unmute
+    video.addEventListener('click', function() {
+      if (this.muted) {
+        this.muted = false;
+        this.volume = 1;
+        // Hide hint
+        const hint = this.parentElement.querySelector('.video-unmute-hint');
+        if (hint) hint.style.display = 'none';
+      }
+    });
+    
+    videoObserver.observe(video);
+  });
+  
+  // Auto-play first video if visible
+  if (videos[0]) {
+    const rect = videos[0].getBoundingClientRect();
+    const windowHeight = window.innerHeight;
+    if (rect.top >= 0 && rect.top <= windowHeight) {
+      videos[0].play().catch(() => {});
+    }
+  }
 }
 
 function renderFeed(tab) {
@@ -3978,6 +4075,8 @@ function renderFeed(tab) {
       } else {
         container.innerHTML = wevibinPosts.map(p => renderPostCard(p)).join('');
       }
+      // Initialize video autoplay
+      setTimeout(initVideoAutoplay, 100);
     });
     return;
   }
@@ -3989,6 +4088,9 @@ function renderFeed(tab) {
 
   console.log('Rendering', posts.length, 'posts');
   container.innerHTML = posts.map(p => renderPostCard(p)).join('');
+  
+  // Initialize video autoplay
+  setTimeout(initVideoAutoplay, 100);
 }
 
 function renderPostCard(post, isFeatured = false) {
@@ -4027,7 +4129,10 @@ function renderPostCard(post, isFeatured = false) {
   const mediaHtml = post.type === 'image' && mediaUrl
     ? `<div class="post-media"><img src="${mediaUrl}" alt="post image" loading="lazy"></div>`
     : post.type === 'video' && mediaUrl
-    ? `<div class="post-media"><video src="${mediaUrl}" controls></video></div>`
+    ? `<div class="post-media post-video-container" data-video-id="${post.id}">
+         <video src="${mediaUrl}" class="autoplay-video" playsinline muted loop></video>
+         <div class="video-unmute-hint">Tap to unmute 🔊</div>
+       </div>`
     : '';
 
   const tagsHtml = post.tags?.length
