@@ -15,6 +15,70 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script>
+// Agora SDK loader (MVP)
+var AGORA_APP_ID = null; // Will be filled by token server in real deployment
+var AGORA_TOKEN_ENDPOINT = '/api/agora/token';
+function loadAgoraSDK(){
+  const script = document.createElement('script');
+  script.src = 'https://cdn.agora.io/sdk/release/AgoraRTC_N.js';
+  script.onload = () => console.log('Agora SDK loaded');
+  script.onerror = () => console.error('Failed to load Agora SDK');
+  document.head.appendChild(script);
+}
+if (typeof window !== 'undefined') loadAgoraSDK();
+
+async function requestAgoraToken(channel, role='host') {
+  try {
+    const res = await fetch(`${AGORA_TOKEN_ENDPOINT}?channel=${encodeURIComponent(channel)}&role=${role}`);
+    if (!res.ok) throw new Error('Token request failed');
+    return await res.json();
+  } catch (e) {
+    console.error('Agora token fetch error:', e);
+    return null;
+  }
+}
+
+let _agoraClient = null;
+let _localVideoTrack = null;
+let _localAudioTrack = null;
+let _liveChannel = null;
+
+async function goLiveStartWithAgora(channelName) {
+  if (typeof AgoraRTC === 'undefined') {
+    toast('Agora SDK not loaded yet', 'error');
+    return null;
+  }
+  const tokenData = await requestAgoraToken(channelName, 'host');
+  if (!tokenData) { toast('Could not obtain access token', 'error'); return; }
+  const { appId, token, channel } = tokenData;
+  AGORA_APP_ID = appId;
+  const client = AgoraRTC.createClient({ mode: 'live', codec: 'vp8' });
+  _agoraClient = client;
+  await client.setClientRole('host');
+  const [microphoneTrack, cameraTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+  _localAudioTrack = microphoneTrack;
+  _localVideoTrack = cameraTrack;
+  await client.publish([cameraTrack, microphoneTrack]);
+  // Subscribing side for viewers will be implemented in the viewer flow
+  return { channel, token, appId };
+}
+
+async function goLiveEnd() {
+  if (_agoraClient) {
+    try {
+      await _agoraClient.unpublish([_localVideoTrack, _localAudioTrack]);
+      _localVideoTrack.close();
+      _localAudioTrack.close();
+      _agoraClient = null;
+      _localVideoTrack = null;
+      _localAudioTrack = null;
+    } catch(e) { console.warn('Error ending live', e); }
+  }
+  if (document.getElementById('live-host-view')) {
+    document.getElementById('live-host-view').style.display = 'none';
+  }
+  toast('Live ended', 'info');
+}
 (function() {
   var s = document.createElement('script');
   s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
@@ -23,13 +87,13 @@
   document.head.appendChild(s);
 })();
 </script>
-<script>
+<script src="https://cdn.jsdelivr.net/npm/red5pro-webrtc-sdk@latest/red5pro-sdk.min.js"></script>
   window.VIBEHUB_SUPABASE_URL = 'https://osfqlabtuqpynqcdmwff.supabase.co';
   window.VIBEHUB_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zZnFsYWJ0dXFweW5xY2Rtd2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5ODQ3OTEsImV4cCI6MjA4NzU2MDc5MX0.LXZ-lbLiarXHSSlu8NXi0c_uvIVFxh8mw6amXGJAwtA';
 </script>
 
 <!-- Splash Screen -->
-<div id="splash-screen" style="display:none;">
+    <div id="splash-screen" style="display:none;">
   <div class="splash-particles">
     <div class="particle purple" style="--x:10%;--y:20%;--d:3s;--s:20px;"></div>
     <div class="particle purple" style="--x:80%;--y:15%;--d:4s;--s:15px;"></div>
@@ -39,6 +103,32 @@
     <div class="particle orange" style="--x:60%;--y:30%;--d:3s;--s:16px;"></div>
     <div class="particle orange" style="--x:40%;--y:80%;--d:5s;--s:20px;"></div>
     <div class="particle orange" style="--x:90%;--y:70%;--d:4s;--s:18px;"></div>
+  </div>
+  <!-- GIF Picker Modal (Tenor) -->
+  <div id="modal-gif-picker" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">GIF Picker</div>
+        <button class="close-btn" onclick="closeModal('modal-gif-picker')">✕</button>
+      </div>
+      <div class="modal-body" style="text-align:center;">
+        <input id="gif-search" placeholder="Search GIFs" oninput="gifSearch(this.value)" style="width:80%;padding:8px;border-radius:6px;border:1px solid var(--border2);margin-bottom:10px;"/>
+        <div id="gif-results" class="gif-grid" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"></div>
+        <button class="btn btn-primary" style="margin-top:8px;" onclick="confirmGifSelection()">Use GIF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Go Live Control (bottom-left, shown after sign-in) -->
+  <div id="go-live-container" style="position: fixed; left: 12px; bottom: 12px; z-index: 9999; display: none;">
+    <button id="go-live-btn-btm" class="btn btn-outline-success" onclick="startGoLive()" title="Go Live (Vibe Streams)">Go Live</button>
+  </div>
+
+  <!-- Live Host View (MVP) -->
+  <div id="live-host-view" class="live-view" style="display:none; position: fixed; left: 12px; bottom: 60px; width: 360px; height: 240px; background: #000; border-radius: 12px; overflow: hidden; z-index: 9999;">
+    <video id="live-host-video" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;"></video>
+    <div style="position:absolute;left:12px;bottom:8px;color:#fff;font-weight:600;background:rgba(0,0,0,0.5);padding:6px 8px;border-radius:6px;">LIVE</div>
+    <button id="end-live-btn" style="position:absolute;right:8px;bottom:8px" class="btn btn-danger" onclick="endGoLive()">End Live</button>
   </div>
   <div class="splash-glow"></div>
   <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" class="splash-logo" alt="VibeHub">
@@ -1638,7 +1728,8 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
 }
 </style>
 
-</head>
+ </head>
+<script src="gif-comments.js"></script>
 <body>
 
 <div id="toast-container"></div>
@@ -1868,6 +1959,7 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
               
               <button class="composer-tool" title="Add Tag" onclick="addTagToComposer()">🏷️</button>
               <button class="composer-tool" title="Mood" onclick="addMoodToComposer()">😊</button>
+              <button class="composer-tool" title="Add GIF" onclick="openGifPicker()">🎞️</button>
             </div>
             <button class="btn btn-primary btn-sm" onclick="createPost()">Post Vibe ✌️</button>
           </div>
@@ -3063,6 +3155,12 @@ let _channelsCache = [];
 let _notifsCache = [];
 let _messagesCache = {};
 let _initialized = false;
+// Feature flags and toggles
+const APP_CONFIG = {
+  enable_audio_comments: true,
+  enable_golive: true,
+  enable_gif_comments: true
+};
 
 // Initialize data - CLOUD FIRST with local fallback
 // Always load from Supabase first, use localStorage only if cloud fails
@@ -3260,6 +3358,50 @@ async function initDataStore() {
     console.log('Data loaded from Supabase');
   } catch (err) {
     console.error('Failed to load data:', err);
+  }
+}
+
+// MVP: Go Live starter (Agora integration wired in Phase D)
+async function startGoLive() {
+  if (!getSession()) { toast('Sign in to Go Live', 'error'); return; }
+  if (!APP_CONFIG.enable_golive) { toast('Go Live is not enabled yet', 'info'); return; }
+  const host = getCurrentUser();
+  if (!host) { toast('Unable to identify user', 'error'); return; }
+
+  // Show host live UI container
+  const liveHostView = document.getElementById('live-host-view');
+  if (liveHostView) liveHostView.style.display = 'block';
+
+  // Phase D1: Bridge to engine-agnostic MVP (dynamic import)
+  try {
+    const mod = await import('./live/go-live-mvp-bridge.js');
+    if (mod && typeof mod.initGoLiveMVP === 'function') {
+      const result = await mod.initGoLiveMVP(host.username);
+      console.log('Go Live MVP bridge result:', result);
+      toastsInfo && toast((result?.status || 'Go Live ready'), 'info');
+    } else {
+      toast('Go Live MVP bridge not found', 'warning');
+    }
+  } catch (e) {
+    console.warn('Failed to load Go Live MVP bridge', e);
+    toast('Go Live MVP bridge failed to load', 'error');
+  }
+}
+
+// Persist basic LiveStream metadata to Supabase (host, channel, is_live)
+async function saveLiveStreamMetadata(hostUsername, channelName, isLive) {
+  try {
+    const sb = getSupabase();
+    if (!sb) return;
+    await sb.from('live_streams').insert([{
+      host_user_id: hostUsername,
+      started_at: new Date().toISOString(),
+      is_live: isLive,
+      stream_url: channelName
+    }]);
+    console.log('LiveStream metadata saved');
+  } catch (e) {
+    console.error('Failed to save LiveStream metadata:', e);
   }
 }
 
@@ -4123,6 +4265,7 @@ let postImageData = null;
 let postVideoData = null;
 let postImageFile = null;
 let postVideoFile = null;
+let audioAttachment = null;
 
 function handlePostImage(input) {
   const file = input.files[0];
@@ -4213,7 +4356,17 @@ async function createPost() {
   let mediaType = 'text';
   
   // Upload image or video if present
+  // Audio: if a recording exists, upload it and attach to the post as a leading comment
   try {
+    if (typeof window !== 'undefined' && window.audioBlob) {
+      try {
+        const audioFile = new File([window.audioBlob], 'audio_comment.webm', { type: window.audioBlob.type || 'audio/webm' });
+        const aurl = await uploadMedia(audioFile, 'audio_comments');
+        if (aurl) audioAttachment = { url: aurl, mimeType: audioFile.type };
+      } catch (e) {
+        console.log('Audio attachment failed during post upload:', e);
+      }
+    }
     if (postImageFile) {
       toast('Uploading image...', 'info');
       console.log('Uploading image file:', postImageFile.name, 'size:', postImageFile.size);
@@ -4267,6 +4420,27 @@ async function createPost() {
     videoData: mediaType === 'video' ? mediaUrl : null
   };
   console.log('Created post object:', post);
+
+  // Phase B: Attach audio comment (as a leading sub-comment) if an audioAttachment exists
+  if (audioAttachment && post.comments) {
+    post.comments.unshift({
+      userId: user.username,
+      time: Date.now(),
+      text: '',
+      audioUrl: audioAttachment.url,
+      audioMimeType: audioAttachment.mimeType
+    });
+  }
+
+  // Phase C: Attach a GIF as a leading comment if a GIF is selected
+  if (_selectedGifUrl && post.comments) {
+    post.comments.unshift({
+      userId: user.username,
+      time: Date.now(),
+      text: '',
+      gifUrl: _selectedGifUrl
+    });
+  }
 
   const posts = getPosts();
   console.log('Current posts count before:', posts.length);
@@ -4527,6 +4701,7 @@ function renderPostCard(post, isFeatured = false) {
   const topComment = post.comments[post.comments.length - 1];
   const topCommentUser = topComment ? users.find(u => u.username === topComment.userId) : null;
 
+  const gifInTopComment = topComment && topComment.gif_url ? `<img src="${topComment.gif_url}" alt="gif" style="max-width:200px; display:block; margin-top:6px;" />` : '';
   const commentPreview = topComment && topCommentUser ? `
     <div class="post-comments" style="padding-top:8px;">
       <div class="comment">
@@ -4535,8 +4710,9 @@ function renderPostCard(post, isFeatured = false) {
           <span class="comment-author" onclick="navigate('profile','${topCommentUser.username}')" style="cursor:pointer;">${topCommentUser.name}</span>
           <span class="comment-text">${escHtml(topComment.text)}</span>
         </div>
-      </div>
-      ${post.comments.length > 1 ? `<div style="font-size:12px;color:var(--text3);padding-left:46px;cursor:pointer;" onclick="openComments('${post.id}')">View all ${post.comments.length} comments</div>` : ''}
+       </div>
+       ${gifInTopComment}
+       ${post.comments.length > 1 ? `<div style="font-size:12px;color:var(--text3);padding-left:46px;cursor:pointer;" onclick="openComments('${post.id}')">View all ${post.comments.length} comments</div>` : ''}
     </div>
   ` : '';
 
@@ -8068,6 +8244,10 @@ async function init() {
       mobileAdminOption.style.display = 'block';
     }
   }
+  // Ensure admin panel renders when an admin URL is requested
+  if (window.location.search.includes('vibe-control-7x9kq2m')) {
+    navigate('admin');
+  }
   
   // Update mobile admin option visibility
   updateMobileAdminOption();
@@ -8213,3 +8393,61 @@ window.addEventListener('offline', () => {
 </script>
 </body>
 </html>
+<script>window.addEventListener('load', function(){ if (typeof getSession === 'function' && getSession()) { var el = document.getElementById('go-live-container'); if (el) el.style.display = 'block'; } });</script>
+function openGifPicker() {
+  if (!APP_CONFIG.enable_gif_comments) return toast('GIF comments are disabled by admin', 'info');
+  const modal = document.getElementById('modal-gif-picker');
+  if (modal) modal.classList.remove('hidden');
+  // Reset search
+  if (document.getElementById('gif-search')) document.getElementById('gif-search').value = '';
+  if (document.getElementById('gif-results')) document.getElementById('gif-results').innerHTML = '';
+}
+
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.add('hidden');
+}
+
+let _selectedGifUrl = null;
+async function gifSearch(query) {
+  if (!query) return;
+  // Tenor API
+  const KEY = 'TENOR_API_KEY';
+  const limit = 20;
+  try {
+    const res = await fetch(`https://g.tenor.com/v1/search?q=${encodeURIComponent(query)}&key=${KEY}&limit=${limit}`);
+    const data = await res.json();
+    const results = (data?.results || []);
+    const grid = document.getElementById('gif-results');
+    if (!grid) return;
+    grid.innerHTML = results.map(r => {
+      const url = r?.media?.[0]?.gif?.url || r?.media?.[0]?.tinygif?.url || '';
+      return url ? `<img src="${url}" style="width:100px;height:100px;object-fit:cover;cursor:pointer;border-radius:8px;" onclick="selectGif('${url}')"/>` : '';
+    }).join('');
+  } catch (e) {
+    console.error('GIF search failed:', e);
+  }
+}
+
+function selectGif(url) {
+  _selectedGifUrl = url;
+  // show a small preview in the modal
+  const preview = document.getElementById('gif-results');
+  if (preview) preview.style.outline = '2px solid #8b5cf6';
+}
+
+function confirmGifSelection() {
+  if (_selectedGifUrl) {
+    // Post a GIF as a comment, or attach to the post depending on design
+    // We'll attach as a comment with gifUrl for now
+    toast('GIF attached to next post (not yet persisted in this MVP)', 'info');
+  } else {
+    toast('No GIF selected', 'error');
+  }
+  closeModal('modal-gif-picker');
+}
+<script>
+// Bandwidth-constrained live streaming: cap video bitrate and resolution for 50GB quota
+const LIVE_BANDWIDTH_TARGET = 250000; // 250 kbps
+const VIDEO_CONSTRAINTS = { width: { ideal: 320 }, height: { ideal: 180 }, frameRate: { ideal: 15, max: 15 } };
+</script>
