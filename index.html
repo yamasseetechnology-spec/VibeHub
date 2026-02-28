@@ -815,8 +815,39 @@ label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px
 .profile-page { }
 
 .profile-banner {
-  height: 200px; width: 100%; position: relative; overflow: hidden;
-  background: linear-gradient(135deg, var(--purple2), var(--pink));
+  height: 100px; width: 100%; position: relative; overflow: hidden;
+  background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 50%, #f97316 100%);
+}
+.profile-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(circle at 20% 50%, rgba(255,255,255,0.15) 0%, transparent 25%),
+    radial-gradient(circle at 80% 50%, rgba(255,255,255,0.1) 0%, transparent 25%),
+    radial-gradient(circle at 50% 80%, rgba(255,255,255,0.08) 0%, transparent 20%);
+  animation: bannerFlow 8s ease-in-out infinite;
+}
+@keyframes bannerFlow {
+  0%, 100% { transform: translateX(-5%) scale(1.1); opacity: 1; }
+  50% { transform: translateX(5%) scale(1); opacity: 0.8; }
+}
+.profile-banner .particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: rgba(255,255,255,0.6);
+  border-radius: 50%;
+  animation: particleFloat 6s ease-in-out infinite;
+}
+.profile-banner .particle:nth-child(1) { left: 10%; top: 30%; animation-delay: 0s; }
+.profile-banner .particle:nth-child(2) { left: 30%; top: 60%; animation-delay: 1s; }
+.profile-banner .particle:nth-child(3) { left: 50%; top: 40%; animation-delay: 2s; }
+.profile-banner .particle:nth-child(4) { left: 70%; top: 70%; animation-delay: 3s; }
+.profile-banner .particle:nth-child(5) { left: 90%; top: 20%; animation-delay: 4s; }
+@keyframes particleFloat {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.6; }
+  50% { transform: translateY(-20px) scale(1.5); opacity: 1; }
 }
 .profile-banner img { width: 100%; height: 100%; object-fit: cover; }
 .profile-banner-overlay {
@@ -1869,9 +1900,14 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
         <hr class="divider">
         <div class="customizer-title">🖼️ Profile Background Image</div>
         <div class="form-group">
-          <label>Background Image URL</label>
+          <label>Upload Background Image</label>
+          <input type="file" accept="image/*" onchange="handleBannerUpload(this)" id="banner-image-input">
+          <div id="banner-image-preview" style="margin-top:8px;"></div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">Recommended: Wide image (1500x500). Will be auto-compressed.</div>
+        </div>
+        <div class="form-group" style="margin-top:12px;">
+          <label>Or paste Image URL</label>
           <input type="text" id="edit-profile-background" placeholder="https://example.com/image.jpg">
-          <div style="font-size:11px;color:var(--text3);margin-top:4px;">Paste an image URL to use as your profile background</div>
         </div>
         <hr class="divider">
         <div class="customizer-title">📷 Profile Picture</div>
@@ -2523,27 +2559,36 @@ function getSupabase() {
   return supabaseClient;
 }
 
-// Upload file to Supabase Storage
+// Upload file to Cloudinary (used for posts, avatars, etc.)
 async function uploadMedia(file, bucket) {
-  const sb = getSupabase();
-  if (!sb) { console.error('Supabase not ready'); return null; }
+  if (!file) return null;
+  
+  const CLOUD_NAME = 'dg35zlppj';
+  const UPLOAD_PRESET = 'vibehub_posts';
+  
+  const isVideo = file.type.startsWith('video');
+  const resourceType = isVideo ? 'video' : 'image';
+  const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`;
+  
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', UPLOAD_PRESET);
   
   try {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData
+    });
     
-    const { data, error } = await sb.storage
-      .from(bucket)
-      .upload(fileName, file, { cacheControl: '3600', upsert: false });
-    
-    if (error) {
-      console.error('Upload error:', error);
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Cloudinary upload error:', errorData);
       return null;
     }
     
-    // Get public URL
-    const { data: urlData } = sb.storage.from(bucket).getPublicUrl(fileName);
-    return urlData.publicUrl;
+    const data = await response.json();
+    console.log('Upload successful:', data.secure_url);
+    return data.secure_url;
   } catch (err) {
     console.error('Upload failed:', err);
     return null;
@@ -5964,7 +6009,13 @@ function renderProfile(username) {
 
   document.getElementById('profile-content').innerHTML = `
     <div class="profile-page">
-      <div class="profile-banner theme-${user.banner || 'purple'}" ${user.profileBackground || user.banner_url ? `style="background:url('${user.profileBackground || user.banner_url}') center/cover;"` : ''}></div>
+      <div class="profile-banner theme-${user.banner || 'purple'}" ${user.profileBackground || user.banner_url ? `style="background:url('${user.profileBackground || user.banner_url}') center/cover;"` : ''}>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+      </div>
       <div class="profile-info-section">
         <div class="profile-avatar-wrap">
           <div class="avatar avatar-xl" ${avatarUrl ? `style="background:url('${avatarUrl}') center/cover;"` : ''}>${avatarUrl ? '' : (user.avatar || user.name?.[0] || '?')}</div>
@@ -6010,16 +6061,16 @@ function renderProfile(username) {
         })()}
         <div class="profile-stats">
           <div class="profile-stat"><div class="profile-stat-num">${posts.length}</div><div class="profile-stat-label">Posts</div></div>
-          <div class="profile-stat"><div class="profile-stat-num">${getVibeLikeCount(username)}</div><div class="profile-stat-label">Vibes</div></div>
+          <div class="profile-stat"><div class="profile-stat-num">${getUserBadge(username)}</div><div class="profile-stat-label">Badge</div></div>
           <div class="profile-stat"><div class="profile-stat-num">${getTop8VibesCount(username)}</div><div class="profile-stat-label">Top 8 Vibes</div></div>
         </div>
         <div class="profile-actions">
           ${isMe
             ? `<button class="btn btn-primary" onclick="navigate('edit-profile')">🎨 Customize Page</button>`
-            : `<button class="btn btn-primary" onclick="openDM_goto('${username}')">💬 Message</button>
-               <button class="btn btn-outline" onclick="waveUser('${username}')">👋 Wave</button>
+            : `<button class="btn btn-primary" onclick="openDM_goto('${username}')">💬</button>
+               <button class="btn btn-outline" onclick="waveUser('${username}')">👋</button>
                <button class="vibe-like-btn" id="vibe-like-btn-${username}" onclick="likeUserVibe('${username}')">💜 I Like Your Vibe</button>
-               <button class="btn btn-outline btn-sm" onclick="openReportModal('${username}')">🚩 Report</button>`
+               <button class="btn btn-outline btn-sm" onclick="openReportModal('${username}')">🚩</button>`
           }
         </div>
       </div>
@@ -6213,6 +6264,13 @@ function renderEditProfile() {
 
   // Profile Background
   document.getElementById('edit-profile-background').value = me.profileBackground || '';
+  
+  // Banner Image Preview
+  if (me.profileBackground) {
+    document.getElementById('banner-image-preview').innerHTML = `<img src="${me.profileBackground}" style="width:100%;max-width:300px;height:100px;border-radius:8px;object-fit:cover;">`;
+  } else {
+    document.getElementById('banner-image-preview').innerHTML = '';
+  }
 
   // Profile Image Preview
   if (me.avatarImage) {
@@ -6231,6 +6289,8 @@ let editMood = null;
 let editTop8 = null;
 let editAvatarImage = null;
 let editAvatarFile = null;
+let editBannerImage = null;
+let editBannerFile = null;
 
 function handleProfileImageUpload(input) {
   const file = input.files[0];
@@ -6245,6 +6305,23 @@ function handleProfileImageUpload(input) {
     editAvatarImage = e.target.result;
     document.getElementById('profile-image-preview').innerHTML = 
       `<img src="${e.target.result}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;">`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleBannerUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  
+  // Store file for upload
+  editBannerFile = file;
+  
+  // Show preview
+  const reader = new FileReader();
+  reader.onload = e => {
+    editBannerImage = e.target.result;
+    document.getElementById('banner-image-preview').innerHTML = 
+      `<img src="${e.target.result}" style="width:100%;max-width:300px;height:100px;border-radius:8px;object-fit:cover;">`;
   };
   reader.readAsDataURL(file);
 }
@@ -6372,6 +6449,20 @@ async function saveProfile() {
   // Profile Background
   users[idx].profileBackground = document.getElementById('edit-profile-background').value.trim();
   
+  // Banner Image - upload if file provided
+  if (editBannerFile) {
+    toast('Uploading background image...', 'info');
+    const bannerUrl = await uploadMedia(editBannerFile, 'posts');
+    if (bannerUrl) {
+      users[idx].profileBackground = bannerUrl;
+    } else {
+      // Fallback to base64 if upload fails
+      if (editBannerImage) {
+        users[idx].profileBackground = editBannerImage;
+      }
+    }
+  }
+  
   // Profile Image - upload to Supabase Storage if file provided
   if (editAvatarFile) {
     toast('Uploading profile picture...', 'info');
@@ -6398,7 +6489,7 @@ async function saveProfile() {
     await setUsers(users);
     
     // Clear form state
-    editTheme = null; editBanner = null; editMood = null; editTop8 = null; editAvatarImage = null; editAvatarFile = null;
+    editTheme = null; editBanner = null; editMood = null; editTop8 = null; editAvatarImage = null; editAvatarFile = null; editBannerImage = null; editBannerFile = null;
     
     updateSidebarUser();
     toast('Profile saved! Looking fresh ✨', 'success');
@@ -7006,12 +7097,44 @@ function calculateUserBadges(username) {
   const commentCount = posts.reduce((sum, p) => sum + (p.comments?.length || 0), 0);
   if (commentCount >= 10) badges.push({ icon: '💬', label: 'Conversationalist', color: '#06b6d4' });
   
-  const totalReactions = total + (getVibeLikeCount(username));
+  const totalReactions = total;
   if (totalReactions >= 20) badges.push({ icon: '🔥', label: 'On Fire', color: '#ef4444' });
-  if (getVibeLikeCount(username) >= 10) badges.push({ icon: '❤️', label: 'Vibe King', color: '#ec4899' });
   if (getTop8VibesCount(username) >= 5) badges.push({ icon: '⭐', label: 'Popular', color: '#f59e0b' });
   
   return badges;
+}
+
+// Get user badge for profile stat - lock if <1000 engagement, random badge if >=1000
+function getUserBadge(username) {
+  const posts = getPosts().filter(p => p.userId === username);
+  
+  // Calculate total engagement (likes + reactions + comments)
+  let totalEngagement = 0;
+  posts.forEach(p => {
+    totalEngagement += (p.likes?.length || 0);
+    totalEngagement += (p.dislikes?.length || 0);
+    totalEngagement += (p.comments?.length || 0) * 2; // Comments count double
+    if (p.reactions) {
+      Object.values(p.reactions).forEach(arr => {
+        totalEngagement += (arr?.length || 0);
+      });
+    }
+  });
+  
+  // If engagement < 1000, show lock
+  if (totalEngagement < 1000) {
+    return '🔒';
+  }
+  
+  // If engagement >= 1000, show random badge
+  const badges = calculateUserBadges(username);
+  if (badges.length > 0) {
+    const randomBadge = badges[Math.floor(Math.random() * badges.length)];
+    return randomBadge.icon;
+  }
+  
+  // Default badge if unlocked but no specific badge
+  return '⭐';
 }
 
 function getUserRank(username) {
