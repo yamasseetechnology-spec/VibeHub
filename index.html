@@ -530,6 +530,66 @@ label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px
 /* Main content */
 .main-content {
   flex: 1; margin-left: 260px; min-height: 100vh;
+  position: relative;
+}
+
+/* Ensure views don't stack - only show one at a time */
+.view {
+  display: none;
+  width: 100%;
+}
+.view:not(.hidden) {
+  display: block;
+}
+
+/* Mobile: views should not stack */
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    position: relative;
+  }
+  
+  /* Ensure views are properly hidden/shown on mobile */
+  .view {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    z-index: 10;
+  }
+  
+  .view.hidden {
+    display: none !important;
+  }
+  
+  .view:not(.hidden) {
+    display: block !important;
+  }
+  
+  .view-wide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    z-index: 10;
+    padding: 12px !important;
+    max-width: 100% !important;
+  }
+  
+  .view-wide.hidden {
+    display: none !important;
+  }
+  
+  .view-wide:not(.hidden) {
+    display: block !important;
+  }
 }
 
 /* Top bar */
@@ -605,7 +665,14 @@ label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 6px
 
 /* Page views */
 .view { padding: 24px; max-width: 680px; margin: 0 auto; }
-.view-wide { padding: 24px; max-width: 1100px; margin: 0 auto; }
+.view-wide { 
+  padding: 24px; max-width: 1100px; margin: 0 auto; 
+  display: none;
+  width: 100%;
+}
+.view-wide:not(.hidden) {
+  display: block;
+}
 
 /* ──────────────────────────────────────────
    FEED
@@ -2997,47 +3064,74 @@ let _notifsCache = [];
 let _messagesCache = {};
 let _initialized = false;
 
-// Initialize data from Supabase
+// Initialize data - CLOUD FIRST with local fallback
+// Always load from Supabase first, use localStorage only if cloud fails
 async function initDataStore() {
   if (_initialized) return;
   const sb = getSupabase();
   if (!sb) return;
   
+  console.log('Loading data CLOUD-FIRST...');
+  
+  // STEP 1: Try Supabase FIRST (cloud is source of truth)
+  let cloudUsersLoaded = false;
+  let cloudPostsLoaded = false;
+  
   try {
-    // Load users first - this is critical
+    // Load users from Supabase
     const usersRes = await sb.from('users').select('*');
-    console.log('Users response:', usersRes);
-    _usersCache = (usersRes.data || []).map(u => ({
-      ...u,
-      id: u.id,
-      username: u.username,
-      name: u.name || u.username,
-      email: u.email,
-      bio: u.bio || '',
-      avatar: u.avatar_url || u.avatar || '',
-      avatar_url: u.avatar_url || '',
-      avatarImage: u.avatar_url || '',
-      banner: u.banner_url || u.banner || 'purple',
-      banner_url: u.banner_url || '',
-      profileBackground: u.profileBackground || '',
-      theme: u.theme || 'purple',
-      role: u.role || 'user',
-      isBeta: u.is_beta || false,
-      joined: u.created_at ? new Date(u.created_at).getTime() : Date.now()
-    }));
-    console.log('Users loaded from Supabase:', _usersCache.length);
-    console.log('First user sample:', _usersCache[0]);
+    console.log('Users from Supabase:', usersRes.data?.length || 0);
     
-    // Try to load other data but don't fail if they don't exist
+    if (usersRes.data && usersRes.data.length > 0) {
+      _usersCache = usersRes.data.map(u => ({
+        ...u,
+        id: u.id,
+        username: u.username,
+        name: u.name || u.username,
+        email: u.email,
+        bio: u.bio || '',
+        avatar: u.avatar_url || u.avatar || '',
+        avatar_url: u.avatar_url || '',
+        avatarImage: u.avatar_url || '',
+        banner: u.banner_url || u.banner || 'purple',
+        banner_url: u.banner_url || '',
+        profileBackground: u.profileBackground || '',
+        theme: u.theme || 'purple',
+        role: u.role || 'user',
+        isBeta: u.is_beta || false,
+        joined: u.created_at ? new Date(u.created_at).getTime() : Date.now()
+      }));
+      
+      // Save to localStorage for offline use
+      localStorage.setItem('vibehub_users', JSON.stringify(_usersCache));
+      cloudUsersLoaded = true;
+      console.log('Users loaded from CLOUD, saved to localStorage:', _usersCache.length);
+    }
+  } catch (err) {
+    console.log('Failed to load users from Supabase:', err.message);
+  }
+  
+  // If cloud users failed, fallback to localStorage
+  if (!cloudUsersLoaded) {
+    console.log('Falling back to localStorage for users...');
     try {
-      console.log('Loading posts from Supabase...');
-      const postsRes = await sb.from('posts').select('*').order('created_at', { ascending: false });
-      if (postsRes.error) {
-        console.error('Posts load error:', postsRes.error);
-      } else {
-        console.log('Posts loaded:', postsRes.data?.length || 0);
+      const localUsers = localStorage.getItem('vibehub_users');
+      if (localUsers) {
+        _usersCache = JSON.parse(localUsers);
+        console.log('Loaded users from localStorage fallback:', _usersCache.length);
       }
-      _postsCache = (postsRes.data || []).map(p => ({
+    } catch (e) {
+      console.log('No local users found');
+    }
+  }
+  
+  // Load posts from Supabase
+  try {
+    const postsRes = await sb.from('posts').select('*').order('created_at', { ascending: false });
+    console.log('Posts from Supabase:', postsRes.data?.length || 0);
+    
+    if (postsRes.data && postsRes.data.length > 0) {
+      _postsCache = postsRes.data.map(p => ({
         id: p.id,
         userId: p.user_id,
         username: p.username || p.user_id,
@@ -3052,21 +3146,47 @@ async function initDataStore() {
         videoData: p.media_type === 'video' ? p.media_url : null,
         time: p.created_at ? new Date(p.created_at).getTime() : Date.now()
       }));
-      console.log('Posts in cache:', _postsCache.length);
-      console.log('Sample post:', _postsCache[0]);
-    } catch (e) { console.log('Posts table not available:', e); }
-    
+      
+      // Save to localStorage for offline use
+      localStorage.setItem('vibehub_posts', JSON.stringify(_postsCache));
+      cloudPostsLoaded = true;
+      console.log('Posts loaded from CLOUD, saved to localStorage:', _postsCache.length);
+    }
+  } catch (err) {
+    console.log('Failed to load posts from Supabase:', err.message);
+  }
+  
+  // If cloud posts failed, fallback to localStorage
+  if (!cloudPostsLoaded) {
+    console.log('Falling back to localStorage for posts...');
     try {
-      const channelsRes = await sb.from('channels').select('*');
-      _channelsCache = (channelsRes.data || []).map(c => ({
-        ...c,
-        ownerId: c.owner_id,
-        desc: c.description,
-        emoji: c.emoji_banner,
-        subs: c.subscribers,
-        videos: c.videos || []
-      }));
-    } catch (e) { console.log('Channels table not available'); }
+      const localPosts = localStorage.getItem('vibehub_posts');
+      if (localPosts) {
+        _postsCache = JSON.parse(localPosts);
+        console.log('Loaded posts from localStorage fallback:', _postsCache.length);
+      }
+    } catch (e) {
+      console.log('No local posts found');
+    }
+  }
+  
+  console.log('Data load complete - Users:', _usersCache.length, 'Posts:', _postsCache.length);
+  
+  // Set initialized AFTER data is loaded
+  _initialized = true;
+  
+  // Load other non-critical data (channels, notifications, etc.)
+  try {
+    const channelsRes = await sb.from('channels').select('*');
+    _channelsCache = (channelsRes.data || []).map(c => ({
+      ...c,
+      ownerId: c.owner_id,
+      desc: c.description,
+      emoji: c.emoji_banner,
+      subs: c.subscribers,
+      videos: c.videos || []
+    }));
+  } catch (e) { console.log('Channels table not available'); }
     
     try {
       const notifsRes = await sb.from('notifications').select('*');
@@ -3148,10 +3268,21 @@ function getUsers() { return _usersCache; }
 
 async function setUsers(users) { 
   _usersCache = users;
+  
+  // CRITICAL: Always save to localStorage first (like Facebook)
+  try {
+    localStorage.setItem('vibehub_users', JSON.stringify(users));
+    console.log('Users saved to localStorage:', users.length);
+  } catch (e) {
+    console.log('Failed to save users to localStorage:', e);
+  }
+  
+  // Also sync to Supabase for cross-device
   const sb = getSupabase();
   if (sb) {
     try {
-      await sb.from('users').upsert(users.slice(0, 50).map(u => ({
+      // Save ALL users to Supabase (not just first 50)
+      await sb.from('users').upsert(users.map(u => ({
         id: u.id || 'u_' + Date.now() + Math.random().toString(36).substr(2, 9),
         username: u.username,
         email: u.email,
@@ -3168,14 +3299,14 @@ async function setUsers(users) {
         paid: u.paid || false,
         created_at: u.joined ? new Date(u.joined).toISOString() : new Date().toISOString()
       })), { onConflict: 'id' });
-      console.log('Users saved to Supabase');
+      console.log('All users synced to Supabase:', users.length);
     } catch (err) {
-      console.error('Failed to save users:', err);
+      console.error('Failed to save users to Supabase:', err);
     }
   }
 }
 
-// Post functions - Supabase only
+// Post functions - Supabase + localStorage
 function getPosts() { return _postsCache; }
 
 async function setPosts(posts) { 
@@ -3183,11 +3314,21 @@ async function setPosts(posts) {
   posts = posts.sort((a, b) => (b.time || 0) - (a.time || 0));
   
   _postsCache = posts;
+  
+  // CRITICAL: Always save to localStorage first (like Facebook)
+  try {
+    localStorage.setItem('vibehub_posts', JSON.stringify(posts));
+    console.log('Posts saved to localStorage:', posts.length);
+  } catch (e) {
+    console.log('Failed to save posts to localStorage:', e);
+  }
+  
+  // Also sync to Supabase for cross-device
   const sb = getSupabase();
   if (sb) {
     try {
-      console.log('Saving posts to Supabase, count:', posts.length);
-      const postsToSave = posts.slice(0, 50).map(p => {
+      console.log('Syncing ALL posts to Supabase, count:', posts.length);
+      const postsToSave = posts.map(p => {
         let mediaUrl = '';
         let mediaType = 'text';
         
@@ -3449,10 +3590,14 @@ function navigate(view, param) {
   currentView._param = param;
   updateBackBtn();
 
-  const views = ['home','explore','channels','channel-detail','sync-spaces','messages','notifications','profile','edit-profile','my-channel','admin','search','settings'];
+  const views = ['home','explore','channels','channel-detail','sync-spaces','messages','notifications','profile','edit-profile','my-channel','admin','search','settings','marketplace','disclaimer','status-channels'];
   views.forEach(v => {
     const el = document.getElementById('view-' + v);
-    if (el) el.classList.add('hidden');
+    if (el) {
+      el.classList.add('hidden');
+      // Also remove view-wide class display override
+      el.style.display = 'none';
+    }
   });
 
   const titles = { home:'🏠 Home Feed', explore:'🔍 Explore', channels:'📺 Channels', 'sync-spaces':'💬 Sync Spaces', messages:'💬 Messages', notifications:'🔔 Notifications', profile:'👤 Profile', 'edit-profile':'🎨 Customize My Page', 'my-channel':'📡 My Channel', admin:'🛡️ Admin Panel', search:'🔍 Search', settings:'⚙️ Settings' };
@@ -3464,7 +3609,10 @@ function navigate(view, param) {
   if (navEl) navEl.classList.add('active');
 
   const el = document.getElementById('view-' + view);
-  if (el) el.classList.remove('hidden');
+  if (el) {
+    el.classList.remove('hidden');
+    el.style.display = '';
+  }
 
   // Render logic
   if (view === 'home') renderFeed('all');
@@ -7839,16 +7987,18 @@ window.VibeSyncEngine = VibeSyncEngine;
 // INIT
 // ══════════════════════════════════════
 
-// Clear broken local cache on boot - data stays safe in Supabase
-// This fixes button/click issues caused by stale/corrupted localStorage
+// Clear STALE cache on boot - but NEVER delete posts/users (they persist)
+// Only clear "derived" data that can be re-fetched from Supabase
+// This ensures data is never lost while fixing button issues
 function clearConflictingCache() {
   // Check if user has "stay logged in" cookie (has max-age = remember me checked)
   const cookieMatch = document.cookie.match(/vibe_session=([^;]+)/);
   const hasStayLoggedIn = cookieMatch && cookieMatch[1] && document.cookie.includes('max-age');
   
-  // Clear the cached data keys - they'll reload from Supabase
-  // This fixes the bug where buttons don't work until hard refresh
+  // CRITICAL: We NO LONGER clear posts and users - they are the core data
+  // We only clear "derived" data that can be re-fetched
   const cacheKeysToClear = [
+    // These can be re-fetched from Supabase
     'vibehub_vibeLikes', 'vibeLikes',
     'vibehub_friends', 'friends', 
     'vibehub_friendRequests', 'friendRequests',
@@ -7857,11 +8007,10 @@ function clearConflictingCache() {
     'vibehub_statusChannels', 'statusChannels',
     'vibehub_collabPosts', 'collabPosts',
     'vibehub_products', 'products',
-    'vibehub_posts', 'posts',
-    'vibehub_users', 'users',
     'vibehub_notifications', 'notifications',
     'vibehub_channels', 'channels',
     'vibehub_dms', 'dms'
+    // NOTE: We DO NOT clear 'posts' or 'users' anymore - they persist!
   ];
   
   cacheKeysToClear.forEach(key => {
@@ -7872,12 +8021,12 @@ function clearConflictingCache() {
   if (!hasStayLoggedIn) {
     document.cookie = 'vibe_session=;path=/;expires=Thu, 01 Jan 1970 00:00:00';
     currentSession = null;
-    console.log('Cache cleared - fresh boot, no stay logged in');
+    console.log('Derived cache cleared - posts/users preserved, no stay logged in');
   } else {
-    console.log('Cache cleared - will reload from Supabase, stay logged in preserved');
+    console.log('Derived cache cleared - posts/users preserved, stay logged in');
   }
   
-  console.log('Broken cache cleared - data safe in Supabase, reloading...');
+  console.log('Stale cache cleared - CORE DATA (posts/users) preserved!');
 }
 
 async function init() {
