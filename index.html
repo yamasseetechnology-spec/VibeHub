@@ -7652,70 +7652,45 @@ window.VibeSyncEngine = VibeSyncEngine;
 // INIT
 // ══════════════════════════════════════
 
-// Clear ALL local cache on boot - Supabase is source of truth
-// Only preserves session if "stay logged in" was checked
+// Clear broken local cache on boot - data stays safe in Supabase
+// This fixes button/click issues caused by stale/corrupted localStorage
 function clearConflictingCache() {
   // Check if user has "stay logged in" cookie (has max-age = remember me checked)
   const cookieMatch = document.cookie.match(/vibe_session=([^;]+)/);
   const hasStayLoggedIn = cookieMatch && cookieMatch[1] && document.cookie.includes('max-age');
   
+  // Clear the cached data keys - they'll reload from Supabase
+  // This fixes the bug where buttons don't work until hard refresh
+  const cacheKeysToClear = [
+    'vibehub_vibeLikes', 'vibeLikes',
+    'vibehub_friends', 'friends', 
+    'vibehub_friendRequests', 'friendRequests',
+    'vibehub_userWaves', 'userWaves',
+    'vibehub_reports', 'reports',
+    'vibehub_statusChannels', 'statusChannels',
+    'vibehub_collabPosts', 'collabPosts',
+    'vibehub_products', 'products',
+    'vibehub_posts', 'posts',
+    'vibehub_users', 'users',
+    'vibehub_notifications', 'notifications',
+    'vibehub_channels', 'channels',
+    'vibehub_dms', 'dms'
+  ];
+  
+  cacheKeysToClear.forEach(key => {
+    try { localStorage.removeItem(key); } catch(e) {}
+  });
+  
+  // If NOT staying logged in, also clear session cookie
   if (!hasStayLoggedIn) {
-    // No stay logged in - clear EVERYTHING from localStorage
-    console.log('Clearing ALL localCache - Supabase is source of truth');
-    
-    try {
-      // Clear all vibehub prefixed keys
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.startsWith('vibehub_') || key.includes('vibe'))) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach(key => {
-        try { localStorage.removeItem(key); } catch(e) {}
-      });
-      
-      // Also try to clear known data keys directly
-      const knownKeys = [
-        'vibeLikes', 'friends', 'friendRequests', 'userWaves', 
-        'reports', 'statusChannels', 'collabPosts', 'products',
-        'posts', 'users', 'notifications', 'channels', 'dms'
-      ];
-      knownKeys.forEach(key => {
-        try {
-          localStorage.removeItem('vibehub_' + key);
-          localStorage.removeItem(key);
-        } catch(e) {}
-      });
-      
-    } catch(e) {
-      console.log('localStorage clear error:', e);
-    }
-    
-    // Ensure session cookie is cleared
     document.cookie = 'vibe_session=;path=/;expires=Thu, 01 Jan 1970 00:00:00';
     currentSession = null;
-    
-    console.log('Full cache cleared - fresh boot');
+    console.log('Cache cleared - fresh boot, no stay logged in');
   } else {
-    // Stay logged in - clear old cached data but preserve session
-    console.log('Stay logged in - clearing stale cache only');
-    
-    const staleKeys = [
-      'vibeLikes', 'friends', 'friendRequests', 
-      'userWaves', 'reports', 'statusChannels', 'collabPosts', 'products'
-    ];
-    
-    staleKeys.forEach(key => {
-      try {
-        localStorage.removeItem('vibehub_' + key);
-        localStorage.removeItem(key);
-      } catch(e) {}
-    });
-    
-    console.log('Stale cache cleared - session preserved');
+    console.log('Cache cleared - will reload from Supabase, stay logged in preserved');
   }
+  
+  console.log('Broken cache cleared - data safe in Supabase, reloading...');
 }
 
 async function init() {
