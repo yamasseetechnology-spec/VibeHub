@@ -1567,8 +1567,8 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
 
   <div class="landing-hero">
     <div class="landing-eyebrow">✨ The social platform for real ones</div>
-    <h1 class="landing-title">Your <span class="grad">Vibe.</span><br>Your Space.<br>Your <span class="grad">Community.</span></h1>
-    <p class="landing-sub">VibeHub blends the best of TikTok, YouTube, and old-school MySpace. Customize your page, share your world, and find your people.</p>
+<h1 class="landing-title">Your <span class="grad">Vibe.</span><br>Your Space.</h1>
+    <p class="landing-sub">Share your vibe. Find your people. Express yourself with posts, videos, reactions, and your own personalized profile. Your digital world awaits.</p>
     <div id="landing-beta-status" style="margin-bottom:16px;"></div>
     <div class="landing-ctas">
       <button class="btn btn-primary" onclick="showPage('register')" id="hero-join-btn" style="padding:14px 32px;font-size:16px;">Create Free Beta Account 🚀</button>
@@ -7652,35 +7652,70 @@ window.VibeSyncEngine = VibeSyncEngine;
 // INIT
 // ══════════════════════════════════════
 
-// Clear conflicting local cache on boot - Supabase is source of truth
+// Clear ALL local cache on boot - Supabase is source of truth
+// Only preserves session if "stay logged in" was checked
 function clearConflictingCache() {
-  // Check if user has "stay logged in" cookie (has max-age)
+  // Check if user has "stay logged in" cookie (has max-age = remember me checked)
   const cookieMatch = document.cookie.match(/vibe_session=([^;]+)/);
   const hasStayLoggedIn = cookieMatch && cookieMatch[1] && document.cookie.includes('max-age');
   
-  // If no "stay logged in", clear session
   if (!hasStayLoggedIn) {
+    // No stay logged in - clear EVERYTHING from localStorage
+    console.log('Clearing ALL localCache - Supabase is source of truth');
+    
+    try {
+      // Clear all vibehub prefixed keys
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('vibehub_') || key.includes('vibe'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => {
+        try { localStorage.removeItem(key); } catch(e) {}
+      });
+      
+      // Also try to clear known data keys directly
+      const knownKeys = [
+        'vibeLikes', 'friends', 'friendRequests', 'userWaves', 
+        'reports', 'statusChannels', 'collabPosts', 'products',
+        'posts', 'users', 'notifications', 'channels', 'dms'
+      ];
+      knownKeys.forEach(key => {
+        try {
+          localStorage.removeItem('vibehub_' + key);
+          localStorage.removeItem(key);
+        } catch(e) {}
+      });
+      
+    } catch(e) {
+      console.log('localStorage clear error:', e);
+    }
+    
+    // Ensure session cookie is cleared
     document.cookie = 'vibe_session=;path=/;expires=Thu, 01 Jan 1970 00:00:00';
     currentSession = null;
-    console.log('Session cleared - user not staying logged in');
+    
+    console.log('Full cache cleared - fresh boot');
   } else {
-    console.log('Stay logged in - preserving session');
+    // Stay logged in - clear old cached data but preserve session
+    console.log('Stay logged in - clearing stale cache only');
+    
+    const staleKeys = [
+      'vibeLikes', 'friends', 'friendRequests', 
+      'userWaves', 'reports', 'statusChannels', 'collabPosts', 'products'
+    ];
+    
+    staleKeys.forEach(key => {
+      try {
+        localStorage.removeItem('vibehub_' + key);
+        localStorage.removeItem(key);
+      } catch(e) {}
+    });
+    
+    console.log('Stale cache cleared - session preserved');
   }
-  
-  // Clear other localStorage keys (will reload from Supabase)
-  const keysToClear = [
-    'vibeLikes', 'friends', 'friendRequests', 
-    'userWaves', 'reports', 'statusChannels', 'collabPosts', 'products'
-  ];
-  
-  keysToClear.forEach(key => {
-    try {
-      localStorage.removeItem('vibehub_' + key);
-      localStorage.removeItem(key);
-    } catch(e) {}
-  });
-  
-  console.log('Local cache cleared - Supabase is now source of truth');
 }
 
 async function init() {
@@ -7690,7 +7725,7 @@ async function init() {
     splash.style.display = 'flex';
   }
   
-  // Clear conflicting cache on every boot
+  // Clear ALL cache FIRST - this runs behind splash before anything shows
   clearConflictingCache();
   
   // Check for admin URL - only show admin elements on admin URL
@@ -7732,48 +7767,46 @@ async function init() {
   // Initialize Supabase client first
   initSupabaseClient();
   
-  // Wait a moment for Supabase to initialize, then load data
-  setTimeout(async () => {
-    await initDataStore();
-    
-    // Hide splash screen when data is ready
-    const splash = document.getElementById('splash-screen');
-    if (splash) {
-      splash.style.display = 'none';
+  // Wait for cache clear + data load BEFORE hiding splash
+  await initDataStore();
+  
+  // Safe to hide splash now - cache cleared, data loaded
+  const splashEl = document.getElementById('splash-screen');
+  if (splashEl) {
+    splashEl.style.display = 'none';
+  }
+  
+  // Only check for admin features on admin URL
+  const adminCheckURL = window.location.search.includes('vibe-control-7x9kq2m');
+  
+  if (adminCheckURL) {
+    // Admin URL - check Supabase for owner
+    const ownerExists = await checkOwnerExists();
+    if (ownerExists) {
+      // Owner exists in Supabase - show login
+      showPage('login');
+      toast('Log in with your owner account 👑', 'info');
+    } else {
+      // No owner - show setup
+      showPage('admin-setup');
+      document.getElementById('modal-admin-setup').classList.remove('hidden');
     }
-    
-    // Only check for admin features on admin URL
-    const isAdminURL = window.location.search.includes('vibe-control-7x9kq2m');
-    
-    if (isAdminURL) {
-      // Admin URL - check Supabase for owner
-      const ownerExists = await checkOwnerExists();
-      if (ownerExists) {
-        // Owner exists in Supabase - show login
-        showPage('login');
-        toast('Log in with your owner account 👑', 'info');
-      } else {
-        // No owner - show setup
-        showPage('admin-setup');
-        document.getElementById('modal-admin-setup').classList.remove('hidden');
-      }
+    return;
+  }
+  
+  // Check for existing session
+  const session = getSession();
+  if (session) {
+    const user = _usersCache.find(u => u.username === session);
+    if (user) {
+      launchApp();
       return;
     }
-    
-    // Check for existing session
-    const session = getSession();
-    if (session) {
-      const user = _usersCache.find(u => u.username === session);
-      if (user) {
-        launchApp();
-        return;
-      }
-    }
-    
-    // Show landing page
-    showPage('landing');
-    if (typeof updateBetaUI === 'function') updateBetaUI();
-  }, 500);
+  }
+  
+  // Show landing page
+  showPage('landing');
+  if (typeof updateBetaUI === 'function') updateBetaUI();
 }
 
 // Simple init - handled by init() at bottom of file
