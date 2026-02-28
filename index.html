@@ -1793,8 +1793,12 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
           </div>
           <div class="composer-actions">
             <div class="composer-tools">
-              <label class="composer-tool" title="Add Photo" style="cursor:pointer;">📷<input type="file" accept="image/*" style="display:none" onchange="handlePostImage(this)"></label>
-              <label class="composer-tool" title="Add Video" style="cursor:pointer;">🎬<input type="file" accept="video/*" style="display:none" onchange="handlePostVideo(this)"></label>
+              <input type="file" id="post-image-input" accept="image/*" style="display:none" onchange="handlePostImage(this)">
+              <label for="post-image-input" class="composer-tool" title="Add Photo" style="cursor:pointer;">📷</label>
+              
+              <input type="file" id="post-video-input" accept="video/*" style="display:none" onchange="handlePostVideo(this)">
+              <label for="post-video-input" class="composer-tool" title="Add Video" style="cursor:pointer;">🎬</label>
+              
               <button class="composer-tool" title="Add Tag" onclick="addTagToComposer()">🏷️</button>
               <button class="composer-tool" title="Mood" onclick="addMoodToComposer()">😊</button>
             </div>
@@ -2570,6 +2574,8 @@ async function uploadMedia(file, bucket) {
   const resourceType = isVideo ? 'video' : 'image';
   const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`;
   
+  console.log('Starting upload to Cloudinary:', { resourceType, fileName: file.name, fileSize: file.size });
+  
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', UPLOAD_PRESET);
@@ -2580,17 +2586,21 @@ async function uploadMedia(file, bucket) {
       body: formData
     });
     
+    console.log('Cloudinary response status:', response.status);
+    
     if (!response.ok) {
       const errorData = await response.json();
       console.error('Cloudinary upload error:', errorData);
+      toast('Upload failed: ' + (errorData.error?.message || 'Unknown error'), 'error');
       return null;
     }
     
     const data = await response.json();
-    console.log('Upload successful:', data.secure_url);
+    console.log('Upload successful, URL:', data.secure_url);
     return data.secure_url;
   } catch (err) {
-    console.error('Upload failed:', err);
+    console.error('Upload failed (exception):', err);
+    toast('Upload failed: ' + err.message, 'error');
     return null;
   }
 }
@@ -3970,6 +3980,18 @@ function handlePostImage(input) {
   const file = input.files[0];
   if (!file) return;
   
+  // Verify file is valid image
+  if (!file.type.startsWith('image/')) {
+    toast('Please select a valid image file', 'error');
+    return;
+  }
+  
+  // Check file size (max 10MB)
+  if (file.size > 10 * 1024 * 1024) {
+    toast('Image too large. Max 10MB.', 'error');
+    return;
+  }
+  
   // Store file for upload
   postImageFile = file;
   postVideoFile = null;
@@ -3981,11 +4003,25 @@ function handlePostImage(input) {
     document.getElementById('composer-preview').innerHTML = `<img src="${e.target.result}" style="max-height:200px;border-radius:8px;margin-top:4px;">`;
   };
   reader.readAsDataURL(file);
+  
+  toast(`Image selected: ${file.name}`, 'success');
 }
 
 function handlePostVideo(input) {
   const file = input.files[0];
   if (!file) return;
+  
+  // Verify file is valid video
+  if (!file.type.startsWith('video/')) {
+    toast('Please select a valid video file', 'error');
+    return;
+  }
+  
+  // Check file size (max 50MB)
+  if (file.size > 50 * 1024 * 1024) {
+    toast('Video too large. Max 50MB.', 'error');
+    return;
+  }
   
   // Store file for upload
   postVideoFile = file;
@@ -3998,6 +4034,8 @@ function handlePostVideo(input) {
     document.getElementById('composer-preview').innerHTML = `<video src="${e.target.result}" controls style="max-height:200px;border-radius:8px;margin-top:4px;width:100%;"></video>`;
   };
   reader.readAsDataURL(file);
+  
+  toast(`Video selected: ${file.name}`, 'success');
 }
 
 function addTagToComposer() {
@@ -4030,21 +4068,41 @@ async function createPost() {
   try {
     if (postImageFile) {
       toast('Uploading image...', 'info');
-      console.log('Uploading image file:', postImageFile.name);
+      console.log('Uploading image file:', postImageFile.name, 'size:', postImageFile.size);
       mediaUrl = await uploadMedia(postImageFile, 'posts');
+      console.log('Upload result:', mediaUrl);
+      
+      if (!mediaUrl) {
+        // Fallback to local preview if upload fails
+        mediaUrl = postImageData;
+        toast('Using local preview (cloud upload may have failed)', 'warning');
+      }
       mediaType = 'image';
-      console.log('Image uploaded, URL:', mediaUrl);
     } else if (postVideoFile) {
       toast('Uploading video...', 'info');
-      console.log('Uploading video file:', postVideoFile.name);
+      console.log('Uploading video file:', postVideoFile.name, 'size:', postVideoFile.size);
       mediaUrl = await uploadMedia(postVideoFile, 'posts');
+      console.log('Upload result:', mediaUrl);
+      
+      if (!mediaUrl) {
+        // Fallback to local preview if upload fails
+        mediaUrl = postVideoData;
+        toast('Using local preview (cloud upload may have failed)', 'warning');
+      }
       mediaType = 'video';
-      console.log('Video uploaded, URL:', mediaUrl);
     }
   } catch (uploadErr) {
     console.error('Upload failed:', uploadErr);
-    showError('Failed to upload media', uploadErr);
-    return;
+    // Fallback to local data if upload throws error
+    if (postImageFile) {
+      mediaUrl = postImageData;
+      mediaType = 'image';
+      toast('Using local preview', 'warning');
+    } else if (postVideoFile) {
+      mediaUrl = postVideoData;
+      mediaType = 'video';
+      toast('Using local preview', 'warning');
+    }
   }
 
   const post = {
@@ -4086,8 +4144,14 @@ async function createPost() {
   postVideoData = null;
   postImageFile = null;
   postVideoFile = null;
+  
+  // Reset file inputs so same file can be selected again
+  const imageInput = document.getElementById('post-image-input');
+  const videoInput = document.getElementById('post-video-input');
+  if (imageInput) imageInput.value = '';
+  if (videoInput) videoInput.value = '';
 
-renderFeed('all');
+  renderFeed('all');
   toast('Vibe posted! ✌️', 'success');
 }
 
