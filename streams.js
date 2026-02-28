@@ -50,12 +50,22 @@ router.get('/:id', async (req, res) => {
   res.json(s);
 });
 
-// Start stream (X1/X2)
+// Start stream (X1/X2) - wire LiveKit bridge and host token
 router.post('/:id/start', async (req, res) => {
   const id = req.params.id;
-  const s = await db.updateStream(id, { is_live: 1, started_at: new Date().toISOString(), engine: 'livekit' });
-  if (!s) return res.status(404).json({ error: 'Stream not found' });
-  res.json(await db.getStream(id));
+  // Mark live and initialize engine/session
+  await db.updateStream(id, { is_live: 1, started_at: new Date().toISOString(), engine: 'livekit' });
+  const full = await db.getStream(id);
+  if (!full) return res.status(404).json({ error: 'Stream not found' });
+  // Initialize LiveKit bridge for host publish
+  const bridgeInfo = require('../lib/bridge').hostPublish(id, full.host_user_id);
+  // Persist endpoint for client usage
+  await db.updateStream(id, { stream_url: bridgeInfo.endpoint });
+  // Host token for publishing
+  const hostToken = bridgeInfo.token;
+  // Return enriched data to client
+  const updated = await db.getStream(id);
+  res.json({ ...updated, bridge: bridgeInfo, hostToken });
 });
 
 // End stream (X1/X2)
@@ -76,6 +86,15 @@ router.get('/:id/token', async (req, res) => {
   res.json({ token: t });
 });
 
+// Convenience: generate a viewer token for a given stream (Phase X2)
+router.get('/:id/viewer-token', async (req, res) => {
+  const s = await db.getStream(req.params.id);
+  if (!s) return res.status(404).json({ error: 'Stream not found' });
+  const userId = req.query.userId || ('viewer-' + uuidv4());
+  const t = tokenGen.generateToken(req.params.id, 'viewer', userId);
+  res.json({ token: t, userId });
+});
+
 // Watch/join (X1)
 router.post('/:id/watch', async (req, res) => {
   const id = req.params.id;
@@ -91,7 +110,7 @@ router.post('/:id/watch', async (req, res) => {
 });
 
 // Moderation endpoint (Phase X5) - flag/unflag/end stream
-router.post('/:id/moderate', async (req, res) => {
+router.post('/:id/moderate', auth.requireRole('admin'), async (req, res) => {
   const id = req.params.id;
   const { action, reason } = req.body || {};
   if (!action) return res.status(400).json({ error: 'action is required' });
