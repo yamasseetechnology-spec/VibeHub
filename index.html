@@ -3556,6 +3556,7 @@ function handleSearch(val) {
 function doLogin() {
   const userVal = document.getElementById('login-user').value.trim();
   const pass = document.getElementById('login-pass').value;
+  const rememberMe = document.getElementById('stay-logged-in')?.checked;
 
   if (!userVal || !pass) { toast('Fill in all fields', 'error'); return; }
 
@@ -3578,6 +3579,13 @@ function doLogin() {
       if (user.password !== pass) {
         toast('Wrong username or password', 'error');
         return;
+      }
+      
+      // Handle stay logged in
+      if (rememberMe) {
+        document.cookie = 'vibe_session=' + encodeURIComponent(user.username) + ';path=/;max-age=2592000';
+      } else {
+        document.cookie = 'vibe_session=' + encodeURIComponent(user.username) + ';path=/';
       }
       
       setSession(user.username);
@@ -7464,6 +7472,20 @@ window.VibeSyncEngine = VibeSyncEngine;
 
 // Clear conflicting local cache on boot - Supabase is source of truth
 function clearConflictingCache() {
+  // Check if user has "stay logged in" cookie (has max-age)
+  const cookieMatch = document.cookie.match(/vibe_session=([^;]+)/);
+  const hasStayLoggedIn = cookieMatch && cookieMatch[1] && document.cookie.includes('max-age');
+  
+  // If no "stay logged in", clear session
+  if (!hasStayLoggedIn) {
+    document.cookie = 'vibe_session=;path=/;expires=Thu, 01 Jan 1970 00:00:00';
+    currentSession = null;
+    console.log('Session cleared - user not staying logged in');
+  } else {
+    console.log('Stay logged in - preserving session');
+  }
+  
+  // Clear other localStorage keys (will reload from Supabase)
   const keysToClear = [
     'vibeLikes', 'friends', 'friendRequests', 
     'userWaves', 'reports', 'statusChannels', 'collabPosts', 'products'
