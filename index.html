@@ -3262,24 +3262,24 @@ function updateMobileAdminOption() {
   }
 }
 
-// SPA-style safe showPage (global)
-window.showPage = function showPage(view) {
-  // Hide all sections marked as pages
-  document.querySelectorAll('.page').forEach(el => {
-    try {
-      el.style.display = 'none';
-    } catch (e) { /* ignore */ }
-  });
+// ══════════════════════════════════════
+// PAGE ROUTING
+// ══════════════════════════════════════
+function showPage(page) {
+  document.getElementById('page-landing').classList.add('hidden');
+  document.getElementById('page-login').classList.add('hidden');
+  document.getElementById('page-register').classList.add('hidden');
+  document.getElementById('app-shell').classList.add('hidden');
 
-  // Show requested section by id, with fallback to page-<view>
-  let target = document.getElementById(view);
-  if (!target) target = document.getElementById('page-' + view);
-  if (target) {
-    target.style.display = '';
-  } else {
-    // Graceful fallback: if the view isn't found, do nothing
+  if (page === 'landing') { document.getElementById('page-landing').classList.remove('hidden'); updateBetaUI(); }
+  else if (page === 'login') document.getElementById('page-login').classList.remove('hidden');
+  else if (page === 'register') { document.getElementById('page-register').classList.remove('hidden'); updateBetaUI(); }
+  else if (page === 'admin-setup') {
+    if (getOwnerSetup()) { toast('Owner account already created.', 'error'); showPage('login'); return; }
+    document.getElementById('modal-admin-setup').classList.remove('hidden');
+    document.getElementById('page-landing').classList.remove('hidden');
   }
-};
+}
 
 // ══════════════════════════════════════
 // DATA STORE (Supabase Only)
