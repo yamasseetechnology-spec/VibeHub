@@ -1863,7 +1863,7 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
   });
 })();
 </script>
-
+<script>
 function openGifPicker() {
   if (!APP_CONFIG.enable_gif_comments) return toast('GIF comments are disabled by admin', 'info');
   const modal = document.getElementById('modal-gif-picker');
@@ -1871,7 +1871,8 @@ function openGifPicker() {
   if (document.getElementById('gif-search')) document.getElementById('gif-search').value = '';
   if (document.getElementById('gif-results')) document.getElementById('gif-results').innerHTML = '';
 }
- </head>
+</script>
+</head>
 <script src="gif-comments.js"></script>
 <body>
 
