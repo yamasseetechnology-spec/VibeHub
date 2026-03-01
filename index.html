@@ -1864,6 +1864,13 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
 })();
 </script>
 
+function openGifPicker() {
+  if (!APP_CONFIG.enable_gif_comments) return toast('GIF comments are disabled by admin', 'info');
+  const modal = document.getElementById('modal-gif-picker');
+  if (modal) modal.classList.remove('hidden');
+  if (document.getElementById('gif-search')) document.getElementById('gif-search').value = '';
+  if (document.getElementById('gif-results')) document.getElementById('gif-results').innerHTML = '';
+}
  </head>
 <script src="gif-comments.js"></script>
 <body>
@@ -3496,7 +3503,6 @@ async function initDataStore() {
     _initialized = true;
     console.log('Data loaded from Supabase');
   }
-}
 
 // MVP: Go Live starter (Agora integration wired in Phase D)
 async function startGoLive() {
@@ -8541,14 +8547,6 @@ window.addEventListener('offline', () => {
 </script>
 <script>
 window.addEventListener('load', function(){ if (typeof getSession === 'function' && getSession()) { var el = document.getElementById('go-live-container'); if (el) el.style.display = 'block'; } });
-function openGifPicker() {
-  if (!APP_CONFIG.enable_gif_comments) return toast('GIF comments are disabled by admin', 'info');
-  const modal = document.getElementById('modal-gif-picker');
-  if (modal) modal.classList.remove('hidden');
-  // Reset search
-  if (document.getElementById('gif-search')) document.getElementById('gif-search').value = '';
-  if (document.getElementById('gif-results')) document.getElementById('gif-results').innerHTML = '';
-}
 
 function closeModal(id) {
   const el = document.getElementById(id);
@@ -8593,11 +8591,9 @@ function confirmGifSelection() {
   }
   closeModal('modal-gif-picker');
 }
-<script>
 // Bandwidth-constrained live streaming: cap video bitrate and resolution for 50GB quota
 const LIVE_BANDWIDTH_TARGET = 250000; // 250 kbps
 const VIDEO_CONSTRAINTS = { width: { ideal: 320 }, height: { ideal: 180 }, frameRate: { ideal: 15, max: 15 } };
-</script>
 
 </body>
 </html>
