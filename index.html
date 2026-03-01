@@ -87,6 +87,41 @@ async function goLiveEnd() {
   document.head.appendChild(s);
 })();
 </script>
+<script>
+// New robust tab delegation: handles tab clicks via event delegation
+(function(){
+  function getRoot(){
+    // Support multiple common root containers: id or class based
+    const root = document.querySelector('#tab-content, #main-content, .main-content, #content');
+    return root || null;
+  }
+  function renderTab(tabId){
+    const root = getRoot();
+    if (!root) return;
+    while (root.firstChild) root.removeChild(root.firstChild);
+    // Build content on the fly (no templates)
+    const content = document.createElement('div');
+    content.className = 'tab-panel';
+    const heading = document.createElement('h2');
+    heading.textContent = (tabId.charAt(0).toUpperCase() + tabId.slice(1)) || tabId;
+    const para = document.createElement('p');
+    para.textContent = 'This is the ' + tabId + ' view. Content is generated inline to avoid stacking.';
+    content.appendChild(heading);
+    content.appendChild(para);
+    root.appendChild(content);
+  }
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-tab]');
+    if (!btn) return;
+    const id = btn.getAttribute('data-tab');
+    if (!id) return;
+    document.querySelectorAll('[data-tab]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderTab(id);
+  });
+  // Initialize by clicking the first registered tab when DOM is ready
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/red5pro-webrtc-sdk@latest/red5pro-sdk.min.js"></script>
   window.VIBEHUB_SUPABASE_URL = 'https://osfqlabtuqpynqcdmwff.supabase.co';
   window.VIBEHUB_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zZnFsYWJ0dXFweW5xY2Rtd2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5ODQ3OTEsImV4cCI6MjA4NzU2MDc5MX0.LXZ-lbLiarXHSSlu8NXi0c_uvIVFxh8mw6amXGJAwtA';
@@ -1742,23 +1777,7 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
   }
 
   function switchToTab(tabId){
-    const root = getContentRoot();
-    // Remove any existing content within root to ensure clean swap
-    while (root.firstChild) {
-      root.removeChild(root.firstChild);
-    }
-    // Try to load content from a hidden template if available
-    const tmpl = document.getElementById('template-' + tabId);
-    if (tmpl) {
-      const clone = document.importNode(tmpl.content, true);
-      root.appendChild(clone);
-    } else {
-      // Fallback: simple placeholder content so UI remains coherent
-      const div = document.createElement('div');
-      div.className = 'tab-panel';
-      div.textContent = 'Content for ' + tabId;
-      root.appendChild(div);
-    }
+    renderTab(tabId);
   }
 
   document.addEventListener('DOMContentLoaded', function(){
@@ -3775,6 +3794,11 @@ function cleanupCurrentView() {
 function navigate(view, param) {
   // Clean up previous view
   cleanupCurrentView();
+  // Ensure any tab-based content pane is cleared to avoid stacking when navigating
+  const tabRoot = document.querySelector('#tab-content, #main-content, .main-content, #content');
+  if (tabRoot) {
+    while (tabRoot.firstChild) tabRoot.removeChild(tabRoot.firstChild);
+  }
   
   // Push to history
   if (currentView && currentView !== view) {
