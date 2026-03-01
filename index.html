@@ -187,6 +187,7 @@ window.safeUsername = function() {
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/red5pro-webrtc-sdk@latest/red5pro-sdk.min.js"></script>
+<script>
   window.VIBEHUB_SUPABASE_URL = 'https://osfqlabtuqpynqcdmwff.supabase.co';
   window.VIBEHUB_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zZnFsYWJ0dXFweW5xY2Rtd2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5ODQ3OTEsImV4cCI6MjA4NzU2MDc5MX0.LXZ-lbLiarXHSSlu8NXi0c_uvIVFxh8mw6amXGJAwtA';
 </script>
@@ -8594,10 +8595,9 @@ function confirmGifSelection() {
   }
   closeModal('modal-gif-picker');
 }
-<script>
 // Bandwidth-constrained live streaming: cap video bitrate and resolution for 50GB quota
 const LIVE_BANDWIDTH_TARGET = 250000; // 250 kbps
 const VIDEO_CONSTRAINTS = { width: { ideal: 320 }, height: { ideal: 180 }, frameRate: { ideal: 15, max: 15 } };
-</script>
+
 </body>
 </html>
