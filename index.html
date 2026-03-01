@@ -90,7 +90,7 @@ async function goLiveEnd() {
 
 <!-- Minimal compatibility for legacy inline onclick showPage() usage -->
 <script>
-  function showPage(view){
+  window.showPage = function showPage(view){
     if (typeof window.navigate === 'function') {
       try {
         window.navigate(view);
