@@ -3495,8 +3495,6 @@ async function initDataStore() {
     
     _initialized = true;
     console.log('Data loaded from Supabase');
-  } catch (err) {
-    console.error('Failed to load data:', err);
   }
 }
 
@@ -8595,9 +8593,11 @@ function confirmGifSelection() {
   }
   closeModal('modal-gif-picker');
 }
+<script>
 // Bandwidth-constrained live streaming: cap video bitrate and resolution for 50GB quota
 const LIVE_BANDWIDTH_TARGET = 250000; // 250 kbps
 const VIDEO_CONSTRAINTS = { width: { ideal: 320 }, height: { ideal: 180 }, frameRate: { ideal: 15, max: 15 } };
+</script>
 
 </body>
 </html>
