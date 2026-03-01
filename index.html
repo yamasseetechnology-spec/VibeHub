@@ -2825,11 +2825,27 @@ function initSupabaseClient() {
     if (window.supabase && window.VIBEHUB_SUPABASE_URL) {
       supabaseClient = window.supabase.createClient(
         window.VIBEHUB_SUPABASE_URL,
-        window.VIBEHUB_SUPABASE_ANON_KEY
+        window.VIBEHUB_SUPABASE_ANON_KEY,
+        { auth: { persistSession: true, storage: window.localStorage } }
       );
       console.log('Supabase client ready');
+      // Add auth state listener
+      supabaseClient.auth.onAuthStateChange((event, session) => {
+        console.log('Auth state changed:', event, session ? 'session exists' : 'no session');
+        if (event === 'SIGNED_IN' && session) {
+          setSession(session.user.user_metadata?.username || session.user.email);
+          if (document.getElementById('app-shell').classList.contains('hidden')) {
+            launchApp();
+          }
+        } else if (event === 'SIGNED_OUT') {
+          clearSession();
+          showPage('landing');
+        }
+      });
     } else if (!window.supabaseReady) {
       setTimeout(tryInit, 100);
+    } else {
+      console.error('Supabase init failed: SDK or config missing');
     }
   }
   
@@ -4053,50 +4069,51 @@ async function doRegisterFree() {
     return;
   }
 
-  const newUser = {
-    username, name, email, password: pass, bio,
-    theme: 'purple', banner: 'purple',
-    song: { url:'', name:'', artist:'' },
-    mood: { emoji:'✌️', text:'Just joined VibeHub!' },
-    top8: [],
-    role: 'user',
-    isBeta: true,
-    paid: true,
-    registered: true,
-    joined: Date.now(),
-    avatar: name[0]?.toUpperCase() || '?'
-  };
-
-  // Save to Supabase
   const sb = getSupabase();
-  if (sb) {
-    try {
-      await sb.from('users').insert({
-        username: username,
-        name: name,
-        email: email,
-        bio: bio || '',
-        theme: 'purple',
-        banner_gradient: 'purple',
-        role: 'user',
-        is_beta: true,
-        paid: true
-      });
-      console.log('User saved to Supabase');
-    } catch (e) {
-      console.error('Failed to save to Supabase:', e);
-    }
+  if (!sb) { toast('Server error', 'error'); return; }
+
+  try {
+    const { data, error } = await sb.auth.signUp({
+      email: email,
+      password: pass,
+      options: {
+        data: {
+          username: username,
+          name: name
+        }
+      }
+    });
+
+    if (error) { toast(error.message, 'error'); return; }
+
+    if (!data.user) { toast('Signup failed', 'error'); return; }
+
+    // Create profile in 'users' table
+    await sb.from('users').insert({
+      id: data.user.id,
+      username: username,
+      name: name,
+      email: email,
+      bio: bio || '',
+      theme: 'purple',
+      banner_url: 'purple',
+      role: 'user',
+      is_beta: true,
+      paid: true
+    });
+
+    toast('🎉 Welcome to the VibeHub Beta, ' + name + '! You got in FREE!', 'success');
+
+    const notifs = getNotifs();
+    notifs.unshift({ id: 'n_welcome', type:'system', text:'🎉 Welcome to the VibeHub Beta! You\'re one of the first. Customize your page and start vibing! ✌️', time: Date.now(), read: false });
+    setNotifs(notifs);
+
+    // Session will be handled by onAuthStateChange listener
+
+  } catch (e) {
+    console.error('Signup error:', e);
+    toast('Signup failed: ' + e.message, 'error');
   }
-
-  users.push(newUser);
-  setUsers(users);
-  setSession(username);
-  launchApp();
-  toast('🎉 Welcome to the VibeHub Beta, ' + name + '! You got in FREE!', 'success');
-
-  const notifs = getNotifs();
-  notifs.unshift({ id: 'n_welcome', type:'system', text:'🎉 Welcome to the VibeHub Beta! You\'re one of the first. Customize your page and start vibing! ✌️', time: Date.now(), read: false });
-  setNotifs(notifs);
 }
 
 function handleSearch(val) {
@@ -4116,44 +4133,37 @@ function doLogin() {
   if (!userVal || !pass) { toast('Fill in all fields', 'error'); return; }
 
   const sb = getSupabase();
-  if (sb) {
-    sb.from('users').select('*').eq('username', userVal).then(({ data, error }) => {
-      if (error) {
-        console.error('Error fetching from Supabase:', error);
-        toast('Server error: ' + error.message, 'error');
-        return;
-      }
-      
-      if (!data || data.length === 0) {
-        toast('Wrong username or password', 'error');
-        return;
-      }
-      
-      const user = data[0];
-      
-      if (user.password !== pass) {
-        toast('Wrong username or password', 'error');
-        return;
-      }
-      
-      // Handle stay logged in
-      if (rememberMe) {
-        document.cookie = 'vibe_session=' + encodeURIComponent(user.username) + ';path=/;max-age=2592000';
-      } else {
-        document.cookie = 'vibe_session=' + encodeURIComponent(user.username) + ';path=/';
-      }
-      
-      setSession(user.username);
-      if (!_usersCache.find(u => u.username === user.username)) {
-        _usersCache.push({...user, password: pass});
-      }
-      launchApp();
-      initRealtimeSubscriptions();
-      toast('Welcome back, ' + user.name + '! ✌️', 'success');
-    });
-  } else {
-    toast('Please wait, connecting to server...', 'info');
+  if (!sb) { toast('Please wait, connecting to server...', 'info'); return; }
+
+  // Determine if userVal is email or username
+  let email = userVal;
+  if (!userVal.includes('@')) {
+    // It's username, find email from users table
+    const users = getUsers();
+    const user = users.find(u => u.username === userVal);
+    if (!user) {
+      toast('Wrong username or password', 'error');
+      return;
+    }
+    email = user.email;
   }
+
+  sb.auth.signInWithPassword({
+    email: email,
+    password: pass
+  }).then(({ data, error }) => {
+    if (error) {
+      console.error('Login error:', error);
+      toast('Wrong username or password', 'error');
+      return;
+    }
+
+    // Success - session handled by onAuthStateChange
+    toast('Welcome back! ✌️', 'success');
+  }).catch(err => {
+    console.error('Login exception:', err);
+    toast('Login failed: ' + err.message, 'error');
+  });
 }
 
 function showPaymentModal() {
@@ -4334,9 +4344,10 @@ function doLogout() {
     lastSeenInterval = null;
   }
 
-  // Also sign out from Clerk so auth state is cleared across devices
-  if (window.vhAuth && typeof window.vhAuth.signOut === 'function') {
-    window.vhAuth.signOut();
+  // Sign out from Supabase Auth
+  const sb = getSupabase();
+  if (sb) {
+    sb.auth.signOut().catch(err => console.log('Sign out error:', err));
   }
 
   // Clear any demo session if running in demo mode
