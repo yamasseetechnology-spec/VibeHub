@@ -1863,17 +1863,7 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
   });
 })();
 </script>
-<script>
-function openGifPicker() {
-  if (!APP_CONFIG.enable_gif_comments) return toast('GIF comments are disabled by admin', 'info');
-  const modal = document.getElementById('modal-gif-picker');
-  if (modal) modal.classList.remove('hidden');
-  if (document.getElementById('gif-search')) document.getElementById('gif-search').value = '';
-  if (document.getElementById('gif-results')) document.getElementById('gif-results').innerHTML = '';
-}
-</script>
 </head>
-<script src="gif-comments.js"></script>
 <body>
 
 <div id="toast-container"></div>
@@ -3958,6 +3948,14 @@ window.bottomHomeClick = function bottomHomeClick() {
   } else {
     showPage('landing');
   }
+}
+
+function openGifPicker() {
+  if (!APP_CONFIG.enable_gif_comments) return toast('GIF comments are disabled by admin', 'info');
+  const modal = document.getElementById('modal-gif-picker');
+  if (modal) modal.classList.remove('hidden');
+  if (document.getElementById('gif-search')) document.getElementById('gif-search').value = '';
+  if (document.getElementById('gif-results')) document.getElementById('gif-results').innerHTML = '';
 }
 
 function bottomAdminClick() {
@@ -8596,5 +8594,6 @@ function confirmGifSelection() {
 const LIVE_BANDWIDTH_TARGET = 250000; // 250 kbps
 const VIDEO_CONSTRAINTS = { width: { ideal: 320 }, height: { ideal: 180 }, frameRate: { ideal: 15, max: 15 } };
 
+<script src="gif-comments.js"></script>
 </body>
 </html>
