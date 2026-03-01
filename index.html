@@ -94,6 +94,60 @@ window.safeUsername = function() {
     return '';
   }
 }
+
+// FALLBACK: Handle any navigation button clicks safely
+(function() {
+  document.addEventListener('click', function(e) {
+    var el = e.target;
+    while (el && !el.onclick && el.tagName !== 'BODY') {
+      el = el.parentElement;
+    }
+    if (!el || !el.onclick) return;
+    
+    var onclick = el.getAttribute('onclick') || '';
+    
+    // Check for showPage calls
+    if (onclick.indexOf('showPage(') !== -1) {
+      var match = onclick.match(/showPage\(['"]([^'"]+)['"]\)/);
+      if (match && match[1]) {
+        e.preventDefault();
+        e.stopPropagation();
+        var view = match[1];
+        // Try to call the function, or handle directly
+        if (typeof window.showPage === 'function') {
+          window.showPage(view);
+        } else {
+          // Fallback: handle manually
+          var target = document.getElementById(view) || document.getElementById('page-' + view);
+          if (target) {
+            document.querySelectorAll('[id^="page-"]').forEach(function(p) { p.classList.add('hidden'); });
+            target.classList.remove('hidden');
+          }
+        }
+      }
+    }
+    
+    // Check for bottomHomeClick
+    if (onclick.indexOf('bottomHomeClick()') !== -1) {
+      e.preventDefault();
+      e.stopPropagation();
+      var appShell = document.getElementById('app-shell');
+      if (appShell && appShell.classList && !appShell.classList.contains('hidden')) {
+        if (typeof navigate === 'function') navigate('home');
+      } else {
+        // Show landing
+        var landing = document.getElementById('page-landing');
+        var login = document.getElementById('page-login');
+        var register = document.getElementById('page-register');
+        var appShell = document.getElementById('app-shell');
+        if (landing) landing.classList.remove('hidden');
+        if (login) login.classList.add('hidden');
+        if (register) register.classList.add('hidden');
+        if (appShell) appShell.classList.add('hidden');
+      }
+    }
+  }, true);
+})();
 </script>
 
 <!-- Legacy showPage removed; global version will handle routing -->
@@ -3262,7 +3316,7 @@ async function initDataStore() {
   try {
     // Load users from Supabase
     const usersRes = await sb.from('users').select('*');
-    console.log('Users from Supabase:', usersRes.data?.length || 0);
+    console.log('Users from Supabase: ' + (usersRes.data ? usersRes.data.length : 0));
     
     if (usersRes.data && usersRes.data.length > 0) {
       _usersCache = usersRes.data.map(u => ({
@@ -3310,7 +3364,7 @@ async function initDataStore() {
   // Load posts from Supabase
   try {
     const postsRes = await sb.from('posts').select('*').order('created_at', { ascending: false });
-    console.log('Posts from Supabase:', postsRes.data?.length || 0);
+    console.log('Posts from Supabase: ' + (postsRes.data ? postsRes.data.length : 0));
     
     if (postsRes.data && postsRes.data.length > 0) {
       _postsCache = postsRes.data.map(p => ({
@@ -3434,7 +3488,7 @@ async function initDataStore() {
     
     // Load Top 8 Vibes from Supabase for current user
     const me = getCurrentUser();
-    if (me?.id) {
+    if (me && me.id) {
       await loadTopVibesToUser();
     }
     
@@ -3462,7 +3516,7 @@ async function startGoLive() {
     if (mod && typeof mod.initGoLiveMVP === 'function') {
       const result = await mod.initGoLiveMVP(host.username);
       console.log('Go Live MVP bridge result:', result);
-      toastsInfo && toast((result?.status || 'Go Live ready'), 'info');
+      toastsInfo && toast((result && result.status) || 'Go Live ready', 'info');
     } else {
       toast('Go Live MVP bridge not found', 'warning');
     }
@@ -3608,7 +3662,7 @@ function diagnosePosts() {
   
   // Check if posts have required fields
   _postsCache.forEach((p, i) => {
-    console.log(`Post ${i}: id=${p.id}, userId=${p.userId}, text=${p.text?.substring(0, 30)}..., time=${p.time}`);
+    console.log('Post ' + i + ': id=' + p.id + ', userId=' + p.userId + ', text=' + (p.text ? p.text.substring(0, 30) : '') + '..., time=' + p.time);
   });
   
   // Check if renderFeed would work
@@ -8486,9 +8540,8 @@ window.addEventListener('offline', () => {
   if (typeof toast === 'function') toast('You are offline. Changes will sync when back online.', 'error');
 });
 </script>
-</body>
-</html>
-<script>window.addEventListener('load', function(){ if (typeof getSession === 'function' && getSession()) { var el = document.getElementById('go-live-container'); if (el) el.style.display = 'block'; } });</script>
+<script>
+window.addEventListener('load', function(){ if (typeof getSession === 'function' && getSession()) { var el = document.getElementById('go-live-container'); if (el) el.style.display = 'block'; } });
 function openGifPicker() {
   if (!APP_CONFIG.enable_gif_comments) return toast('GIF comments are disabled by admin', 'info');
   const modal = document.getElementById('modal-gif-picker');
@@ -8546,3 +8599,5 @@ function confirmGifSelection() {
 const LIVE_BANDWIDTH_TARGET = 250000; // 250 kbps
 const VIDEO_CONSTRAINTS = { width: { ideal: 320 }, height: { ideal: 180 }, frameRate: { ideal: 15, max: 15 } };
 </script>
+</body>
+</html>
