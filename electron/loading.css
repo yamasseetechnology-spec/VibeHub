@@ -1,0 +1,97 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0a0a0f;
+}
+
+#particle-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+#lightning-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  z-index: 2;
+  pointer-events: none;
+  transition: background 0.1s ease;
+}
+
+#lightning-overlay.flash {
+  background: rgba(155, 89, 182, 0.3);
+}
+
+.loading-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+}
+
+#loading-image {
+  max-width: 300px;
+  max-height: 300px;
+  width: auto;
+  height: auto;
+  border-radius: 20px;
+  box-shadow: 0 0 60px rgba(155, 89, 182, 0.5),
+              0 0 120px rgba(230, 126, 34, 0.3);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 60px rgba(155, 89, 182, 0.5),
+                0 0 120px rgba(230, 126, 34, 0.3);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 80px rgba(155, 89, 182, 0.7),
+                0 0 150px rgba(230, 126, 34, 0.5);
+  }
+}
+
+.loading-text {
+  margin-top: 40px;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 24px;
+  color: #fff;
+  text-shadow: 0 0 20px rgba(155, 89, 182, 0.8),
+               0 0 40px rgba(230, 126, 34, 0.5);
+  letter-spacing: 2px;
+  animation: textGlow 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes textGlow {
+  from {
+    text-shadow: 0 0 20px rgba(155, 89, 182, 0.8),
+                 0 0 40px rgba(230, 126, 34, 0.5);
+  }
+  to {
+    text-shadow: 0 0 30px rgba(155, 89, 182, 1),
+                 0 0 60px rgba(230, 126, 34, 0.8),
+                 0 0 80px rgba(155, 89, 182, 0.5);
+  }
+}

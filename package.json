@@ -1,0 +1,79 @@
+{
+  "name": "vibe-hub-admin",
+  "version": "1.0.0",
+  "description": "VibeHub Admin Desktop Application",
+  "main": "electron/main.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "electron": "electron .",
+    "build": "electron-builder --win",
+    "pack": "electron-builder --dir"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
+    "jsonwebtoken": "^9.0.0",
+    "sqlite3": "^5.1.7",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3",
+    "electron-packager": "^17.1.2"
+  },
+  "build": {
+    "appId": "com.vibehub.admin",
+    "productName": "VibeHub Admin",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "VibeHubAdmin.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "files": [
+      "electron/**/*",
+      "assets/**/*",
+      "public/**/*",
+      "routes/**/*",
+      "middleware/**/*",
+      "lib/**/*",
+      "backend/**/*",
+      "api/**/*",
+      "db/**/*",
+      "supabase/**/*",
+      "streamsStore.js",
+      "db.js",
+      "config.js",
+      "gif-upload.js",
+      "manifest.json",
+      "sw.js",
+      "gif-comments.js"
+    ],
+    "extraResources": [
+      {
+        "from": "C:/Users/Nate/Downloads/1000001393.png",
+        "to": "assets/loading-bg.png"
+      }
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+/* Minimal styles for the vibe UI (Phase X3) */
+:root {
+  --bg: #f7f7f7;
+  --fg: #111;
+  --card: #fff;
+}
+html, body { margin: 0; padding: 0; font-family: sans-serif; background: var(--bg); color: var(--fg); }
+.streams-grid { padding: 16px; }
+.stream-card { background: #fff; }
