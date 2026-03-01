@@ -5,9 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#8b5cf6">
 <meta name="description" content="VibeHub - Social media for the vibe generation">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="VibeHub">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✌️</text></svg>">
 <link rel="manifest" href="manifest.json">
 <title>VibeHub — Where Your Vibe Lives</title>
@@ -3217,21 +3215,24 @@ function updateMobileAdminOption() {
   }
 }
 
-function showPage(page) {
-  document.getElementById('page-landing').classList.add('hidden');
-  document.getElementById('page-login').classList.add('hidden');
-  document.getElementById('page-register').classList.add('hidden');
-  document.getElementById('app-shell').classList.add('hidden');
+// SPA-style safe showPage (global)
+window.showPage = function showPage(view) {
+  // Hide all sections marked as pages
+  document.querySelectorAll('.page').forEach(el => {
+    try {
+      el.style.display = 'none';
+    } catch (e) { /* ignore */ }
+  });
 
-  if (page === 'landing') { document.getElementById('page-landing').classList.remove('hidden'); if(typeof updateBetaUI==='function')updateBetaUI(); }
-  else if (page === 'login') document.getElementById('page-login').classList.remove('hidden');
-  else if (page === 'register') { document.getElementById('page-register').classList.remove('hidden'); if(typeof updateBetaUI==='function')updateBetaUI(); }
-  else if (page === 'admin-setup') {
-    if (typeof getOwnerSetup !== 'undefined' && getOwnerSetup()) { if(typeof toast==='function')toast('Owner account already created.', 'error'); showPage('login'); return; }
-    document.getElementById('modal-admin-setup').classList.remove('hidden');
-    document.getElementById('page-landing').classList.remove('hidden');
+  // Show requested section by id, with fallback to page-<view>
+  let target = document.getElementById(view);
+  if (!target) target = document.getElementById('page-' + view);
+  if (target) {
+    target.style.display = '';
+  } else {
+    // Graceful fallback: if the view isn't found, do nothing
   }
-}
+};
 
 // ══════════════════════════════════════
 // DATA STORE (Supabase Only)
@@ -3896,7 +3897,7 @@ function updateBackBtn() {
   }
 }
 
-function bottomHomeClick() {
+window.bottomHomeClick = function bottomHomeClick() {
   const appShell = document.getElementById('app-shell');
   if (!appShell.classList.contains('hidden')) {
     navigate('home');
@@ -5284,14 +5285,19 @@ async function loadTopVibesToUser() {
       .eq('user_id', me.id)
       .order('position');
     
-    if (data?.length) {
+    if (data && data.length) {
       const friendIds = data.map(d => d.friend_id);
-      const { data: friends } = await sb
-        .from('users')
-        .select('id, username, avatar_url')
-        .in('id', friendIds);
-      
-      if (friends?.length) {
+      var friendsRes = null;
+      try {
+        friendsRes = await sb
+          .from('users')
+          .select('id, username, avatar_url')
+          .in('id', friendIds);
+      } catch (err) {
+        friendsRes = null;
+      }
+      const friends = (friendsRes && friendsRes.data) ? friendsRes.data : [];
+      if (friends && friends.length) {
         const top8Array = data.map(d => {
           const f = friends.find(friend => friend.id === d.friend_id);
           return f?.username || '';

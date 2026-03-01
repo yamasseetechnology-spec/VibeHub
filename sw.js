@@ -18,6 +18,13 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
+  const url = event.request.url || '';
+  // Do not handle chrome-extension requests via service worker (let browser handle)
+  if (url.startsWith('chrome-extension://')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then(response => {
@@ -29,10 +36,19 @@ self.addEventListener('fetch', event => {
             return response;
           }
           var responseToCache = response.clone();
-          caches.open(CACHE_NAME)
-            .then(cache => {
-              cache.put(event.request, responseToCache);
-            });
+          // Only cache http(s) requests
+          const reqUrl = event.request.url || '';
+          if (reqUrl.startsWith('http://') || reqUrl.startsWith('https://')) {
+            try {
+              caches.open(CACHE_NAME)
+                .then(cache => {
+                  cache.put(event.request, responseToCache);
+                })
+                .catch(err => console.warn('Cache put failed:', err));
+            } catch (e) {
+              console.warn('Cache operation error', e);
+            }
+          }
           return response;
         });
       })
