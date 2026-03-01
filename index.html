@@ -85,24 +85,18 @@ async function goLiveEnd() {
   document.head.appendChild(s);
 })();
 </script>
-
-<!-- Minimal compatibility for legacy inline onclick showPage() usage -->
 <script>
-  window.showPage = function showPage(view){
-    if (typeof window.navigate === 'function') {
-      try {
-        window.navigate(view);
-      } catch (e) {
-        console.error('showPage navigate error', e);
-      }
-      return;
-    }
-    const el = document.getElementById('view-' + view);
-    if (!el) return;
-    document.querySelectorAll('[id^="view-"]').forEach(v => v.classList.add('hidden'));
-    el.classList.remove('hidden');
+window.safeUsername = function() {
+  try {
+    var u = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+    return (u && u.username) ? u.username : '';
+  } catch (e) {
+    return '';
   }
+}
 </script>
+
+<!-- Legacy showPage removed; global version will handle routing -->
 <script>
 // New robust tab delegation: handles tab clicks via event delegation
 (function(){
@@ -1968,7 +1962,7 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
     <button class="nav-item" onclick="navigate('notifications')" id="nav-notifications"><span class="nav-icon">🔔</span> Notifications <span class="nav-badge" id="notif-badge" style="display:none;">0</span></button>
 
     <div class="sidebar-section">You</div>
-    <button class="nav-item" onclick="navigate('profile', getCurrentUser()?.username)" id="nav-profile"><span class="nav-icon">👤</span> My Profile</button>
+  <button class="nav-item" onclick="navigate('profile', safeUsername())" id="nav-profile"><span class="nav-icon">👤</span> My Profile</button>
     <button class="nav-item" onclick="navigate('edit-profile')" id="nav-edit-profile"><span class="nav-icon">🎨</span> Customize Page</button>
     <button class="nav-item" onclick="navigate('my-channel')" id="nav-my-channel"><span class="nav-icon">📡</span> My Channel</button>
     <button class="nav-item" onclick="navigate('marketplace')" id="nav-marketplace"><span class="nav-icon">🛍️</span> Marketplace</button>
@@ -1979,7 +1973,7 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
     <div class="sidebar-section" id="admin-section" style="display:none;">Owner</div>
     <button class="nav-item hidden" onclick="navigate('admin')" id="nav-admin"><span class="nav-icon">🛡️</span> Admin Panel</button>
 
-<div class="sidebar-user" onclick="navigate('profile', getCurrentUser()?.username)">
+<div class="sidebar-user" onclick="navigate('profile', safeUsername())">
       <div class="avatar avatar-sm" id="sidebar-avatar">?</div>
       <div class="sidebar-user-info">
         <div class="sidebar-user-name" id="sidebar-name">Loading...</div>
@@ -2002,7 +1996,7 @@ audio { width: 100%; margin-top: 8px; border-radius: 8px; }
         <span>🔍</span>
         <input type="text" placeholder="Search VibeHub..." id="search-input" oninput="handleSearch(this.value)">
       </div>
-      <button class="btn btn-primary btn-sm" onclick="document.getElementById('post-composer-input')?.focus()">+ Post</button>
+      <button class="btn btn-primary btn-sm" onclick="(function(){ var el=document.getElementById('post-composer-input'); if (el) el.focus(); })()">+ Post</button>
     </div>
     
     <!-- Mobile Navigation Dropdown -->
@@ -3859,7 +3853,7 @@ function navigate(view, param) {
   else if (view === 'sync-spaces') renderSyncSpaces();
   else if (view === 'messages') renderMessages();
   else if (view === 'notifications') renderNotifications();
-  else if (view === 'profile') renderProfile(param || getCurrentUser()?.username);
+  else if (view === 'profile') renderProfile(param || safeUsername());
   else if (view === 'edit-profile') renderEditProfile();
   else if (view === 'my-channel') renderMyChannel();
   else if (view === 'settings') renderSettings();
@@ -3882,7 +3876,7 @@ function navBack() {
   if (prev.view === 'home') renderFeed('all');
   else if (prev.view === 'explore') renderExplore();
   else if (prev.view === 'channels') renderChannels();
-  else if (prev.view === 'profile') renderProfile(prev.param || getCurrentUser()?.username);
+  else if (prev.view === 'profile') renderProfile(prev.param || safeUsername());
   else if (prev.view === 'messages') renderMessages();
   else if (prev.view === 'notifications') renderNotifications();
 }
@@ -7939,7 +7933,8 @@ function isPostExpired(post) {
 function cleanupExpiredPosts() {
   const posts = getPosts();
   const initialCount = posts.length;
-  const validPosts = posts.filter(p => !isPostExpired(p) || p.userId === getCurrentUser()?.username);
+  const currentUserName = safeUsername();
+  const validPosts = posts.filter(p => !isPostExpired(p) || p.userId === currentUserName);
   
   if (validPosts.length !== initialCount) {
     setPosts(validPosts);
@@ -7990,7 +7985,7 @@ navigate = function(view, param) {
   else if (view === 'channel-detail') renderChannelDetail(param);
   else if (view === 'messages') renderMessages();
   else if (view === 'notifications') renderNotifications();
-  else if (view === 'profile') renderProfile(param || getCurrentUser()?.username);
+  else if (view === 'profile') renderProfile(param || safeUsername());
   else if (view === 'edit-profile') renderEditProfile();
   else if (view === 'my-channel') renderMyChannel();
   else if (view === 'admin') renderAdmin();
