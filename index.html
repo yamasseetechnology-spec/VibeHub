@@ -87,6 +87,24 @@ async function goLiveEnd() {
   document.head.appendChild(s);
 })();
 </script>
+
+<!-- Minimal compatibility for legacy inline onclick showPage() usage -->
+<script>
+  function showPage(view){
+    if (typeof window.navigate === 'function') {
+      try {
+        window.navigate(view);
+      } catch (e) {
+        console.error('showPage navigate error', e);
+      }
+      return;
+    }
+    const el = document.getElementById('view-' + view);
+    if (!el) return;
+    document.querySelectorAll('[id^="view-"]').forEach(v => v.classList.add('hidden'));
+    el.classList.remove('hidden');
+  }
+</script>
 <script>
 // New robust tab delegation: handles tab clicks via event delegation
 (function(){
