@@ -96,7 +96,7 @@ window.safeUsername = function() {
 }
 
 // FALLBACK: Handle any navigation button clicks safely
-(function() {
+;(function() {
   document.addEventListener('click', function(e) {
     var el = e.target;
     while (el && !el.onclick && el.tagName !== 'BODY') {
