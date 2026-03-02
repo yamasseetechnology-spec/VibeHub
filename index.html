@@ -4051,17 +4051,12 @@ function handleRegisterSubmit() {
   }
 }
 
-let _isRegistering = false;
-
 async function doRegisterFree() {
-  if (_isRegistering) return;
-  
   const username = document.getElementById('reg-user').value.trim();
   const name = document.getElementById('reg-name').value.trim();
   const email = document.getElementById('reg-email').value.trim();
   const pass = document.getElementById('reg-pass').value;
   const bio = document.getElementById('reg-bio').value.trim();
-  const regBtn = document.getElementById('reg-submit-btn');
 
   if (!username || !name || !email || !pass) { toast('Fill in all fields first', 'error'); return; }
   if (pass.length < 6) { toast('Password must be at least 6 characters', 'error'); return; }
@@ -4082,13 +4077,6 @@ async function doRegisterFree() {
   const sb = getSupabase();
   if (!sb) { toast('Server error. Please refresh and try again.', 'error'); return; }
 
-  // Prevent multiple rapid submissions
-  _isRegistering = true;
-  if (regBtn) {
-    regBtn.disabled = true;
-    regBtn.textContent = 'Creating account...';
-  }
-
   try {
     const { data, error } = await sb.auth.signUp({
       email: email,
@@ -4104,21 +4092,11 @@ async function doRegisterFree() {
     if (error) {
       console.error('Signup error:', error);
       toast(error.message || 'Signup failed. Please try again.', 'error');
-      _isRegistering = false;
-      if (regBtn) {
-        regBtn.disabled = false;
-        regBtn.textContent = 'Create Free Beta Account 🚀';
-      }
       return;
     }
 
     if (!data.user) {
       toast('Signup failed. Please try again.', 'error');
-      _isRegistering = false;
-      if (regBtn) {
-        regBtn.disabled = false;
-        regBtn.textContent = 'Create Free Beta Account 🚀';
-      }
       return;
     }
 
@@ -4126,11 +4104,6 @@ async function doRegisterFree() {
     if (!data.session) {
       // Email confirmation required - user needs to check their email
       toast('📧 Check your email to confirm your account!', 'success');
-      _isRegistering = false;
-      if (regBtn) {
-        regBtn.disabled = false;
-        regBtn.textContent = 'Create Free Beta Account 🚀';
-      }
       return;
     }
 
@@ -4164,12 +4137,6 @@ async function doRegisterFree() {
   } catch (e) {
     console.error('Signup exception:', e);
     toast('Signup failed: ' + (e.message || 'Unknown error'), 'error');
-  } finally {
-    _isRegistering = false;
-    if (regBtn) {
-      regBtn.disabled = false;
-      regBtn.textContent = 'Create Free Beta Account 🚀';
-    }
   }
 }
 
@@ -4182,27 +4149,16 @@ function handleSearch(val) {
 // ══════════════════════════════════════
 // AUTH
 // ══════════════════════════════════════
-let _isLoggingIn = false;
 
 async function doLogin() {
-  if (_isLoggingIn) return;
-  
   const userVal = document.getElementById('login-user').value.trim();
   const pass = document.getElementById('login-pass').value;
   const rememberMe = document.getElementById('stay-logged-in')?.checked;
-  const loginBtn = document.querySelector('#page-login .btn-primary');
 
   if (!userVal || !pass) { toast('Fill in all fields', 'error'); return; }
 
   const sb = getSupabase();
   if (!sb) { toast('Please wait, connecting to server...', 'info'); return; }
-
-  // Prevent multiple rapid submissions
-  _isLoggingIn = true;
-  if (loginBtn) {
-    loginBtn.disabled = true;
-    loginBtn.textContent = 'Signing in...';
-  }
 
   try {
     // Determine if userVal is email or username
@@ -4213,11 +4169,6 @@ async function doLogin() {
       const user = users.find(u => u.username === userVal);
       if (!user) {
         toast('Wrong username or password', 'error');
-        _isLoggingIn = false;
-        if (loginBtn) {
-          loginBtn.disabled = false;
-          loginBtn.textContent = 'Log In';
-        }
         return;
       }
       email = user.email;
@@ -4230,13 +4181,7 @@ async function doLogin() {
 
     if (error) {
       console.error('Login error:', error);
-      // Show actual Supabase error message
       toast(error.message || 'Login failed. Please check your credentials.', 'error');
-      _isLoggingIn = false;
-      if (loginBtn) {
-        loginBtn.disabled = false;
-        loginBtn.textContent = 'Log In';
-      }
       return;
     }
 
@@ -4245,12 +4190,6 @@ async function doLogin() {
   } catch (err) {
     console.error('Login exception:', err);
     toast('Login failed: ' + (err.message || 'Unknown error'), 'error');
-  } finally {
-    _isLoggingIn = false;
-    if (loginBtn) {
-      loginBtn.disabled = false;
-      loginBtn.textContent = 'Log In';
-    }
   }
 }
 
