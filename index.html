@@ -228,7 +228,7 @@ window.safeUsername = function() {
   <div id="live-host-view" class="live-view" style="display:none; position: fixed; left: 12px; bottom: 60px; width: 360px; height: 240px; background: #000; border-radius: 12px; overflow: hidden; z-index: 9999;">
     <video id="live-host-video" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;"></video>
     <div style="position:absolute;left:12px;bottom:8px;color:#fff;font-weight:600;background:rgba(0,0,0,0.5);padding:6px 8px;border-radius:6px;">LIVE</div>
-    <button id="end-live-btn" style="position:absolute;right:8px;bottom:8px" class="btn btn-danger" onclick="endGoLive()">End Live</button>
+    <button id="end-live-btn" style="position:absolute;right:8px;bottom:8px" class="btn btn-danger" onclick="goLiveEnd()">End Live</button>
   </div>
   <div class="splash-glow"></div>
   <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" class="splash-logo" alt="VibeHub">
@@ -4051,12 +4051,17 @@ function handleRegisterSubmit() {
   }
 }
 
+let _isRegistering = false;
+
 async function doRegisterFree() {
+  if (_isRegistering) return;
+  
   const username = document.getElementById('reg-user').value.trim();
   const name = document.getElementById('reg-name').value.trim();
   const email = document.getElementById('reg-email').value.trim();
   const pass = document.getElementById('reg-pass').value;
   const bio = document.getElementById('reg-bio').value.trim();
+  const regBtn = document.getElementById('reg-submit-btn');
 
   if (!username || !name || !email || !pass) { toast('Fill in all fields first', 'error'); return; }
   if (pass.length < 6) { toast('Password must be at least 6 characters', 'error'); return; }
@@ -4075,7 +4080,14 @@ async function doRegisterFree() {
   }
 
   const sb = getSupabase();
-  if (!sb) { toast('Server error', 'error'); return; }
+  if (!sb) { toast('Server error. Please refresh and try again.', 'error'); return; }
+
+  // Prevent multiple rapid submissions
+  _isRegistering = true;
+  if (regBtn) {
+    regBtn.disabled = true;
+    regBtn.textContent = 'Creating account...';
+  }
 
   try {
     const { data, error } = await sb.auth.signUp({
@@ -4089,12 +4101,41 @@ async function doRegisterFree() {
       }
     });
 
-    if (error) { toast(error.message, 'error'); return; }
+    if (error) {
+      console.error('Signup error:', error);
+      toast(error.message || 'Signup failed. Please try again.', 'error');
+      _isRegistering = false;
+      if (regBtn) {
+        regBtn.disabled = false;
+        regBtn.textContent = 'Create Free Beta Account 🚀';
+      }
+      return;
+    }
 
-    if (!data.user) { toast('Signup failed', 'error'); return; }
+    if (!data.user) {
+      toast('Signup failed. Please try again.', 'error');
+      _isRegistering = false;
+      if (regBtn) {
+        regBtn.disabled = false;
+        regBtn.textContent = 'Create Free Beta Account 🚀';
+      }
+      return;
+    }
+
+    // Check if email confirmation is required
+    if (!data.session) {
+      // Email confirmation required - user needs to check their email
+      toast('📧 Check your email to confirm your account!', 'success');
+      _isRegistering = false;
+      if (regBtn) {
+        regBtn.disabled = false;
+        regBtn.textContent = 'Create Free Beta Account 🚀';
+      }
+      return;
+    }
 
     // Create profile in 'users' table
-    await sb.from('users').insert({
+    const { error: profileError } = await sb.from('users').insert({
       id: data.user.id,
       username: username,
       name: name,
@@ -4107,6 +4148,11 @@ async function doRegisterFree() {
       paid: true
     });
 
+    if (profileError) {
+      console.error('Profile creation error:', profileError);
+      toast('Account created but profile setup failed. Try updating your profile.', 'error');
+    }
+
     toast('🎉 Welcome to the VibeHub Beta, ' + name + '! You got in FREE!', 'success');
 
     const notifs = getNotifs();
@@ -4116,8 +4162,14 @@ async function doRegisterFree() {
     // Session will be handled by onAuthStateChange listener
 
   } catch (e) {
-    console.error('Signup error:', e);
-    toast('Signup failed: ' + e.message, 'error');
+    console.error('Signup exception:', e);
+    toast('Signup failed: ' + (e.message || 'Unknown error'), 'error');
+  } finally {
+    _isRegistering = false;
+    if (regBtn) {
+      regBtn.disabled = false;
+      regBtn.textContent = 'Create Free Beta Account 🚀';
+    }
   }
 }
 
@@ -4130,45 +4182,76 @@ function handleSearch(val) {
 // ══════════════════════════════════════
 // AUTH
 // ══════════════════════════════════════
-function doLogin() {
+let _isLoggingIn = false;
+
+async function doLogin() {
+  if (_isLoggingIn) return;
+  
   const userVal = document.getElementById('login-user').value.trim();
   const pass = document.getElementById('login-pass').value;
   const rememberMe = document.getElementById('stay-logged-in')?.checked;
+  const loginBtn = document.querySelector('#page-login .btn-primary');
 
   if (!userVal || !pass) { toast('Fill in all fields', 'error'); return; }
 
   const sb = getSupabase();
   if (!sb) { toast('Please wait, connecting to server...', 'info'); return; }
 
-  // Determine if userVal is email or username
-  let email = userVal;
-  if (!userVal.includes('@')) {
-    // It's username, find email from users table
-    const users = getUsers();
-    const user = users.find(u => u.username === userVal);
-    if (!user) {
-      toast('Wrong username or password', 'error');
-      return;
-    }
-    email = user.email;
+  // Prevent multiple rapid submissions
+  _isLoggingIn = true;
+  if (loginBtn) {
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Signing in...';
   }
 
-  sb.auth.signInWithPassword({
-    email: email,
-    password: pass
-  }).then(({ data, error }) => {
+  try {
+    // Determine if userVal is email or username
+    let email = userVal;
+    if (!userVal.includes('@')) {
+      // It's username, find email from users table
+      const users = getUsers();
+      const user = users.find(u => u.username === userVal);
+      if (!user) {
+        toast('Wrong username or password', 'error');
+        _isLoggingIn = false;
+        if (loginBtn) {
+          loginBtn.disabled = false;
+          loginBtn.textContent = 'Log In';
+        }
+        return;
+      }
+      email = user.email;
+    }
+
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: email,
+      password: pass
+    });
+
     if (error) {
       console.error('Login error:', error);
-      toast('Wrong username or password', 'error');
+      // Show actual Supabase error message
+      toast(error.message || 'Login failed. Please check your credentials.', 'error');
+      _isLoggingIn = false;
+      if (loginBtn) {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Log In';
+      }
       return;
     }
 
     // Success - session handled by onAuthStateChange
     toast('Welcome back! ✌️', 'success');
-  }).catch(err => {
+  } catch (err) {
     console.error('Login exception:', err);
-    toast('Login failed: ' + err.message, 'error');
-  });
+    toast('Login failed: ' + (err.message || 'Unknown error'), 'error');
+  } finally {
+    _isLoggingIn = false;
+    if (loginBtn) {
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Log In';
+    }
+  }
 }
 
 function showPaymentModal() {

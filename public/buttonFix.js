@@ -16,12 +16,21 @@ function fixButtons() {
       ev.preventDefault();
       const fd = new FormData(loginForm);
       const body = JSON.stringify({ username: fd.get('username'), password: fd.get('password') });
-      const res = await fetch('/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
-      const data = await res.json();
-      if (data.ok) {
-        window.location.href = '/admin';
-      } else {
-        alert(data.error || 'Login failed');
+      try {
+        const res = await fetch('/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+        if (!res.ok) {
+          alert('Login failed. Server error: ' + res.status);
+          return;
+        }
+        const data = await res.json();
+        if (data.ok) {
+          window.location.href = '/admin';
+        } else {
+          alert(data.error || 'Login failed');
+        }
+      } catch (err) {
+        console.error('Login error:', err);
+        alert('Login failed. Please try again.');
       }
     });
   }

@@ -246,7 +246,7 @@ async function listTimeline(userId, limit = 20) {
         return { id: r.id, host_user_id: r.host_user_id, title: r.title, description: r.description, thumbnail_url: r.thumbnail_url, started_at: r.started_at, ended_at: r.ended_at, is_live: !!r.is_live, visibility: r.visibility, engine: r.engine, stream_url: r.stream_url, viewer_count: r.viewer_count || 0, max_viewers: r.max_viewers, metadata: meta, created_at: r.created_at, updated_at: r.updated_at, score };
       });
       // sort by score desc, then by started_at desc as tie-breaker
-      mapped.sort((a, b) => (b.score || 0) - (a.score || 0) || new Date(bstarted_at) - new Date(a.started_at));
+      mapped.sort((a, b) => (b.score || 0) - (a.score || 0) || new Date(b.started_at) - new Date(a.started_at));
       resolve(mapped.slice(0, Math.max(1, limit)));
     });
   });
