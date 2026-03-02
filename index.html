@@ -2862,14 +2862,21 @@ function getSupabase() {
   // Return existing client if already created
   if (supabaseClient) return supabaseClient;
   
-  // Create client if Supabase is ready
-  if (window.supabaseReady && window.VIBEHUB_SUPABASE_URL && window.VIBEHUB_SUPABASE_ANON_KEY) {
-    supabaseClient = window.supabase.createClient(
-      window.VIBEHUB_SUPABASE_URL,
-      window.VIBEHUB_SUPABASE_ANON_KEY
-    );
+  // Wait for Supabase to be ready and create client
+  let attempts = 0;
+  while (attempts < 50) {
+    if (window.supabaseReady && window.VIBEHUB_SUPABASE_URL && window.VIBEHUB_SUPABASE_ANON_KEY) {
+      supabaseClient = window.supabase.createClient(
+        window.VIBEHUB_SUPABASE_URL,
+        window.VIBEHUB_SUPABASE_ANON_KEY
+      );
+      return supabaseClient;
+    }
+    attempts++;
+    if (attempts === 1) console.log('Waiting for Supabase...');
   }
-  return supabaseClient;
+  console.error('Supabase client initialization timeout');
+  return null;
 }
 
 // Upload file to Cloudinary (used for posts, avatars, etc.)
@@ -4052,21 +4059,44 @@ function handleRegisterSubmit() {
 }
 
 async function doRegisterFree() {
+  const regBtn = document.getElementById('reg-submit-btn');
+  const originalText = regBtn ? regBtn.innerHTML : 'Create Free Beta Account 🚀';
+  if (regBtn) {
+    regBtn.disabled = true;
+    regBtn.innerHTML = 'Creating account...';
+  }
+  
   const username = document.getElementById('reg-user').value.trim();
   const name = document.getElementById('reg-name').value.trim();
   const email = document.getElementById('reg-email').value.trim();
   const pass = document.getElementById('reg-pass').value;
   const bio = document.getElementById('reg-bio').value.trim();
 
-  if (!username || !name || !email || !pass) { toast('Fill in all fields first', 'error'); return; }
-  if (pass.length < 6) { toast('Password must be at least 6 characters', 'error'); return; }
+  if (!username || !name || !email || !pass) { 
+    if (regBtn) { regBtn.disabled = false; regBtn.innerHTML = originalText; }
+    toast('Fill in all fields first', 'error'); 
+    return; 
+  }
+  if (pass.length < 6) { 
+    if (regBtn) { regBtn.disabled = false; regBtn.innerHTML = originalText; }
+    toast('Password must be at least 6 characters', 'error'); 
+    return; 
+  }
 
-  const users = getUsers();
-  if (users.find(u => u.username === username)) { toast('Username already taken', 'error'); return; }
-  if (users.find(u => u.email === email)) { toast('Email already registered', 'error'); return; }
+  const users = getUsers() || [];
+  if (users.find(u => u.username === username)) { 
+    if (regBtn) { regBtn.disabled = false; regBtn.innerHTML = originalText; }
+    toast('Username already taken', 'error'); 
+    return; 
+  }
+  if (users.find(u => u.email === email)) { 
+    if (regBtn) { regBtn.disabled = false; regBtn.innerHTML = originalText; }
+    toast('Email already registered', 'error'); 
+    return; 
+  }
 
   // Check beta count - first 10 users are free, then $1
-  const betaCount = _usersCache.filter(u => u.is_beta).length;
+  const betaCount = (users.filter(u => u.is_beta) || []).length;
   const isFree = betaCount < 10;
   
   if (!isFree) {
@@ -4075,9 +4105,14 @@ async function doRegisterFree() {
   }
 
   const sb = getSupabase();
-  if (!sb) { toast('Server error. Please refresh and try again.', 'error'); return; }
+  if (!sb) { 
+    if (regBtn) { regBtn.disabled = false; regBtn.innerHTML = originalText; }
+    toast('Server error. Please refresh and try again.', 'error'); 
+    return; 
+  }
 
   try {
+    console.log('Attempting signup for:', email);
     const { data, error } = await sb.auth.signUp({
       email: email,
       password: pass,
@@ -4091,11 +4126,13 @@ async function doRegisterFree() {
 
     if (error) {
       console.error('Signup error:', error);
+      if (regBtn) { regBtn.disabled = false; regBtn.innerHTML = originalText; }
       toast(error.message || 'Signup failed. Please try again.', 'error');
       return;
     }
 
     if (!data.user) {
+      if (regBtn) { regBtn.disabled = false; regBtn.innerHTML = originalText; }
       toast('Signup failed. Please try again.', 'error');
       return;
     }
@@ -4124,18 +4161,21 @@ async function doRegisterFree() {
     if (profileError) {
       console.error('Profile creation error:', profileError);
       toast('Account created but profile setup failed. Try updating your profile.', 'error');
+      if (regBtn) { regBtn.disabled = false; regBtn.innerHTML = originalText; }
+    } else {
+      toast('🎉 Welcome to the VibeHub Beta, ' + name + '! You got in FREE!', 'success');
     }
-
-    toast('🎉 Welcome to the VibeHub Beta, ' + name + '! You got in FREE!', 'success');
 
     const notifs = getNotifs();
     notifs.unshift({ id: 'n_welcome', type:'system', text:'🎉 Welcome to the VibeHub Beta! You\'re one of the first. Customize your page and start vibing! ✌️', time: Date.now(), read: false });
     setNotifs(notifs);
 
     // Session will be handled by onAuthStateChange listener
+    if (regBtn) { regBtn.disabled = false; regBtn.innerHTML = originalText; }
 
   } catch (e) {
     console.error('Signup exception:', e);
+    if (regBtn) { regBtn.disabled = false; regBtn.innerHTML = originalText; }
     toast('Signup failed: ' + (e.message || 'Unknown error'), 'error');
   }
 }
