@@ -4534,6 +4534,7 @@ async function createPost() {
   if (!text && !postImageData && !postVideoData) { toast('Write something first!', 'error'); return; }
 
   const user = getCurrentUser();
+  if (!user) { toast('Please log in to post', 'error'); return; }
   console.log('Creating post, user:', user);
   const tags = (text.match(/#(\w+)/g) || []).map(t => t.slice(1));
 
@@ -5100,7 +5101,13 @@ function toggleReaction(postId, type) {
     }
   }
 
-  setPosts(posts);
+  try {
+    setPosts(posts);
+  } catch (err) {
+    console.error('Failed to update post:', err);
+    toast('Failed to update reaction. Please try again.', 'error');
+    return;
+  }
   const el = document.getElementById('post-' + postId);
   if (el) el.outerHTML = renderPostCard(post);
 }
@@ -5108,10 +5115,15 @@ function toggleReaction(postId, type) {
 function deletePost(postId) {
   if (!confirm('Delete this post?')) return;
   const posts = getPosts().filter(p => p.id !== postId);
-  setPosts(posts);
-  const el = document.getElementById('post-' + postId);
-  if (el) el.remove();
-  toast('Post deleted', 'success');
+  try {
+    setPosts(posts);
+    const el = document.getElementById('post-' + postId);
+    if (el) el.remove();
+    toast('Post deleted', 'success');
+  } catch (err) {
+    console.error('Failed to delete post:', err);
+    toast('Failed to delete post. Please try again.', 'error');
+  }
 }
 
 // ============================================
@@ -5309,10 +5321,19 @@ function togglePinPost(postId) {
 }
 
 function sharePost(postId) {
-  navigator.clipboard?.writeText(window.location.href + '?post=' + postId)
-    .then(() => toast('Link copied!', 'success'))
-    .catch(() => toast('Post #' + postId + ' — share link ready!', 'success'));
-  toast('Share link copied to clipboard!', 'success');
+  const shareUrl = window.location.origin + '?post=' + postId;
+  navigator.clipboard?.writeText(shareUrl)
+    .then(() => toast('Link copied to clipboard!', 'success'))
+    .catch(() => {
+      // Fallback for browsers that don't support clipboard API
+      const input = document.createElement('input');
+      input.value = shareUrl;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+      toast('Link copied to clipboard!', 'success');
+    });
 }
 
 // ============================================
@@ -5698,18 +5719,26 @@ function submitReply(postId, userId, timestamp) {
 
 function submitComment(postId) {
   const text = document.getElementById('comment-input-' + postId)?.value.trim();
-  if (!text) return;
+  if (!text) { toast('Please enter a comment', 'error'); return; }
+  
   const me = getCurrentUser();
+  if (!me) { toast('Please log in to comment', 'error'); return; }
+  
   const posts = getPosts();
   const post = posts.find(p => p.id === postId);
-  if (!post) return;
+  if (!post) { toast('Post not found', 'error'); return; }
 
-  post.comments.unshift({ userId: me.username, text, time: Date.now(), replies: [] });
-  setPosts(posts);
-  if (post.userId !== me.username) addNotif(post.userId, 'comment', me.username, 'commented on your post', postId);
+  try {
+    post.comments.unshift({ userId: me.username, text, time: Date.now(), replies: [] });
+    setPosts(posts);
+    if (post.userId !== me.username) addNotif(post.userId, 'comment', me.username, 'commented on your post', postId);
 
-  openComments(postId);
-  toast('Comment posted!', 'success');
+    openComments(postId);
+    toast('Comment posted!', 'success');
+  } catch (err) {
+    console.error('Failed to post comment:', err);
+    toast('Failed to post comment. Please try again.', 'error');
+  }
 }
 
 function toggleCommentReaction(postId, userId, timestamp, type) {
@@ -6920,23 +6949,6 @@ let editAvatarImage = null;
 let editAvatarFile = null;
 let editBannerImage = null;
 let editBannerFile = null;
-
-function handleProfileImageUpload(input) {
-  const file = input.files[0];
-  if (!file) return;
-  
-  // Store file for upload
-  editAvatarFile = file;
-  
-  // Show preview
-  const reader = new FileReader();
-  reader.onload = e => {
-    editAvatarImage = e.target.result;
-    document.getElementById('profile-image-preview').innerHTML = 
-      `<img src="${e.target.result}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;">`;
-  };
-  reader.readAsDataURL(file);
-}
 
 function handleBannerUpload(input) {
   const file = input.files[0];
