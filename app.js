@@ -40,9 +40,65 @@ class VibeApp {
 
         // 2. Register Service Worker (with error handling)
         if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+            // Switched to simple registration as external asset was causing hard block
             navigator.serviceWorker.register('./service-worker.js')
                 .catch(err => console.log("Service Worker registration failed:", err));
         }
+
+        // 3. Setup Routing & Event Listeners
+        this.setupEventListeners();
+
+        // 4. After 3 seconds, execute transition
+        setTimeout(() => {
+            this.transitionToLogin();
+        }, 3000);
+    }
+
+    showLoadingScreen() {
+        const loading = document.getElementById('loading-screen');
+
+        if (loading) {
+            loading.style.visibility = 'visible';
+            loading.style.opacity = '1';
+
+            // Initialize stars
+            this.createStars();
+
+            // Initialize loading particles
+            this.initLoadingParticles();
+        }
+    }
+
+    transitionToLogin() {
+        const loading = document.getElementById('loading-screen');
+        const login = document.getElementById('login-screen');
+        const app = document.getElementById('app');
+
+        if (loading) {
+            loading.style.opacity = '0';
+            
+            setTimeout(() => {
+                loading.style.visibility = 'hidden';
+                
+                if (login) {
+                    login.style.opacity = '1';
+                    login.style.visibility = 'visible';
+                    this.initLoginParticles(); // Initialize login particles now that DOM is fully ready
+                }
+                
+                if (app) {
+                    app.classList.remove('hidden');
+                    app.style.opacity = '1';
+                }
+
+            }, 500); // Match loading fade-out duration
+        } else if (login) {
+            // Fallback if loading screen was somehow skipped/closed
+            login.style.opacity = '1';
+            login.style.visibility = 'visible';
+            this.initLoginParticles();
+        }
+    }
 
         // 3. Setup Routing & Event Listeners
         this.setupEventListeners();
