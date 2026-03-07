@@ -38,9 +38,10 @@ class VibeApp {
         // 1. Show loading screen
         this.showLoadingScreen();
 
-        // 2. Register Service Worker (optional/PWA)
+        // 2. Register Service Worker (with error handling)
         if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
-            navigator.serviceWorker.register('./service-worker.js').catch(err => console.log("SW failed:", err));
+            navigator.serviceWorker.register('./service-worker.js')
+                .catch(err => console.log("Service Worker registration failed:", err));
         }
 
         // 3. Setup Routing & Event Listeners
@@ -54,8 +55,6 @@ class VibeApp {
 
     showLoadingScreen() {
         const loading = document.getElementById('loading-screen');
-        const timerFill = document.getElementById('timer-fill');
-        const timerCount = document.getElementById('timer-count');
 
         if (loading) {
             loading.style.visibility = 'visible';
@@ -66,28 +65,6 @@ class VibeApp {
 
             // Initialize loading particles
             this.initLoadingParticles();
-
-            // 3-second timer
-            let timeLeft = 3;
-            timerCount.innerText = timeLeft;
-
-            const timerInterval = setInterval(() => {
-                timeLeft--;
-                if (timeLeft > 0) {
-                    timerCount.innerText = timeLeft;
-                } else {
-                    clearInterval(timerInterval);
-                }
-            }, 1000);
-
-            // Animate progress bar
-            let progress = 0;
-            const progressInterval = setInterval(() => {
-                progress += 1;
-                if (timerFill) {
-                    timerFill.style.width = `${progress}%`;
-                }
-            }, 33); // Update every 33ms for 3 seconds total
         }
     }
 

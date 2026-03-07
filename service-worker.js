@@ -5,14 +5,19 @@ const ASSETS = [
   '/styles.css',
   '/app.js',
   '/services.js',
-  '/components.js',
-  'https://i.ibb.co/Fqnj3JKp/1000001392.png'
+  '/components.js'
 ];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.addAll(ASSETS).catch(err => {
+        console.log('Cache install failed, continuing anyway:', err);
+        return Promise.resolve();
+      });
+    })
   );
+  self.skipWaiting();
 });
 
 self.addEventListener('fetch', (e) => {
