@@ -167,8 +167,8 @@ body {
 
 .loading-logo-wrapper {
     position: relative;
-    width: 120px;
-    height: 120px;
+    width: 360px;
+    height: 360px;
     display: flex;
     align-items: center;
     justify-content: center;

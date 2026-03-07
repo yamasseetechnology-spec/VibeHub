@@ -1,11 +1,11 @@
-const CACHE_NAME = 'vibehub-v1';
+const CACHE_NAME = 'vibehub-v2';
 const ASSETS = [
   '/',
   '/index.html',
   '/styles.css',
-  '/app.js',
-  '/services.js',
-  '/components.js'
+  '/app.js?v=2',
+  '/services.js?v=2',
+  '/components.js?v=2'
 ];
 
 self.addEventListener('install', (e) => {
@@ -20,8 +20,20 @@ self.addEventListener('install', (e) => {
   self.skipWaiting();
 });
 
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys().then(keys => Promise.all(
+      keys.map(key => {
+        if (key !== CACHE_NAME) return caches.delete(key);
+      })
+    ))
+  );
+  self.clients.claim();
+});
+
 self.addEventListener('fetch', (e) => {
+  // Network first strategy
   e.respondWith(
-    caches.match(e.request).then(res => res || fetch(e.request))
+    fetch(e.request).catch(() => caches.match(e.request))
   );
 });

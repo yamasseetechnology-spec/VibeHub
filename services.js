@@ -229,8 +229,5 @@ class AdminService {
 }
 
 // --- GLOBAL SERVICE INSTANCES ---
-const AuthService = new AuthService();
-const DataService = new DataService();
-const VideoService = new VideoService();
-const ChatService = new ChatService();
-const AdminService = new AdminService();
+// Removed to avoid Uncaught SyntaxError: Identifier has already been declared
+// Instances are created inside app.js VibeApp constructor.
