@@ -20,7 +20,7 @@
     <link rel="manifest" href="manifest.json">
 </head>
 <body>
-<!-- Loading Screen -->
+    <!-- Loading Screen -->
 <div id="loading-screen">
     <div class="starfield" id="starfield"></div>
     <div class="nebula nebula-1"></div>
@@ -30,9 +30,12 @@
             <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" class="loading-logo">
         </div>
         <div class="loading-circle"></div>
-        <div class="loading-status">
-            <div class="status-dot"></div>
-            <p class="status-text">Establishing Neural Connection</p>
+        <div class="loading-timer">
+            <p class="timer-label">Loading Consciousness</p>
+            <p class="timer-countdown"><span id="timer-count">3</span>s</p>
+            <div class="timer-bar">
+                <div class="timer-fill" id="timer-fill"></div>
+            </div>
         </div>
     </div>
     <div class="particles-container" id="loading-particles"></div>
@@ -142,6 +145,6 @@
     </div>
 
     <!-- Scripts -->
-    <script src="app.js" type="module"></script>
+    <script src="app.js"></script>
 </body>
 </html>

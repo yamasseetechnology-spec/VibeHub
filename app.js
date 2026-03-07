@@ -63,37 +63,67 @@ class VibeApp {
 
             // Initialize loading particles
             this.initLoadingParticles();
+
+            // Start 3-second countdown timer
+            let timeLeft = 3;
+            const countdownEl = document.getElementById('timer-count');
+            const timerFill = document.getElementById('timer-fill');
+            const timerLabel = document.querySelector('.timer-label');
+
+            // Update countdown every second
+            const countdownInterval = setInterval(() => {
+                timeLeft--;
+                if (countdownEl) {
+                    countdownEl.innerText = timeLeft;
+                }
+
+                // Update timer progress bar
+                if (timerFill) {
+                    const progress = ((3 - timeLeft) / 3) * 100;
+                    timerFill.style.width = `${progress}%`;
+                }
+
+                if (timeLeft <= 0) {
+                    clearInterval(countdownInterval);
+                    this.transitionToLogin();
+                }
+            }, 1000);
+
+            // Store interval to clear it if needed
+            loading.dataset.timerInterval = countdownInterval;
         }
     }
 
     transitionToLogin() {
         const loading = document.getElementById('loading-screen');
-        const login = document.getElementById('login-screen');
-        const app = document.getElementById('app');
 
         if (loading) {
+            // Clear the timer interval
+            if (loading.dataset.timerInterval) {
+                clearInterval(parseInt(loading.dataset.timerInterval));
+            }
+
+            // Fade out loading screen
             loading.style.opacity = '0';
-            
+
             setTimeout(() => {
                 loading.style.visibility = 'hidden';
-                
+
+                // Show login screen
+                const login = document.getElementById('login-screen');
                 if (login) {
                     login.style.opacity = '1';
                     login.style.visibility = 'visible';
-                    this.initLoginParticles(); // Initialize login particles now that DOM is fully ready
+                    this.initLoginParticles();
                 }
-                
+
+                // Show app
+                const app = document.getElementById('app');
                 if (app) {
                     app.classList.remove('hidden');
                     app.style.opacity = '1';
                 }
-
-            }, 500); // Match loading fade-out duration
-        } else if (login) {
-            // Fallback if loading screen was somehow skipped/closed
-            login.style.opacity = '1';
-            login.style.visibility = 'visible';
-            this.initLoginParticles();
+            }, 500);
         }
     }
 

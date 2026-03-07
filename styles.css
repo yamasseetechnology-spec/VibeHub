@@ -231,6 +231,52 @@ body {
     50% { opacity: 1; }
 }
 
+.loading-timer {
+    text-align: center;
+    margin-top: 30px;
+}
+
+.timer-label {
+    font-family: var(--font-mono);
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+}
+
+.timer-countdown {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--primary-orange), var(--primary-purple), var(--accent-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 10px 0;
+}
+
+.timer-bar {
+    width: 200px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 15px auto;
+    max-width: 80%;
+}
+
+.timer-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-orange), var(--primary-purple));
+    width: 0%;
+    animation: timer-progress 3s linear forwards;
+}
+
+@keyframes timer-progress {
+    0% { width: 0%; }
+    100% { width: 100%; }
+}
+
 .particles-container {
     position: absolute;
     inset: 0;
