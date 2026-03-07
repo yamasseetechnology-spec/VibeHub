@@ -595,6 +595,15 @@ class VibeApp {
             this.showToast('Welcome to the Pulse! ✨');
         }
 
+        // Hide login screen
+        const login = document.getElementById('login-screen');
+        if (login) {
+            login.style.opacity = '0';
+            setTimeout(() => {
+                login.style.visibility = 'hidden';
+            }, 800);
+        }
+
         this.navigate('home');
     }
 
