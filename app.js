@@ -741,3 +741,8 @@ class VibeApp {
         setTimeout(() => toast.remove(), 3000);
     }
 }
+
+// Initialize application when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    window.App = new VibeApp();
+});
