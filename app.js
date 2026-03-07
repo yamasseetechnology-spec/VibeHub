@@ -46,15 +46,16 @@ class VibeApp {
         // 3. Setup Routing & Event Listeners
         this.setupEventListeners();
 
-        // 4. After loading sequence, show login screen
+        // 4. After 3 seconds, show login screen
         setTimeout(() => {
             this.showLoginScreen();
-        }, 3500);
+        }, 3000);
     }
 
     showLoadingScreen() {
         const loading = document.getElementById('loading-screen');
-        const login = document.getElementById('login-screen');
+        const timerFill = document.getElementById('timer-fill');
+        const timerCount = document.getElementById('timer-count');
 
         if (loading) {
             loading.style.visibility = 'visible';
@@ -65,6 +66,28 @@ class VibeApp {
 
             // Initialize loading particles
             this.initLoadingParticles();
+
+            // 3-second timer
+            let timeLeft = 3;
+            timerCount.innerText = timeLeft;
+
+            const timerInterval = setInterval(() => {
+                timeLeft--;
+                if (timeLeft > 0) {
+                    timerCount.innerText = timeLeft;
+                } else {
+                    clearInterval(timerInterval);
+                }
+            }, 1000);
+
+            // Animate progress bar
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 1;
+                if (timerFill) {
+                    timerFill.style.width = `${progress}%`;
+                }
+            }, 33); // Update every 33ms for 3 seconds total
         }
     }
 
@@ -113,10 +136,6 @@ class VibeApp {
 
         // Initialize login particles
         this.initLoginParticles();
-    }
-
-    async delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     handleRouting() {

@@ -99,12 +99,12 @@ body {
 #loading-screen {
     position: fixed;
     inset: 0;
-    background: radial-gradient(ellipse at center, #1a0b2e 0%, #050505 70%, #000000 100%);
+    background: radial-gradient(ellipse at center, #0f0c29 0%, #302b63 50%, #24243e 100%);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 3000;
-    transition: opacity 1s ease-in;
+    transition: opacity 0.5s ease-in;
 }
 
 .starfield {
@@ -119,41 +119,41 @@ body {
     height: 2px;
     background: white;
     border-radius: 50%;
-    opacity: 0.8;
-    animation: twinkle 2s infinite ease-in-out;
+    opacity: 0.6;
+    animation: twinkle 3s infinite ease-in-out;
 }
 
 @keyframes twinkle {
     0%, 100% { opacity: 0.3; transform: scale(1); }
-    50% { opacity: 1; transform: scale(1.5); }
+    50% { opacity: 0.9; transform: scale(1.5); }
 }
 
 .nebula {
     position: absolute;
-    width: 600px;
-    height: 600px;
+    width: 500px;
+    height: 500px;
     border-radius: 50%;
-    filter: blur(80px);
-    opacity: 0.4;
+    filter: blur(60px);
+    opacity: 0.3;
 }
 
 .nebula-1 {
-    top: -200px;
-    left: -200px;
-    background: radial-gradient(circle, rgba(157, 80, 187, 0.4) 0%, transparent 70%);
-    animation: nebula-drift 30s infinite ease-in-out;
+    top: -150px;
+    left: -150px;
+    background: radial-gradient(circle, rgba(157, 80, 187, 0.5) 0%, transparent 70%);
+    animation: nebula-drift 20s infinite ease-in-out;
 }
 
 .nebula-2 {
-    bottom: -200px;
-    right: -200px;
-    background: radial-gradient(circle, rgba(255, 157, 0, 0.3) 0%, transparent 70%);
+    bottom: -150px;
+    right: -150px;
+    background: radial-gradient(circle, rgba(255, 157, 0, 0.4) 0%, transparent 70%);
     animation: nebula-drift 25s infinite ease-in-out reverse;
 }
 
 @keyframes nebula-drift {
     0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(50px, -30px) scale(1.1); }
+    50% { transform: translate(30px, -20px) scale(1.1); }
 }
 
 .loading-content {
@@ -165,179 +165,126 @@ body {
     z-index: 10;
 }
 
-.particle-orbit {
-    position: absolute;
-    width: 250px;
-    height: 250px;
-    border: 2px solid rgba(157, 80, 187, 0.2);
-    border-radius: 50%;
-    animation: spin 20s linear infinite;
-}
-
-.orbit-2 {
-    width: 300px;
-    height: 300px;
-    border-color: rgba(255, 157, 0, 0.2);
-    animation: spin 25s linear infinite reverse;
-}
-
-.orbit-3 {
-    width: 350px;
-    height: 350px;
-    border-color: rgba(0, 242, 255, 0.15);
-    animation: spin 30s linear infinite;
-}
-
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-
-.loading-brain {
-    width: 180px;
-    height: 180px;
+.loading-logo-wrapper {
     position: relative;
-    animation: brain-pulse 4s infinite ease-in-out;
+    width: 120px;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.brain-svg {
-    width: 100%;
-    height: 100%;
-}
-
-.brain-outline {
-    fill: none;
-    stroke: #00f2ff;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-.brain-cell {
-    fill: #00f2ff;
-    filter: drop-shadow(0 0 10px #00f2ff);
-}
-
-.neural-line {
-    stroke: #00f2ff;
-    stroke-width: 1.5;
-    stroke-dasharray: 5, 5;
-    animation: neural-pulse 1.5s infinite;
-}
-
-@keyframes brain-pulse {
-    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 20px rgba(0, 242, 255, 0.3)); }
-    50% { transform: scale(1.05); filter: drop-shadow(0 0 40px rgba(0, 242, 255, 0.6)); }
-}
-
-@keyframes neural-pulse {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
+.loading-logo-glow {
+    position: absolute;
+    inset: -30px;
+    background: radial-gradient(circle, rgba(157, 80, 187, 0.6) 0%, rgba(255, 157, 0, 0.3) 50%, transparent 70%);
+    animation: pulse-glow 2s infinite ease-in-out;
+    border-radius: 50%;
 }
 
 .loading-logo {
-    width: 80px;
-    height: 80px;
-    margin: 20px 0;
-    animation: logo-float 3s infinite ease-in-out;
-    filter: drop-shadow(0 0 20px var(--primary-orange-glow));
-}
-
-@keyframes logo-float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    position: relative;
+    z-index: 2;
 }
 
 .loading-text {
     text-align: center;
-    margin-top: 30px;
+    margin-top: 40px;
     z-index: 10;
 }
 
-.loading-stage {
-    font-family: var(--font-mono);
-    font-size: 0.9rem;
-    color: var(--accent-cyan);
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    animation: text-flicker 2s infinite;
-    margin-bottom: 8px;
-}
-
-.loading-progress {
+.loading-title {
     font-family: var(--font-display);
-    font-size: 1.5rem;
-    font-weight: 700;
-    background: linear-gradient(135deg, var(--primary-orange), var(--primary-purple));
+    font-size: 2.5rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--primary-orange), var(--primary-purple), var(--accent-cyan));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    margin-bottom: 10px;
+    letter-spacing: 2px;
 }
 
-@keyframes text-flicker {
-    0%, 100% { opacity: 1; }
-    92% { opacity: 1; }
-    93% { opacity: 0.5; }
-    94% { opacity: 1; }
-    96% { opacity: 0.3; }
-    97% { opacity: 1; }
+.loading-subtitle {
+    color: var(--text-dim);
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 3px;
 }
 
-.lightning-container {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
+.loading-timer-container {
+    margin-top: 40px;
+    width: 300px;
+}
+
+.timer-progress-bar {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
     overflow: hidden;
+    position: relative;
 }
 
-.lightning-bolt {
-    position: absolute;
-    width: 3px;
-    height: 80px;
-    background: linear-gradient(180deg, #00f2ff 0%, rgba(0, 242, 255, 0.3) 100%);
-    opacity: 0;
-    filter: drop-shadow(0 0 10px #00f2ff) drop-shadow(0 0 20px var(--accent-cyan));
+.timer-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-orange), var(--primary-purple));
+    width: 0%;
+    transition: width 0.1s linear;
+    border-radius: 10px;
 }
 
-.bolt-1 {
-    top: 20%;
-    left: 15%;
-    animation: lightning-flash 4s infinite;
+.timer-text {
+    text-align: center;
+    color: var(--accent-cyan);
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    margin-top: 12px;
+    letter-spacing: 1px;
 }
 
-.bolt-2 {
-    top: 60%;
-    right: 20%;
-    width: 4px;
-    height: 100px;
-    animation: lightning-flash 5s infinite 1s;
+.loading-status {
+    text-align: center;
+    margin-top: 20px;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    letter-spacing: 2px;
 }
 
-.bolt-3 {
-    top: 30%;
-    right: 30%;
-    width: 2px;
-    height: 60px;
-    animation: lightning-flash 3.5s infinite 2s;
+.status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: var(--accent-cyan);
+    border-radius: 50%;
+    margin-right: 8px;
+    animation: blink 1s infinite;
 }
 
-.bolt-4 {
-    bottom: 25%;
-    left: 25%;
-    width: 3px;
-    height: 70px;
-    animation: lightning-flash 4.5s infinite 0.5s;
-}
-
-@keyframes lightning-flash {
-    0%, 45%, 55%, 100% { opacity: 0; }
-    47%, 53% { opacity: 1; }
+@keyframes blink {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
 }
 
 .particles-container {
     position: absolute;
     inset: 0;
     pointer-events: none;
+}
+
+#login-particles {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+}
+
+#login-particles .particle {
+    background: linear-gradient(135deg, var(--primary-orange), var(--primary-purple));
+    box-shadow: 0 0 20px var(--primary-orange-glow), 0 0 40px var(--primary-purple-glow);
 }
 
 /* --- Login Screen --- */
