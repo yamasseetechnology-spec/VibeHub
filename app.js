@@ -35,22 +35,88 @@ class VibeApp {
     async init() {
         console.log("Vibehub Initializing...");
 
-        // 1. Register Service Worker (optional/PWA)
+        // 1. Show loading screen
+        this.showLoadingScreen();
+
+        // 2. Register Service Worker (optional/PWA)
         if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
             navigator.serviceWorker.register('./service-worker.js').catch(err => console.log("SW failed:", err));
         }
 
-        // 2. Check Auth
-        State.user = this.services.auth.checkSession();
-
         // 3. Setup Routing & Event Listeners
         this.setupEventListeners();
 
-        // 4. If already logged in, go directly to home
-        if (State.user) {
-            this.navigate('home');
+        // 4. After loading sequence, show login screen
+        setTimeout(() => {
+            this.showLoginScreen();
+        }, 3500);
+    }
+
+    showLoadingScreen() {
+        const loading = document.getElementById('loading-screen');
+        const login = document.getElementById('login-screen');
+
+        if (loading) {
+            loading.style.visibility = 'visible';
+            loading.style.opacity = '1';
+
+            // Initialize stars
+            this.createStars();
+
+            // Initialize loading particles
+            this.initLoadingParticles();
         }
-        // Otherwise show login screen
+    }
+
+    createStars() {
+        const starfield = document.getElementById('starfield');
+        if (!starfield) return;
+
+        for (let i = 0; i < 200; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            star.style.left = `${Math.random() * 100}%`;
+            star.style.top = `${Math.random() * 100}%`;
+            star.style.animationDelay = `${Math.random() * 2}s`;
+            star.style.animationDuration = `${1.5 + Math.random() * 1.5}s`;
+            starfield.appendChild(star);
+        }
+    }
+
+    initLoadingParticles() {
+        const container = document.getElementById('loading-particles');
+        if (!container) return;
+        const particleCount = 80;
+
+        for (let i = 0; i < particleCount; i++) {
+            const p = document.createElement('div');
+            p.className = 'particle';
+            const size = Math.random() * 10 + 3;
+            p.style.width = `${size}px`;
+            p.style.height = `${size}px`;
+            p.style.left = `${Math.random() * 100}%`;
+            p.style.top = `${Math.random() * 100}%`;
+            p.style.setProperty('--drift', `${Math.random() * 100 - 50}px`);
+            p.style.animationDelay = `${Math.random() * 10}s`;
+            p.style.animationDuration = `${10 + Math.random() * 15}s`;
+            p.style.boxShadow = '0 0 10px rgba(0, 242, 255, 0.5), 0 0 20px rgba(157, 80, 187, 0.5)';
+            container.appendChild(p);
+        }
+    }
+
+    showLoginScreen() {
+        const login = document.getElementById('login-screen');
+        if (!login) return;
+
+        login.style.opacity = '1';
+        login.style.visibility = 'visible';
+
+        // Initialize login particles
+        this.initLoginParticles();
+    }
+
+    async delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     handleRouting() {

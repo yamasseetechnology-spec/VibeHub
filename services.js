@@ -14,24 +14,29 @@ export class AuthService {
     }
 
     async login(email, password, isAdmin = false) {
-        // Prepare for: await supabase.auth.signInWithPassword({ email, password })
+        // Admin credentials
+        const validAdminEmail = 'yamasseetechnology@gmail.com';
+        const adminPassword = 'citawoo789!';
+
         return new Promise(resolve => {
             setTimeout(() => {
-                const isSuperAdmin = isAdmin || email.toLowerCase().includes('admin');
+                const isSuperAdmin = isAdmin ||
+                                   (email.toLowerCase() === validAdminEmail && password === adminPassword) ||
+                                   email.toLowerCase().includes('admin');
 
                 const mockUser = {
                     id: 'u1',
-                    username: isAdmin ? 'super_admin' : 'vibe_master',
-                    displayName: isAdmin ? 'Super Admin' : 'Vibe Master',
+                    username: isAdmin || email.toLowerCase() === validAdminEmail ? 'super_admin' : 'vibe_master',
+                    displayName: isAdmin || email.toLowerCase() === validAdminEmail ? 'Super Admin' : 'Vibe Master',
                     email: email,
                     profilePhoto: 'https://i.pravatar.cc/150?u=me',
                     bannerImage: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
                     bio: 'Linking minds through deep vibes.',
-                    followersCount: isAdmin ? 0 : 1205,
-                    followingCount: isAdmin ? 0 : 840,
-                    postCount: isAdmin ? 0 : 42,
-                    reactionScore: isAdmin ? 0 : 8500,
-                    badgeList: isAdmin ? ['Admin'] : ['Heat Magnet', 'Admired Creator'],
+                    followersCount: isAdmin || email.toLowerCase() === validAdminEmail ? 0 : 1205,
+                    followingCount: isAdmin || email.toLowerCase() === validAdminEmail ? 0 : 840,
+                    postCount: isAdmin || email.toLowerCase() === validAdminEmail ? 0 : 42,
+                    reactionScore: isAdmin || email.toLowerCase() === validAdminEmail ? 0 : 8500,
+                    badgeList: isAdmin || email.toLowerCase() === validAdminEmail ? ['Admin'] : ['Heat Magnet', 'Admired Creator'],
                     isSuperAdmin: isSuperAdmin,
                     createdAt: new Date().toISOString()
                 };
