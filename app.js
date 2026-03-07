@@ -34,29 +34,23 @@ class VibeApp {
 
     async init() {
         console.log("Vibehub Initializing...");
-        
-        // 1. Initialize Particles
-        this.initParticles();
 
-        // 2. Register Service Worker (optional/PWA)
+        // 1. Register Service Worker (optional/PWA)
         if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
             navigator.serviceWorker.register('./service-worker.js').catch(err => console.log("SW failed:", err));
         }
-        
-        // 3. Check Auth
+
+        // 2. Check Auth
         State.user = this.services.auth.checkSession();
-        
-        // 4. Start Loading Animation
-        await this.simulateLoading();
-        
-        // 5. Setup Routing & Event Listeners
+
+        // 3. Setup Routing & Event Listeners
         this.setupEventListeners();
-        
-        // 6. Hide Splash & Show App
-        this.hideSplash();
-        
-        // 7. Initial Route
-        this.handleRouting();
+
+        // 4. If already logged in, go directly to home
+        if (State.user) {
+            this.navigate('home');
+        }
+        // Otherwise show login screen
     }
 
     handleRouting() {
@@ -64,43 +58,24 @@ class VibeApp {
         this.navigate(hash);
     }
 
-    initParticles() {
-        const container = document.getElementById('particle-container');
+    initLoginParticles() {
+        const container = document.getElementById('login-particles');
         if (!container) return;
-        const particleCount = 40;
-        
+        const particleCount = 60;
+
         for (let i = 0; i < particleCount; i++) {
             const p = document.createElement('div');
             p.className = 'particle';
-            const size = Math.random() * 3 + 1;
+            const size = Math.random() * 15 + 5;
             p.style.width = `${size}px`;
             p.style.height = `${size}px`;
             p.style.left = `${Math.random() * 100}%`;
-            p.style.animationDelay = `${Math.random() * 20}s`;
-            p.style.animationDuration = `${10 + Math.random() * 20}s`;
+            p.style.top = `${Math.random() * 100}%`;
+            p.style.setProperty('--drift', `${Math.random() * 60 - 30}px`);
+            p.style.animationDelay = `${Math.random() * 15}s`;
+            p.style.animationDuration = `${12 + Math.random() * 10}s`;
             container.appendChild(p);
         }
-    }
-
-    async simulateLoading() {
-        const progress = document.querySelector('.loader-progress');
-        if (!progress) return;
-
-        return new Promise(resolve => {
-            let width = 0;
-            const interval = setInterval(() => {
-                // Random increments for organic feel
-                width += Math.random() * 12;
-                if (width >= 100) {
-                    width = 100;
-                    progress.style.width = '100%';
-                    clearInterval(interval);
-                    setTimeout(resolve, 800); // Slight pause at full bar
-                } else {
-                    progress.style.width = `${width}%`;
-                }
-            }, 150);
-        });
     }
 
     setupEventListeners() {
@@ -175,16 +150,7 @@ class VibeApp {
     }
 
     hideSplash() {
-        const splash = document.getElementById('splash-screen');
-        const app = document.getElementById('app');
-        if (!splash || !app) return;
-        
-        splash.style.opacity = '0';
-        setTimeout(() => {
-            splash.classList.add('hidden');
-            app.classList.remove('hidden');
-            app.style.opacity = '1';
-        }, 800);
+        // No longer needed - login screen is the entry point
     }
 
     navigate(view) {
@@ -273,16 +239,17 @@ class VibeApp {
                 btn.classList.toggle('active');
                 const countSpan = btn.querySelector('span');
                 if (!countSpan) return;
-                
+
                 let count = parseInt(countSpan.innerText);
                 count = btn.classList.contains('active') ? count + 1 : count - 1;
                 countSpan.innerText = count;
-                
-                // Animated Floating Reaction
+
+                // Reaction popup animation
                 if (btn.classList.contains('active')) {
-                    this.createFloatingReaction(e.clientX, e.clientY, btn.innerText.split(' ')[0]);
+                    const reactionName = btn.innerText.split(' ')[0];
+                    this.showReactionPopup(e.clientX, e.clientY, reactionName);
                 }
-                
+
                 btn.style.transform = 'scale(1.2)';
                 setTimeout(() => btn.style.transform = '', 200);
             });
@@ -321,6 +288,29 @@ class VibeApp {
         setTimeout(() => react.remove(), 800);
     }
 
+    showReactionPopup(x, y, reactionName) {
+        const popup = document.createElement('div');
+        popup.className = 'reaction-popup';
+        popup.innerHTML = `<span>${reactionName}</span>`;
+        popup.style.left = `${x}px`;
+        popup.style.top = `${y}px`;
+        popup.style.transform = 'translate(-50%, -100%) scale(0)';
+        document.body.appendChild(popup);
+
+        // Trigger animation
+        requestAnimationFrame(() => {
+            popup.style.transform = 'translate(-50%, -100%) scale(1.2)';
+            popup.style.opacity = '1';
+        });
+
+        setTimeout(() => {
+            popup.style.transform = 'translate(-50%, -150%) scale(0.8)';
+            popup.style.opacity = '0';
+        }, 100);
+
+        setTimeout(() => popup.remove(), 800);
+    }
+
     startSyncStream() {
         const streamContainer = document.getElementById('sync-stream-simulation');
         if (!streamContainer) {
@@ -352,16 +342,16 @@ class VibeApp {
     }
 
     // --- VIEW TEMPLATES ---
-    getHomeHTML(posts, activeTab = 'all') {
+    getHomeHTML(posts, activeTab = 'vibeline') {
         const tabs = [
-            { id: 'all', label: 'All' },
-            { id: 'friends', label: 'Friends' },
+            { id: 'vibeline', label: 'Vibeline' },
             { id: 'trending', label: 'Trending' },
             { id: 'we-vibin', label: 'We Vibin' }
         ];
         return `
             <div class="view-header animate-fade">
                 <h1 class="view-title">The Pulse</h1>
+                <p class="text-dim" style="margin-top:8px;">Connect minds. Share vibes. Elevate consciousness.</p>
             </div>
             <div class="tabs">
                 ${tabs.map(t => `<button class="tab ${activeTab === t.id ? 'active' : ''}" onclick="window.App.switchHomeTab('${t.id}')">${t.label}</button>`).join('')}
@@ -465,25 +455,55 @@ class VibeApp {
     getAuthHTML(mode) {
         const isLogin = mode === 'login';
         return `
-            <div class="auth-container glass-panel animate-fade" style="max-width:400px; margin: 40px auto; padding: 40px;">
-                <h2 class="view-header" style="text-align:center;">${isLogin ? 'Login' : 'Join'} Vibehub</h2>
-                <div style="display:flex; flex-direction:column; gap:20px; margin-top:20px;">
-                    <input type="email" placeholder="Email Address" class="glass-panel" style="padding:12px; background:rgba(0,0,0,0.5); border:1px solid var(--border-light); color:white;">
-                    ${!isLogin ? '<input type="text" placeholder="Username" class="glass-panel" style="padding:12px; background:rgba(0,0,0,0.5); border:1px solid var(--border-light); color:white;">' : ''}
-                    <input type="password" placeholder="Password" class="glass-panel" style="padding:12px; background:rgba(0,0,0,0.5); border:1px solid var(--border-light); color:white;">
-                    <button class="btn-primary" onclick="window.App.handleAuth('${mode}')">${isLogin ? 'Enter The Pulse' : 'Create My Identity'}</button>
-                    <p style="text-align:center; font-size:0.9rem;" class="text-dim">
-                        ${isLogin ? "No account?" : "Already linked?"} 
-                        <a href="#" onclick="window.App.navigate('${isLogin ? 'register' : 'login'}')" style="color:var(--primary-orange);">${isLogin ? 'Register' : 'Login'}</a>
-                    </p>
+            <div class="login-content glass-panel" style="border: 2px solid rgba(157, 80, 187, 0.3); box-shadow: 0 0 50px rgba(157, 80, 187, 0.2);">
+                <div class="login-header">
+                    <div class="login-logo">
+                        <div class="login-logo-glow"></div>
+                        <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" alt="Vibehub Logo">
+                    </div>
+                    <h1 class="login-title">${isLogin ? 'Login' : 'Join'} Vibehub</h1>
+                    <p class="login-subtitle">${isLogin ? 'Link your mind' : 'Begin your journey'}</p>
+                </div>
+
+                <div class="login-form">
+                    <div class="login-toggle">
+                        <input type="checkbox" id="admin-toggle">
+                        <label for="admin-toggle">I am an Admin</label>
+                    </div>
+
+                    <input type="email" id="login-email" class="login-input" placeholder="Email Address" required>
+                    ${!isLogin ? '<input type="text" id="register-username" class="login-input" placeholder="Choose Username" required>' : ''}
+                    <input type="password" id="login-password" class="login-input" placeholder="Password" required>
+                    <button class="login-submit" onclick="window.App.handleLogin('${mode}')">${isLogin ? '✨ Enter The Pulse' : '🚀 Create My Identity'}</button>
+
+                    <div class="login-footer">
+                        <a href="#" onclick="window.App.navigate('${isLogin ? 'register' : 'login'}')">${isLogin ? 'Need an account? Register' : 'Already linked? Login'}</a>
+                    </div>
                 </div>
             </div>
         `;
     }
 
-    async handleAuth(mode) {
-        const user = await this.services.auth.login('mock@vibehub.com', 'password');
+    async handleLogin(mode = 'login') {
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+        const isAdmin = document.getElementById('admin-toggle').checked;
+
+        // Simple validation
+        if (!email || !password) {
+            this.showToast('Please fill in all fields');
+            return;
+        }
+
+        const user = await this.services.auth.login(email, password, isAdmin);
         State.user = user;
+
+        if (user.isSuperAdmin) {
+            this.showToast('Welcome, Admin! 🎉');
+        } else {
+            this.showToast('Welcome to the Pulse! ✨');
+        }
+
         this.navigate('home');
     }
 

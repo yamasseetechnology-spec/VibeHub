@@ -20,21 +20,39 @@
     <link rel="manifest" href="manifest.json">
 </head>
 <body>
-    <!-- Floating Background Particles -->
-    <div id="particle-container"></div>
+<!-- Login Particles -->
+<div id="login-particles"></div>
 
-    <!-- Splash Screen -->
-    <div id="splash-screen">
-        <div class="splash-content">
-            <div class="logo-glow-wrapper">
-                <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" alt="Vibehub Logo" class="splash-logo">
+<!-- Login Screen -->
+<div id="login-screen">
+    <div class="login-content glass-panel" style="border: 2px solid rgba(157, 80, 187, 0.3); box-shadow: 0 0 50px rgba(157, 80, 187, 0.2);">
+        <div class="login-header">
+            <div class="login-logo">
+                <div class="login-logo-glow"></div>
+                <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" alt="Vibehub Logo">
             </div>
-            <div class="loader-bar">
-                <div class="loader-progress"></div>
+            <h1 class="login-title">Vibehub</h1>
+            <p class="login-subtitle">Link Your Mind</p>
+        </div>
+
+        <div class="login-form">
+            <div class="login-toggle">
+                <input type="checkbox" id="admin-toggle">
+                <label for="admin-toggle">I am an Admin</label>
             </div>
-            <p class="splash-tagline">Linking Liked Minds...</p>
+
+            <input type="email" id="login-email" class="login-input" placeholder="Email Address" required>
+            <input type="password" id="login-password" class="login-input" placeholder="Password" required>
+            <button class="login-submit" onclick="window.App.handleLogin()">
+                <span>✨</span> Enter The Pulse
+            </button>
+
+            <div class="login-footer">
+                <a href="#" onclick="window.App.navigate('register')">Need an account? Register</a>
+            </div>
         </div>
     </div>
+</div>
 
     <!-- App Shell -->
     <div id="app" class="hidden">

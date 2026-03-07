@@ -64,15 +64,26 @@ body {
 
 .particle {
     position: absolute;
-    background: white;
     border-radius: 50%;
-    opacity: 0.1;
-    animation: float 20s infinite linear;
+    opacity: 0.3;
+    animation: float-up 15s infinite linear;
 }
 
-@keyframes float {
-    from { transform: translateY(110vh) translateX(0); }
-    to { transform: translateY(-10vh) translateX(20px); }
+@keyframes float-up {
+    0% {
+        transform: translateY(110vh) translateX(0) scale(0.5);
+        opacity: 0;
+    }
+    10% {
+        opacity: 0.3;
+    }
+    90% {
+        opacity: 0.3;
+    }
+    100% {
+        transform: translateY(-10vh) translateX(var(--drift, 20px)) scale(1.2);
+        opacity: 0;
+    }
 }
 
 /* --- Glassmorphism Panels --- */
@@ -84,67 +95,246 @@ body {
     border-radius: var(--radius-lg);
 }
 
-/* --- Splash Screen --- */
-#splash-screen {
+/* --- Login Screen --- */
+#login-screen {
     position: fixed;
     inset: 0;
     background: var(--bg-deep);
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 2000;
     transition: opacity 0.8s ease-out, visibility 0.8s;
 }
 
-.splash-content {
-    text-align: center;
-}
-
-.logo-glow-wrapper {
-    position: relative;
-    padding: 20px;
-}
-
-.logo-glow-wrapper::after {
-    content: '';
-    position: absolute;
+#login-particles {
+    position: fixed;
     inset: 0;
-    background: radial-gradient(circle, var(--primary-purple-glow) 0%, transparent 70%);
-    animation: pulse-glow 3s infinite alternate;
+    z-index: -1;
+    pointer-events: none;
 }
 
-.splash-logo {
-    width: 120px;
-    height: 120px;
+#login-particles .particle {
+    background: linear-gradient(135deg, var(--primary-orange), var(--primary-purple));
+    box-shadow: 0 0 20px var(--primary-orange-glow), 0 0 40px var(--primary-purple-glow);
+}
+
+.login-content {
+    width: 100%;
+    max-width: 420px;
+    padding: 40px;
     position: relative;
-    z-index: 1;
 }
 
-.loader-bar {
-    width: 200px;
-    height: 4px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 10px;
-    margin: 30px auto;
-    overflow: hidden;
+.login-header {
+    text-align: center;
+    margin-bottom: 40px;
 }
 
-.loader-progress {
-    width: 0%;
+.login-logo {
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 20px;
+    position: relative;
+}
+
+.login-logo img {
+    width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, var(--primary-orange), var(--primary-purple));
-    box-shadow: 0 0 10px var(--primary-purple);
-    transition: width 0.3s;
+    object-fit: contain;
 }
 
-.splash-tagline {
+.login-logo-glow {
+    position: absolute;
+    inset: -20px;
+    background: radial-gradient(circle, var(--primary-purple-glow) 0%, var(--primary-orange-glow) 50%, transparent 70%);
+    animation: pulse-glow 3s infinite alternate;
+    border-radius: 50%;
+}
+
+.login-title {
     font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--primary-orange), var(--primary-purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 8px;
+}
+
+.login-subtitle {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.login-input {
+    width: 100%;
+    padding: 16px 20px;
+    background: rgba(0,0,0,0.4);
+    border: 2px solid rgba(157, 80, 187, 0.3);
+    border-radius: var(--radius-md);
+    color: var(--text-main);
+    font-size: 1rem;
+    transition: all 0.3s;
+    backdrop-filter: blur(10px);
+}
+
+.login-input:focus {
+    outline: none;
+    border-color: var(--primary-orange);
+    box-shadow: 0 0 20px rgba(255, 157, 0, 0.3);
+    background: rgba(0,0,0,0.6);
+}
+
+.login-input::placeholder {
+    color: rgba(176, 176, 204, 0.5);
+}
+
+.login-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px;
+    background: rgba(157, 80, 187, 0.1);
+    border: 1px solid rgba(157, 80, 187, 0.3);
+    border-radius: var(--radius-md);
+    color: var(--text-main);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.login-toggle:hover {
+    background: rgba(157, 80, 187, 0.2);
+    border-color: var(--primary-purple);
+}
+
+.login-toggle input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--primary-orange);
+    cursor: pointer;
+}
+
+.login-submit {
+    background: linear-gradient(135deg, var(--primary-orange), var(--primary-purple));
+    color: white;
+    border: none;
+    padding: 16px 24px;
+    border-radius: var(--radius-md);
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 4px 20px rgba(255, 157, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.login-submit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 30px rgba(157, 80, 187, 0.5);
+}
+
+.login-submit:active {
+    transform: translateY(0);
+}
+
+.login-footer {
+    text-align: center;
+    margin-top: 24px;
+}
+
+.login-footer a {
+    color: var(--primary-orange);
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: color 0.3s;
+}
+
+.login-footer a:hover {
+    color: var(--primary-orange-bright);
+}
+
+.login-divider {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin: 24px 0;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+}
+
+.login-divider::before,
+.login-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+}
+
+/* --- Admin Badge --- */
+.admin-badge {
+    background: linear-gradient(135deg, var(--accent-pink), var(--accent-cyan));
+    color: white;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    animation: pulse-glow 2s infinite;
+}
+
+/* --- Updated Reactions --- */
+.reaction-btn.active[data-type="like"] { color: #3b82f6; border-color: #3b82f6; box-shadow: 0 0 10px rgba(59, 130, 246, 0.4); }
+.reaction-btn.active[data-type="dislike"] { color: #64748b; border-color: #64748b; box-shadow: 0 0 10px rgba(100, 116, 139, 0.4); }
+.reaction-btn.active[data-type="heat"] { color: #ef4444; border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.4); }
+.reaction-btn.active[data-type="admire"] { color: #a855f7; border-color: #a855f7; box-shadow: 0 0 10px rgba(168, 85, 247, 0.4); }
+.reaction-btn.active[data-type="cap"] { color: #f97316; border-color: #f97316; box-shadow: 0 0 10px rgba(249, 115, 22, 0.4); }
+.reaction-btn.active[data-type="wild"] { color: #22c55e; border-color: #22c55e; box-shadow: 0 0 10px rgba(34, 197, 94, 0.4); }
+
+/* --- Vibe Score Display --- */
+.vibe-score-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: linear-gradient(135deg, rgba(255, 157, 0, 0.2), rgba(157, 80, 187, 0.2));
+    border: 1px solid var(--primary-orange);
+    border-radius: 20px;
+    font-size: 0.8rem;
     font-weight: 700;
     color: var(--primary-orange);
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    font-size: 0.8rem;
-    animation: flicker 2s infinite;
+    margin-left: 12px;
+}
+
+.vibe-score-badge .score-value {
+    color: var(--text-main);
+}
+
+/* --- Advanced Reactions (Hidden) --- */
+.advanced-reactions {
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    filter: blur(4px);
+}
+
+.reaction-btn:hover.advanced-reactions {
+    opacity: 1;
+    pointer-events: auto;
+    filter: blur(0);
 }
 
 /* --- Layout --- */
@@ -784,6 +974,12 @@ body {
 @keyframes slideInRight {
     from { transform: translateX(30px); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes pulse-glow {
+    0% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.1); }
+    100% { opacity: 0.5; transform: scale(1); }
 }
 
 /* --- Profile Hologram --- */

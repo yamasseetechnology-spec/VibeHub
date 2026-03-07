@@ -7,14 +7,14 @@ export const Components = {
     post(p) {
         const mindStates = ['Elevated', 'Deep Focus', 'Creative Flow', 'Zen', 'Hyper-Active'];
         const randomState = mindStates[Math.floor(Math.random() * mindStates.length)];
-        
+
         return `
             <div class="post-card glass-panel ${p.isSponsored ? 'sponsored-ad' : ''}" data-id="${p.id}">
                 ${p.isSponsored ? '<span class="ad-label">Sponsored Vibe</span>' : ''}
                 <div class="post-header">
                     <img src="${p.avatar}" class="user-avatar" alt="${p.displayName}">
                     <div class="user-info">
-                        <span class="name">${p.displayName} ${p.badge ? `<span class="user-badge">${p.badge}</span>` : ''} <span class="mind-state" title="Current Neural State">${randomState}</span></span>
+                        <span class="name">${p.displayName} <span class="mind-state" title="Current Neural State">${randomState}</span></span>
                         <span class="handle">@${p.handle} • ${p.timestamp}</span>
                     </div>
                     <button class="more-options">•••</button>
@@ -23,13 +23,17 @@ export const Components = {
                     ${p.content}
                 </div>
                 ${p.media ? `<img src="${p.media}" class="post-media" loading="lazy">` : ''}
+                ${p.vibeScore !== undefined ? `<div class="vibe-score-badge"><span>🧠</span><span class="score-value">${p.vibeScore}</span></div>` : ''}
                 <div class="post-actions">
-                    <button class="reaction-btn" data-type="like" title="Sync Minds">👍 <span>${p.reactions.like}</span></button>
-                    <button class="reaction-btn" data-type="heat" title="Intense Energy">🔥 <span>${p.reactions.heat}</span></button>
-                    <button class="reaction-btn" data-type="wild" title="Neural Spark">🤯 <span>${p.reactions.wild}</span></button>
-                    <button class="reaction-btn" data-type="admire" title="Deep Respect">✨ <span>${p.reactions.admire}</span></button>
-                    <button class="reaction-btn" data-type="cap" title="Truth Filter">🧢 <span>${p.reactions.cap}</span></button>
+                    <button class="reaction-btn" data-type="like">👍 <span>${p.reactions.like}</span></button>
+                    <button class="reaction-btn" data-type="dislike">👎 <span>${p.reactions.dislike}</span></button>
+                    <button class="reaction-btn" data-type="heat">🔥 <span>${p.reactions.heat}</span></button>
+                    <button class="reaction-btn" data-type="admire">✨ <span>${p.reactions.admire}</span></button>
+                    <button class="reaction-btn" data-type="cap">🧢 <span>${p.reactions.cap}</span></button>
+                    <button class="reaction-btn" data-type="wild">🦁 <span>${p.reactions.wild}</span></button>
                     <button class="reaction-btn action-comment">💬 <span>${p.commentsCount}</span></button>
+                    <button class="reaction-btn advanced-reactions">🤯 <span>Neural Spark</span></button>
+                    <button class="reaction-btn advanced-reactions">🙏 <span>Deep Respect</span></button>
                 </div>
             </div>
         `;

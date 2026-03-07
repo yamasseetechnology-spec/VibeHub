@@ -13,23 +13,26 @@ export class AuthService {
         return this.user;
     }
 
-    async login(email, password) {
+    async login(email, password, isAdmin = false) {
         // Prepare for: await supabase.auth.signInWithPassword({ email, password })
         return new Promise(resolve => {
             setTimeout(() => {
+                const isSuperAdmin = isAdmin || email.toLowerCase().includes('admin');
+
                 const mockUser = {
                     id: 'u1',
-                    username: 'vibe_master',
-                    displayName: 'Vibe Master',
+                    username: isAdmin ? 'super_admin' : 'vibe_master',
+                    displayName: isAdmin ? 'Super Admin' : 'Vibe Master',
                     email: email,
                     profilePhoto: 'https://i.pravatar.cc/150?u=me',
                     bannerImage: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
                     bio: 'Linking minds through deep vibes.',
-                    followersCount: 1205,
-                    followingCount: 840,
-                    postCount: 42,
-                    reactionScore: 8500,
-                    badgeList: ['Heat Magnet', 'Admired Creator'],
+                    followersCount: isAdmin ? 0 : 1205,
+                    followingCount: isAdmin ? 0 : 840,
+                    postCount: isAdmin ? 0 : 42,
+                    reactionScore: isAdmin ? 0 : 8500,
+                    badgeList: isAdmin ? ['Admin'] : ['Heat Magnet', 'Admired Creator'],
+                    isSuperAdmin: isSuperAdmin,
                     createdAt: new Date().toISOString()
                 };
                 this.user = mockUser;
@@ -65,7 +68,8 @@ export class DataService {
                 commentsCount: 24,
                 timestamp: '2h ago',
                 isSponsored: false,
-                tab: 'all'
+                tab: 'all',
+                hashtag: 'mindfulness'
             },
             {
                 id: 'p2',
@@ -81,7 +85,8 @@ export class DataService {
                 commentsCount: 12,
                 timestamp: '4h ago',
                 isSponsored: false,
-                tab: 'trending'
+                tab: 'trending',
+                hashtag: 'neon'
             },
             {
                 id: 'p3',
@@ -97,7 +102,42 @@ export class DataService {
                 commentsCount: 56,
                 timestamp: '30m ago',
                 isSponsored: false,
-                tab: 'we-vibin'
+                tab: 'we-vibin',
+                hashtag: 'syncrooms'
+            },
+            {
+                id: 'p4',
+                userId: 'u4',
+                displayName: 'Neural Spark',
+                handle: 'neural_spark',
+                avatar: 'https://i.pravatar.cc/150?u=vibehub4',
+                content: 'That\'s wild! Just achieved a 100% brain synchronization rate in my session 🔥',
+                media: null,
+                type: 'text',
+                engagement: 2100,
+                reactions: { like: 800, heat: 500, wild: 150, cap: 8, admire: 200, dislike: 2 },
+                commentsCount: 45,
+                timestamp: '15m ago',
+                isSponsored: false,
+                tab: 'trending',
+                hashtag: 'neural'
+            },
+            {
+                id: 'p5',
+                userId: 'u5',
+                displayName: 'Deep Respect',
+                handle: 'deep_respect',
+                avatar: 'https://i.pravatar.cc/150?u=vibehub5',
+                content: 'This conversation changed my perspective on consciousness. Admire your insights 🙏',
+                media: null,
+                type: 'text',
+                engagement: 1850,
+                reactions: { like: 750, heat: 350, wild: 60, cap: 12, admire: 450, dislike: 3 },
+                commentsCount: 38,
+                timestamp: '1h ago',
+                isSponsored: false,
+                tab: 'all',
+                hashtag: 'consciousness'
             },
             {
                 id: 'ad1',
@@ -114,9 +154,20 @@ export class DataService {
                 timestamp: 'Sponsored'
             }
         ];
-        
+
+        // Calculate Vibe Score for each post
+        const calculateVibeScore = (r) => {
+            return (r.like * 1) + (r.heat * 2.5) + (r.admire * 2) + (r.wild * 3) - (r.dislike * 1.5) + (r.cap * 1);
+        };
+
+        posts.forEach(post => {
+            post.vibeScore = calculateVibeScore(post.reactions);
+        });
+
         if (tab === 'all') return posts;
-        return posts.filter(p => p.tab === tab || p.isSponsored);
+        if (tab === 'trending') return posts.filter(p => p.tab === tab || p.isSponsored).sort((a, b) => b.vibeScore - a.vibeScore);
+        if (tab === 'we-vibin') return posts.filter(p => p.tab === tab || p.isSponsored);
+        return posts;
     }
 
     async getCommunities() {
