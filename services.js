@@ -4,7 +4,7 @@
  */
 
 // --- AUTH SERVICE ---
-export class AuthService {
+class AuthService {
     constructor() {
         this.user = JSON.parse(localStorage.getItem('vibehub_user')) || null;
     }
@@ -55,9 +55,8 @@ export class AuthService {
 }
 
 // --- DATA SERVICE (Posts, Communities, Marketplace) ---
-export class DataService {
+class DataService {
     async getPosts(tab = 'all') {
-        // Prepare for: await supabase.from('posts').select('*').order('engagement', { ascending: false })
         const posts = [
             {
                 id: 'p1',
@@ -160,7 +159,6 @@ export class DataService {
             }
         ];
 
-        // Calculate Vibe Score for each post
         const calculateVibeScore = (r) => {
             return (r.like * 1) + (r.heat * 2.5) + (r.admire * 2) + (r.wild * 3) - (r.dislike * 1.5) + (r.cap * 1);
         };
@@ -191,7 +189,7 @@ export class DataService {
 }
 
 // --- VIDEO SERVICE (VibeStream) ---
-export class VideoService {
+class VideoService {
     async getVibeStream() {
         return [
             { id: 'v1', url: 'https://assets.mixkit.io/videos/preview/mixkit-digital-animation-of-a-blue-and-purple-energy-field-42994-large.mp4', user: 'visual_guru', caption: 'Frequency meditation 🌀' },
@@ -201,7 +199,7 @@ export class VideoService {
 }
 
 // --- CHAT SERVICE (Sync Rooms & DMs) ---
-export class ChatService {
+class ChatService {
     async getSyncRooms() {
         return [
             { id: 'r1', name: 'Neon Nights', users: 42, active: true },
@@ -219,7 +217,7 @@ export class ChatService {
 }
 
 // --- ADMIN SERVICE ---
-export class AdminService {
+class AdminService {
     getStats() {
         return {
             users: 12482,
@@ -229,3 +227,10 @@ export class AdminService {
         };
     }
 }
+
+// --- GLOBAL SERVICE INSTANCES ---
+const AuthService = new AuthService();
+const DataService = new DataService();
+const VideoService = new VideoService();
+const ChatService = new ChatService();
+const AdminService = new AdminService();

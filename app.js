@@ -4,9 +4,6 @@
  * Prepared for Supabase Integration
  */
 
-import { AuthService, DataService, VideoService, ChatService, AdminService } from './services.js';
-import { Components } from './components.js';
-
 // --- APP STATE ---
 const State = {
     user: null,
@@ -97,30 +94,6 @@ class VibeApp {
             login.style.opacity = '1';
             login.style.visibility = 'visible';
             this.initLoginParticles();
-        }
-    }
-
-        // 3. Setup Routing & Event Listeners
-        this.setupEventListeners();
-
-        // 4. After 3 seconds, show login screen
-        setTimeout(() => {
-            this.showLoginScreen();
-        }, 3000);
-    }
-
-    showLoadingScreen() {
-        const loading = document.getElementById('loading-screen');
-
-        if (loading) {
-            loading.style.visibility = 'visible';
-            loading.style.opacity = '1';
-
-            // Initialize stars
-            this.createStars();
-
-            // Initialize loading particles
-            this.initLoadingParticles();
         }
     }
 
