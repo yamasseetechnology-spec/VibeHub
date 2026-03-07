@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vibehub | Link Your Mind</title>
+    <meta name="description" content="Futuristic social media platform for linking like-minded vibes.">
+    <link rel="icon" href="https://i.ibb.co/Fqnj3JKp/1000001392.png">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- PWA -->
+    <meta name="theme-color" content="#050505">
+    <link rel="manifest" href="manifest.json">
+</head>
+<body>
+    <!-- Floating Background Particles -->
+    <div id="particle-container"></div>
+
+    <!-- Splash Screen -->
+    <div id="splash-screen">
+        <div class="splash-content">
+            <div class="logo-glow-wrapper">
+                <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" alt="Vibehub Logo" class="splash-logo">
+            </div>
+            <div class="loader-bar">
+                <div class="loader-progress"></div>
+            </div>
+            <p class="splash-tagline">Linking Liked Minds...</p>
+        </div>
+    </div>
+
+    <!-- App Shell -->
+    <div id="app" class="hidden">
+        <!-- Main Navigation (Mobile Bottom / Desktop Sidebar) -->
+        <nav id="main-nav" class="glass-panel">
+            <div class="nav-logo desktop-only">
+                <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" alt="Vibehub">
+                <span>Vibehub</span>
+            </div>
+            <div class="nav-links">
+                <button class="nav-link active" data-view="home" title="Home">
+                    <span class="icon">🏠</span><span class="label">Home</span>
+                </button>
+                <button class="nav-link" data-view="vibestream" title="VibeStream">
+                    <span class="icon">📺</span><span class="label">VibeStream</span>
+                </button>
+                <button class="nav-link" data-view="syncrooms" title="Sync Rooms">
+                    <span class="icon">💬</span><span class="label">Sync Rooms</span>
+                </button>
+                <button class="nav-link" data-view="communities" title="Communities">
+                    <span class="icon">👥</span><span class="label">Communities</span>
+                </button>
+                <button class="nav-link desktop-only" data-view="search" title="Search">
+                    <span class="icon">🔍</span><span class="label">Search</span>
+                </button>
+                <button class="nav-link" data-view="notifications" title="Notifications">
+                    <span class="icon">🔔</span><span class="label">Alerts</span>
+                    <span class="badge hidden" id="notif-badge">0</span>
+                </button>
+                <button class="nav-link" data-view="messages" title="Messages">
+                    <span class="icon">✉️</span><span class="label">Messages</span>
+                </button>
+                <button class="nav-link" data-view="profile" title="Profile">
+                    <span class="icon">👤</span><span class="label">Profile</span>
+                </button>
+                <button class="nav-link desktop-only" data-view="settings" title="Settings">
+                    <span class="icon">⚙️</span><span class="label">Settings</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main id="content-area">
+            <header id="top-bar" class="glass-panel">
+                <div class="search-container">
+                    <input type="text" placeholder="Search vibes, minds, hashtags..." id="global-search">
+                    <span class="search-icon">🔍</span>
+                </div>
+                <div class="top-actions">
+                    <button id="create-post-btn" class="btn-primary"><span>+</span> Post</button>
+                </div>
+            </header>
+
+            <div id="view-container">
+                <!-- Views will be injected here -->
+            </div>
+        </main>
+
+        <!-- Admin Entry (Hidden/Small in Footer area) -->
+        <footer id="app-footer">
+            <button id="admin-trigger" title="Admin Access">🔑</button>
+        </footer>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-container" class="hidden">
+        <div class="modal-backdrop"></div>
+        <div id="modal-content" class="glass-panel"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="app.js" type="module"></script>
+</body>
+</html>
