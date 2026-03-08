@@ -495,9 +495,12 @@ class VibeApp {
 
     getVibeStreamHTML(videos) {
         return `
-            <div class="view-header">
-                <h1 class="view-title">VibeStream</h1>
-                <p>Vertical vibes for the linked mind.</p>
+            <div class="view-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h1 class="view-title">VibeStream</h1>
+                    <p>Vertical vibes for the linked mind.</p>
+                </div>
+                <button class="btn-primary" onclick="window.App.goLive()">Go Live</button>
             </div>
             <div class="vibestream-container">
                 ${videos.map(v => Components.video(v)).join('')}
@@ -772,9 +775,17 @@ class VibeApp {
         `;
     }
 
-    handleDonation() {
-        alert("Redirecting to Square secure donation link...");
+    async goLive() {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const videoElement = document.createElement('video');
+        videoElement.srcObject = stream;
+        videoElement.autoplay = true;
+        videoElement.muted = true;
+        videoElement.className = 'vibe-video-card';
+        document.getElementById('view-container').appendChild(videoElement);
+        this.showToast('You are live!');
     }
+
 
     getAdminHTML(stats) {
         return `
