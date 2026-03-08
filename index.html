@@ -154,11 +154,13 @@
             </div>
             
             <style>
+                .admin-login-dropdown {
+                    display: none;
+                }
                 .admin-login-dropdown.active {
-                    max-height: 300px;
+                    display: block;
                     margin-top: 5px;
                     border: 1px solid rgba(255, 165, 0, 0.2);
-                    border-top: none;
                 }
                 .admin-dropdown-trigger:hover {
                     background: rgba(255, 165, 0, 0.05);
@@ -351,62 +353,30 @@
     </script>
 
     <!-- Clerk SDK -->
+    <script async src="https://cdn.clerk.com/v1/clerk.js?publishable_key=pk_test_Z29yZ2VvdXMtb2NlbG90LTg1LmNsZXJrLmFjY291bnRzLmRldiQ"></script>
     <script>
-    window.CLERK_PUBLISHABLE_KEY = 'pk_test_Z29yZ2VvdXMtb2NlbG90LTg1LmNsZXJrLmFjY291bnRzLmRldiQ';
-    
     (async function() {
-        // Wait for Clerk SDK to load
-        function waitForClerk() {
+        const waitForClerk = () => {
             return new Promise((resolve) => {
-                if (window.Clerk) {
-                    resolve();
-                } else {
-                    const check = setInterval(() => {
-                        if (window.Clerk) {
-                            clearInterval(check);
-                            resolve();
-                        }
-                    }, 100);
-                    // Timeout after 10 seconds
-                    setTimeout(() => {
-                        clearInterval(check);
+                const check = () => {
+                    if (window.Clerk && window.Clerk.isReady()) {
                         resolve();
-                    }, 10000);
-                }
+                    } else {
+                        setTimeout(check, 100);
+                    }
+                };
+                check();
             });
-        }
-        
-        // Load Clerk SDK
-        var s = document.createElement('script');
-        s.src = 'https://unpkg.com/@clerk/clerk-js@5/dist/clerk.browser.umd.min.js';
-        document.head.appendChild(s);
+        };
         
         await waitForClerk();
         
         if (window.Clerk) {
             try {
-                window.clerk = await window.Clerk.init({
-                    publishableKey: window.CLERK_PUBLISHABLE_KEY
-                });
-                await window.clerk.load();
+                await window.Clerk.load();
+                window.clerk = window.Clerk;
                 window.clerkReady = true;
                 console.log('✅ Clerk initialized and ready');
-                
-                // Listen for session changes
-                window.clerk.addListener('session', (session) => {
-                    console.log('Session changed:', session);
-                    if (session) {
-                        window.dispatchEvent(new CustomEvent('clerk-session-change', { detail: session }));
-                    }
-                });
-                
-                window.clerk.addListener('user', (user) => {
-                    console.log('User changed:', user);
-                    if (user) {
-                        window.dispatchEvent(new CustomEvent('clerk-user-change', { detail: user }));
-                    }
-                });
-                
             } catch (e) {
                 console.error('Clerk init failed:', e);
             }
