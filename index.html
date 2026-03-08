@@ -118,7 +118,7 @@
 
             <!-- Admin Login Dropdown -->
             <div class="admin-dropdown-container" style="margin-top: 20px;">
-                <button class="admin-dropdown-trigger" onclick="this.nextElementSibling.classList.toggle('active')" style="
+                <button class="admin-dropdown-trigger" onclick="document.getElementById('admin-dropdown').classList.toggle('active')" style="
                     background: transparent;
                     border: 1px solid rgba(255, 165, 0, 0.3);
                     border-radius: 8px;
@@ -138,10 +138,8 @@
                         <polyline points="6 9 12 15 18 9"></polyline>
                     </svg>
                 </button>
-                <div class="admin-login-dropdown" style="
-                    max-height: 0;
-                    overflow: hidden;
-                    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                <div id="admin-dropdown" class="admin-login-dropdown" style="
+                    display: none;
                     background: rgba(0,0,0,0.2);
                     border-radius: 0 0 12px 12px;
                 ">

@@ -489,19 +489,16 @@ class AuthService {
     }
 
     async openSignIn() {
-        if (!this.clerk) {
+        const clerk = this.clerk || window.Clerk;
+        if (!clerk) {
             console.warn('Clerk not initialized');
             return;
         }
         
         try {
-            await this.clerk.openSignIn({
+            await clerk.openSignIn({
                 appearance: {
-                    elements: {
-                        rootBox: {
-                            zIndex: '10000'
-                        }
-                    }
+                    elements: { rootBox: { zIndex: '10000' } }
                 },
                 redirectUrl: window.location.href
             });
@@ -511,19 +508,16 @@ class AuthService {
     }
 
     async openSignUp() {
-        if (!this.clerk) {
+        const clerk = this.clerk || window.Clerk;
+        if (!clerk) {
             console.warn('Clerk not initialized');
             return;
         }
         
         try {
-            await this.clerk.openSignUp({
+            await clerk.openSignUp({
                 appearance: {
-                    elements: {
-                        rootBox: {
-                            zIndex: '10000'
-                        }
-                    }
+                    elements: { rootBox: { zIndex: '10000' } }
                 },
                 redirectUrl: window.location.href
             });
