@@ -18,7 +18,7 @@ const Components = {
                         <span class="name">${p.displayName} <span class="mind-state" title="Current Neural State">${randomState}</span></span>
                         <span class="handle">@${p.handle} • ${p.timestamp}</span>
                     </div>
-                    <button class="more-options">•••</button>
+                    <button class="more-options" onclick="window.App.showPostMenu('${p.id}')">•••</button>
                 </div>
                 <div class="post-content">
                     ${p.content}

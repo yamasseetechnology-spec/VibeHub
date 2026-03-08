@@ -208,7 +208,41 @@ class VibeApp {
         });
     }
 
-    showCreatePostModal() {
+    showPostMenu(postId) {
+        // Simple context menu implementation
+        const post = document.querySelector(`[data-id="${postId}"]`);
+        if (!post) return;
+
+        // Ensure we remove existing menu
+        const existing = document.getElementById('post-menu');
+        if (existing) existing.remove();
+
+        const menu = document.createElement('div');
+        menu.id = 'post-menu';
+        menu.className = 'glass-panel';
+        menu.style.cssText = 'position:absolute; right:20px; padding:10px; z-index:100;';
+        menu.innerHTML = `
+            <button class="btn-secondary" onclick="window.App.deletePost('${postId}')">Delete</button>
+            <button class="btn-secondary">Report</button>
+        `;
+        post.appendChild(menu);
+        
+        // Close menu when clicking elsewhere
+        setTimeout(() => {
+            document.addEventListener('click', (e) => {
+                if (e.target !== menu && !menu.contains(e.target)) {
+                    menu.remove();
+                }
+            }, {once: true});
+        }, 100);
+    }
+
+    deletePost(postId) {
+        const post = document.querySelector(`[data-id="${postId}"]`);
+        if (post) post.remove();
+        this.showToast('Post deleted');
+    }
+
         const modal = document.getElementById('modal-container');
         const content = document.getElementById('modal-content');
         if (!modal || !content) return;
