@@ -116,45 +116,55 @@
                 <div style="flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(157,80,187,0.3), transparent);"></div>
             </div>
 
-            <!-- Admin fallback -->
-            <div class="admin-section" style="
-                background: rgba(255, 165, 0, 0.05);
-                border: 1px solid rgba(255, 165, 0, 0.2);
-                border-radius: 12px;
-                padding: 15px;
-                margin-bottom: 15px;
-            ">
-                <p style="color: #ff9f00; font-size: 12px; margin-bottom: 10px; text-align: center;">🔐 Admin Access Only</p>
-                <input type="email" id="login-email" class="login-input" placeholder="Admin Email" style="
-                    background: rgba(0,0,0,0.3);
+            <!-- Admin Login Dropdown -->
+            <div class="admin-dropdown-container" style="margin-top: 20px;">
+                <button class="admin-dropdown-trigger" onclick="this.nextElementSibling.classList.toggle('active')" style="
+                    background: transparent;
                     border: 1px solid rgba(255, 165, 0, 0.3);
-                    padding: 12px 15px;
                     border-radius: 8px;
-                    color: white;
-                    width: 100%;
-                    margin-bottom: 10px;
-                ">
-                <input type="password" id="login-password" class="login-input" placeholder="Admin Password" style="
-                    background: rgba(0,0,0,0.3);
-                    border: 1px solid rgba(255, 165, 0, 0.3);
-                    padding: 12px 15px;
-                    border-radius: 8px;
-                    color: white;
-                    width: 100%;
-                    margin-bottom: 10px;
-                ">
-                <button class="login-submit" onclick="window.App.handleAdminLogin()" style="
-                    background: linear-gradient(135deg, #ff9f00, #ff6b00);
-                    border: none;
-                    padding: 12px;
-                    border-radius: 8px;
-                    color: white;
-                    font-weight: 600;
+                    padding: 8px 15px;
+                    color: #ff9f00;
+                    font-size: 13px;
                     width: 100%;
                     cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
                     transition: all 0.3s;
-                ">🔑 Enter as Admin</button>
+                ">
+                    <span>🔐 Admin Access</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </button>
+                <div class="admin-login-dropdown" style="
+                    max-height: 0;
+                    overflow: hidden;
+                    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                    background: rgba(0,0,0,0.2);
+                    border-radius: 0 0 12px 12px;
+                ">
+                    <div style="padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+                        <input type="email" id="login-email" class="login-input" placeholder="Admin Email" style="padding: 10px; font-size: 14px;">
+                        <input type="password" id="login-password" class="login-input" placeholder="Admin Password" style="padding: 10px; font-size: 14px;">
+                        <button class="login-submit" onclick="window.App.handleAdminLogin()" style="padding: 10px; font-size: 14px;">🔑 Enter</button>
+                    </div>
+                </div>
             </div>
+            
+            <style>
+                .admin-login-dropdown.active {
+                    max-height: 300px;
+                    margin-top: 5px;
+                    border: 1px solid rgba(255, 165, 0, 0.2);
+                    border-top: none;
+                }
+                .admin-dropdown-trigger:hover {
+                    background: rgba(255, 165, 0, 0.05);
+                    border-color: rgba(255, 165, 0, 0.6);
+                }
+            </style>
         </div>
     </div>
 </div>
@@ -171,12 +181,37 @@
                 <button class="nav-link active mobile-bottom-nav" data-view="home" title="Home">
                     <span class="icon">🏠</span><span class="label">Home</span>
                 </button>
-                <button class="nav-link mobile-bottom-nav mobile-only" data-view="create" title="Post" onclick="window.App.showCreatePostModal()">
-                    <span class="icon create-icon">+</span><span class="label">Post</span>
+                <button class="nav-link" data-view="vibestream" title="VibeStream">
+                    <span class="icon">📺</span><span class="label">VibeStream</span>
+                </button>
+                <button class="nav-link" data-view="syncrooms" title="Sync Rooms">
+                    <span class="icon">💬</span><span class="label">Sync Rooms</span>
+                </button>
+                <button class="nav-link" data-view="communities" title="Communities">
+                    <span class="icon">👥</span><span class="label">Communities</span>
+                </button>
+                <button class="nav-link mobile-bottom-nav" data-view="search" title="Search">
+                    <span class="icon">🔍</span><span class="label">Search</span>
+                </button>
+                <button class="nav-link" data-view="notifications" title="Notifications">
+                    <span class="icon">🔔</span><span class="label">Notifications</span>
+                    <span id="nav-notif-badge" class="badge hidden">0</span>
+                </button>
+                <button class="nav-link" data-view="messages" title="Messages">
+                    <span class="icon">✉️</span><span class="label">Messages</span>
                 </button>
                 <button class="nav-link mobile-bottom-nav" data-view="profile" title="Profile">
                     <span class="icon">👤</span><span class="label">Profile</span>
                 </button>
+                <button class="nav-link" data-view="settings" title="Settings">
+                    <span class="icon">⚙️</span><span class="label">Settings</span>
+                </button>
+                
+                <div class="desktop-only" style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px;">
+                    <button class="nav-link" style="background: linear-gradient(135deg, rgba(255, 159, 0, 0.1), rgba(157, 80, 187, 0.1)); border: 1px solid rgba(157, 80, 187, 0.2);" onclick="window.App.showCreatePostModal()">
+                        <span class="icon">✨</span><span class="label">Post Vibe</span>
+                    </button>
+                </div>
             </div>
         </nav>
 
@@ -231,10 +266,7 @@
                     <span class="search-icon">🔍</span>
                 </div>
                 <div class="top-actions">
-                    <button id="create-post-btn" class="btn-primary desktop-only"><span>+</span> Post</button>
-                    <button id="create-post-btn-mobile" class="btn-primary create-post-btn-mobile mobile-only" onclick="window.App.showCreatePostModal()">
-                        <span>+</span>
-                    </button>
+                    <button id="create-post-btn" class="btn-primary desktop-only">Post</button>
                 </div>
             </header>
 

@@ -649,6 +649,9 @@ body {
     opacity: 0;
 }
 
+.desktop-only { display: flex !important; }
+.mobile-only { display: none !important; }
+
 /* --- Navigation --- */
 #main-nav {
     width: 280px;
@@ -659,6 +662,7 @@ body {
     flex-direction: column;
     gap: 40px;
     flex-shrink: 0;
+    overflow-y: auto;
 }
 
 .nav-logo {
@@ -1174,6 +1178,10 @@ body {
         width: 100%;
         justify-content: space-around;
         gap: 0;
+    }
+    
+    .nav-link:not(.mobile-bottom-nav) {
+        display: none !important;
     }
     
     .nav-link {
