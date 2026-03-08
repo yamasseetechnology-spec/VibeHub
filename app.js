@@ -378,6 +378,36 @@ class VibeApp {
         if (adminTrigger) {
             adminTrigger.addEventListener('click', () => this.navigate('admin'));
         }
+
+        // Global Event Delegation for Reactions
+        document.body.addEventListener('click', (e) => {
+            const btn = e.target.closest('.reaction-btn');
+            if (btn) {
+                btn.classList.toggle('active');
+                const countSpan = btn.querySelector('span');
+                if (countSpan) {
+                    let count = parseInt(countSpan.innerText);
+                    count = btn.classList.contains('active') ? count + 1 : count - 1;
+                    countSpan.innerText = count;
+                }
+
+                // Reaction popup animation
+                if (btn.classList.contains('active')) {
+                    const reactionName = btn.innerText.split(' ')[0];
+                    window.triggerReactionPopup(e.clientX, e.clientY, reactionName);
+                }
+
+                btn.style.transform = 'scale(1.2)';
+                setTimeout(() => btn.style.transform = '', 200);
+            }
+        });
+        
+        // Handle Back/Forward buttons
+        window.addEventListener('popstate', (e) => {
+            if (e.state && e.state.view) {
+                this.renderView(e.state.view, false);
+            }
+        });
     }
 
     // Mobile Hamburger Menu
@@ -427,38 +457,6 @@ class VibeApp {
             }
         }
     }
-        
-        // Global Event Delegation for Reactions
-        document.body.addEventListener('click', (e) => {
-            const btn = e.target.closest('.reaction-btn');
-            if (btn) {
-                btn.classList.toggle('active');
-                const countSpan = btn.querySelector('span');
-                if (countSpan) {
-                    let count = parseInt(countSpan.innerText);
-                    count = btn.classList.contains('active') ? count + 1 : count - 1;
-                    countSpan.innerText = count;
-                }
-
-                // Reaction popup animation
-                if (btn.classList.contains('active')) {
-                    const reactionName = btn.innerText.split(' ')[0];
-                    window.triggerReactionPopup(e.clientX, e.clientY, reactionName);
-                }
-
-                btn.style.transform = 'scale(1.2)';
-                setTimeout(() => btn.style.transform = '', 200);
-            }
-        });
-        
-        // Handle Back/Forward buttons
-        window.addEventListener('popstate', (e) => {
-            if (e.state && e.state.view) {
-                this.renderView(e.state.view, false);
-            }
-        });
-    }
-
     showPostMenu(postId) {
         // Context menu implementation
         const post = document.querySelector(`[data-id="${postId}"]`);
