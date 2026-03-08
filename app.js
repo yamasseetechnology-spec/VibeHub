@@ -275,20 +275,6 @@ class VibeApp {
             console.warn("Loading screen not found!");
         }
     }
-                
-                if (app) {
-                    app.classList.remove('hidden');
-                    app.style.opacity = '1';
-                }
-
-            }, 500); // Match loading fade-out duration
-        } else if (login) {
-            // Fallback if loading screen was somehow skipped/closed
-            login.style.opacity = '1';
-            login.style.visibility = 'visible';
-            this.initLoginParticles();
-        }
-    }
 
     createStars() {
         const starfield = document.getElementById('starfield');
