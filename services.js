@@ -56,8 +56,8 @@ class AuthService {
 
 // --- DATA SERVICE (Posts, Communities, Marketplace) ---
 class DataService {
-    async getPosts(tab = 'all', communityId = null) {
-        const posts = [
+    constructor() {
+        this.posts = [
             {
                 id: 'p1',
                 userId: 'u1',
@@ -69,7 +69,9 @@ class DataService {
                 type: 'image',
                 engagement: 1200,
                 reactions: { like: 450, heat: 320, wild: 120, cap: 2, admire: 85, dislike: 5 },
-                commentsCount: 24,
+                comments: [
+                    { userId: 'u2', displayName: 'Cyber Soul', time: '1h ago', text: 'Absolutely.', type: 'text' }
+                ],
                 timestamp: '2h ago',
                 isSponsored: false,
                 tab: 'all',
@@ -87,7 +89,7 @@ class DataService {
                 type: 'text',
                 engagement: 800,
                 reactions: { like: 200, heat: 150, wild: 40, cap: 0, admire: 30, dislike: 1 },
-                commentsCount: 12,
+                comments: [],
                 timestamp: '4h ago',
                 isSponsored: false,
                 tab: 'trending',
@@ -104,7 +106,9 @@ class DataService {
                 type: 'text',
                 engagement: 1500,
                 reactions: { like: 600, heat: 400, wild: 200, cap: 5, admire: 150, dislike: 10 },
-                commentsCount: 56,
+                comments: [
+                    { userId: 'u1', displayName: 'Echo Mind', time: '5m ago', type: 'audio' }
+                ],
                 timestamp: '30m ago',
                 isSponsored: false,
                 tab: 'we-vibin',
@@ -121,7 +125,7 @@ class DataService {
                 type: 'text',
                 engagement: 2100,
                 reactions: { like: 800, heat: 500, wild: 150, cap: 8, admire: 200, dislike: 2 },
-                commentsCount: 45,
+                comments: [],
                 timestamp: '15m ago',
                 isSponsored: false,
                 tab: 'trending',
@@ -138,7 +142,7 @@ class DataService {
                 type: 'text',
                 engagement: 1850,
                 reactions: { like: 750, heat: 350, wild: 60, cap: 12, admire: 450, dislike: 3 },
-                commentsCount: 38,
+                comments: [],
                 timestamp: '1h ago',
                 isSponsored: false,
                 tab: 'all',
@@ -156,23 +160,56 @@ class DataService {
                 isSponsored: true,
                 engagement: 0,
                 reactions: { like: 10, heat: 5, wild: 2, cap: 0, admire: 0, dislike: 0 },
-                commentsCount: 0,
+                comments: [],
                 timestamp: 'Sponsored'
             }
         ];
+    }
 
+    async addPost(postObj) {
+        // 1. Add to local state for instant timeline update
+        this.posts.unshift(postObj);
+
+        // 2. If Supabase is connected, save to the cloud
+        if (window.supabaseClient) {
+            try {
+                await window.supabaseClient
+                    .from('posts')
+                    .insert([postObj]);
+                console.log("Post saved to Supabase");
+            } catch (error) {
+                console.error("Error saving post to Supabase:", error);
+            }
+        }
+        return postObj;
+    }
+
+    async getPosts(tab = 'all', communityId = null) {
         const calculateVibeScore = (r) => {
             return (r.like * 1) + (r.heat * 2.5) + (r.admire * 2) + (r.wild * 3) - (r.dislike * 1.5) + (r.cap * 1);
         };
 
-        posts.forEach(post => {
+        this.posts.forEach(post => {
             post.vibeScore = calculateVibeScore(post.reactions);
         });
 
-        if (tab === 'all') return communityId ? posts.filter(p => p.communityId === communityId) : posts;
-        if (tab === 'trending') return posts.filter(p => !communityId && (p.tab === tab || p.isSponsored)).sort((a, b) => b.vibeScore - a.vibeScore);
-        if (tab === 'we-vibin') return posts.filter(p => !communityId && (p.tab === tab || p.isSponsored));
-        return posts;
+        if (tab === 'all') return communityId ? this.posts.filter(p => p.communityId === communityId) : this.posts;
+        if (tab === 'trending') return this.posts.filter(p => !communityId && (p.tab === tab || p.isSponsored)).sort((a, b) => b.vibeScore - a.vibeScore);
+        if (tab === 'we-vibin') return this.posts.filter(p => !communityId && (p.tab === tab || p.isSponsored));
+        return this.posts;
+    }
+
+    async getComments(postId) {
+        const post = this.posts.find(p => p.id === postId);
+        return post ? post.comments : [];
+    }
+
+    async addComment(postId, comment) {
+        const post = this.posts.find(p => p.id === postId);
+        if (post) {
+            comment.time = 'Just now';
+            post.comments.push(comment);
+        }
     }
 
     async getCommunities() {

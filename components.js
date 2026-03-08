@@ -32,7 +32,7 @@ const Components = {
                     <button class="reaction-btn" data-type="admire">✨ <span>${p.reactions.admire}</span></button>
                     <button class="reaction-btn" data-type="cap">🧢 <span>${p.reactions.cap}</span></button>
                     <button class="reaction-btn" data-type="wild">🦁 <span>${p.reactions.wild}</span></button>
-                    <button class="reaction-btn action-comment">💬 <span>${p.commentsCount}</span></button>
+                    <button class="action-btn action-comment" onclick="window.App.showCommentModal('${p.id}')">💬 <span>${p.comments ? p.comments.length : 0}</span></button>
                     <button class="reaction-btn advanced-reactions">🤯 <span>Neural Spark</span></button>
                     <button class="reaction-btn advanced-reactions">🙏 <span>Deep Respect</span></button>
                 </div>

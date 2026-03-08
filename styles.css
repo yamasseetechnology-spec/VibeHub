@@ -1127,8 +1127,8 @@ body {
     margin-top: 15px;
 }
 
-/* --- Reactions --- */
-.reaction-btn {
+/* --- Reactions & Actions --- */
+.reaction-btn, .action-btn {
     background: var(--bg-glass);
     border: 1px solid var(--border-light);
     color: var(--text-dim);
@@ -1142,7 +1142,7 @@ body {
     transition: all 0.2s;
 }
 
-.reaction-btn:hover {
+.reaction-btn:hover, .action-btn:hover {
     border-color: var(--primary-purple);
     color: var(--text-main);
 }

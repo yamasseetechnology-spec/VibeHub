@@ -316,13 +316,141 @@ class VibeApp {
         document.getElementById('final-post-btn').addEventListener('click', () => this.handleCreatePost());
     }
 
-    handleCreatePost() {
+    async handleCreatePost() {
         const text = document.getElementById('post-input').value;
-        if (!text) return;
+        if (!text || !State.user) return;
         
+        const newPost = {
+            id: 'p' + Date.now(),
+            userId: State.user.id,
+            displayName: State.user.displayName,
+            handle: State.user.username,
+            avatar: State.user.profilePhoto,
+            content: text,
+            media: null,
+            type: 'text',
+            engagement: 0,
+            reactions: { like: 0, heat: 0, wild: 0, cap: 0, admire: 0, dislike: 0 },
+            comments: [],
+            timestamp: 'Just now',
+            isSponsored: false,
+            tab: 'all'
+        };
+        
+        await this.services.data.addPost(newPost);
         document.getElementById('modal-container').classList.add('hidden');
         this.showToast("Vibe posted to the Pulse!");
         this.renderView('home');
+    }
+
+    async showCommentModal(postId) {
+        const modal = document.getElementById('modal-container');
+        const content = document.getElementById('modal-content');
+        if (!modal || !content) return;
+        
+        // Fetch comments from DataService
+        const comments = await this.services.data.getComments(postId);
+        
+        modal.classList.remove('hidden');
+        content.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h2 class="view-title" style="margin:0;">Comments</h2>
+                <button class="btn-secondary" style="padding:5px 10px;" onclick="document.getElementById('modal-container').classList.add('hidden')">✕</button>
+            </div>
+            
+            <div id="comments-list" style="max-height: 50vh; overflow-y: auto; margin-bottom:15px; padding-right:5px;">
+                ${this.renderCommentsHTML(comments)}
+            </div>
+            
+            <div class="comment-input-area" style="display:flex; flex-direction:column; gap:10px;">
+                <textarea id="comment-input" class="glass-panel" placeholder="Add a comment..." style="width:100%; min-height:80px; background:rgba(0,0,0,0.5); border:1px solid var(--border-light); color:white; padding:10px;"></textarea>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn-secondary" title="Audio Comment" onclick="window.App.startAudioComment('${postId}')">🎤</button>
+                        <button class="btn-secondary" title="Video Reply" onclick="window.App.startVideoComment('${postId}')">🎥</button>
+                    </div>
+                    <button class="btn-primary" onclick="window.App.submitTextComment('${postId}')">Post Comment</button>
+                </div>
+            </div>
+        `;
+    }
+
+    renderCommentsHTML(comments) {
+        if (!comments || comments.length === 0) {
+            return '<p class="text-dim" style="text-align:center; padding:20px;">No comments yet. Be the first to vibe!</p>';
+        }
+        
+        return comments.map(c => {
+            let mediaContent = '';
+            if (c.type === 'audio') {
+                mediaContent = `<div style="background:var(--bg-glass); padding:8px 15px; border-radius:50px; display:inline-flex; align-items:center; gap:10px; border:1px solid var(--primary-purple); cursor:pointer;"><span style="color:var(--accent-cyan);">▶</span> Audio Comment (0:0${Math.floor(Math.random()*5)+2})</div>`;
+            } else if (c.type === 'video') {
+                mediaContent = `<div style="background:black; width:150px; height:80px; border-radius:10px; display:flex; align-items:center; justify-content:center; border:1px solid var(--primary-orange); cursor:pointer;"><span style="color:white; font-size:1.5rem;">▶</span></div>`;
+            }
+            
+            return `
+                <div class="comment" style="display:flex; gap:12px; margin-bottom:15px; animation: slideInRight 0.3s ease-out;">
+                    <img src="https://i.pravatar.cc/100?u=${c.userId}" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
+                    <div class="comment-body" style="flex:1;">
+                        <div style="display:flex; align-items:baseline; gap:8px;">
+                            <span class="comment-author" style="font-weight:bold; font-size:0.9rem;">${c.displayName || c.userId}</span>
+                            <span class="comment-time text-dim" style="font-size:0.75rem;">${c.time}</span>
+                        </div>
+                        ${c.text ? `<div class="comment-text" style="font-size:0.95rem; margin-top:2px;">${c.text}</div>` : ''}
+                        ${mediaContent ? `<div style="margin-top:5px;">${mediaContent}</div>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    async submitTextComment(postId) {
+        const input = document.getElementById('comment-input');
+        const text = input.value.trim();
+        if (!text) return;
+        
+        await this.services.data.addComment(postId, {
+            userId: State.user ? State.user.username : 'guest',
+            displayName: State.user ? State.user.displayName : 'Guest User',
+            text: text,
+            type: 'text'
+        });
+        
+        this.showCommentModal(postId);
+        this.showToast("Comment posted!");
+        
+        const postBtn = document.querySelector(`.post-card[data-id="${postId}"] .action-comment span`);
+        if (postBtn) postBtn.innerText = parseInt(postBtn.innerText) + 1;
+    }
+
+    async startAudioComment(postId) {
+        this.showToast("Recording audio... (Simulated)");
+        setTimeout(async () => {
+            await this.services.data.addComment(postId, {
+                userId: State.user ? State.user.username : 'guest',
+                displayName: State.user ? State.user.displayName : 'Guest User',
+                type: 'audio'
+            });
+            this.showCommentModal(postId);
+            this.showToast("Audio comment posted!");
+            const postBtn = document.querySelector(`.post-card[data-id="${postId}"] .action-comment span`);
+            if (postBtn) postBtn.innerText = parseInt(postBtn.innerText) + 1;
+        }, 2000);
+    }
+
+    async startVideoComment(postId) {
+        this.showToast("Uploading video... (Simulated)");
+        setTimeout(async () => {
+            await this.services.data.addComment(postId, {
+                userId: State.user ? State.user.username : 'guest',
+                displayName: State.user ? State.user.displayName : 'Guest User',
+                type: 'video'
+            });
+            this.showCommentModal(postId);
+            this.showToast("Video reply posted!");
+            const postBtn = document.querySelector(`.post-card[data-id="${postId}"] .action-comment span`);
+            if (postBtn) postBtn.innerText = parseInt(postBtn.innerText) + 1;
+        }, 2000);
     }
 
     hideSplash() {
