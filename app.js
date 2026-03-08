@@ -46,12 +46,32 @@ class VibeApp {
 
         // 1. Show loading screen
         this.showLoadingScreen();
+        console.log("Loading screen shown.");
 
         // 2. Register Service Worker (with error handling)
         if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
             navigator.serviceWorker.register('./service-worker.js')
                 .catch(err => console.log("Service Worker registration failed:", err));
         }
+        console.log("Service worker step passed.");
+
+        // 3. Setup Routing & Event Listeners
+        this.setupEventListeners();
+        console.log("EventListeners setup passed.");
+
+        // 4. Initialize Clerk and setup listeners
+        console.log("Initializing Clerk...");
+        await this.services.auth.initClerk();
+        console.log("Clerk initialized.");
+        this.setupClerkListeners();
+        console.log("Clerk listeners setup.");
+
+        // 5. After 0.5 seconds, execute transition
+        setTimeout(() => {
+            console.log("Attempting transitionToLogin...");
+            this.transitionToLogin();
+        }, 500);
+    }
 
         // 3. Setup Routing & Event Listeners
         this.setupEventListeners();
