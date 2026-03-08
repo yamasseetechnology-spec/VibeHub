@@ -747,7 +747,12 @@ class VibeApp {
             <div class="view-header">
                 <h1 class="view-title">Admin Dashboard</h1>
             </div>
-            <div class="admin-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px;">
+            <div class="tabs">
+                <button class="tab active" onclick="this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); this.classList.add('active'); document.getElementById('admin-stats').classList.remove('hidden'); document.getElementById('admin-manage').classList.add('hidden');">Dashboard</button>
+                <button class="tab" onclick="this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); this.classList.add('active'); document.getElementById('admin-stats').classList.add('hidden'); document.getElementById('admin-manage').classList.remove('hidden');">Moderation</button>
+            </div>
+
+            <div id="admin-stats" class="admin-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px;">
                 <div class="stat-card glass-panel" style="padding: 24px;">
                     <h3 class="text-dim">Total Users</h3>
                     <p style="font-size: 2.5rem; font-weight:800; color: var(--primary-purple);">${stats.users}</p>
@@ -765,13 +770,11 @@ class VibeApp {
                     <p style="font-size: 2.5rem; font-weight:800; color: var(--accent-gold);">${stats.revenue}</p>
                 </div>
             </div>
-            
-            <div class="ad-poster-tool glass-panel" style="margin-top:40px; padding:24px;">
-                <h2 class="view-header" style="font-size:1.4rem;">Admin Ad Poster</h2>
-                <div style="display:flex; flex-direction:column; gap:15px; margin-top:20px;">
-                    <input type="text" placeholder="Ad Headline" class="glass-panel" style="padding:12px; background:rgba(0,0,0,0.5); border:1px solid var(--border-light); color:white;">
-                    <textarea placeholder="Ad Content" class="glass-panel" style="padding:12px; background:rgba(0,0,0,0.5); border:1px solid var(--border-light); color:white; min-height:100px;"></textarea>
-                    <button class="btn-primary">Post Sponsored Ad</button>
+
+            <div id="admin-manage" class="hidden glass-panel" style="padding:24px;">
+                <h3>Moderation</h3>
+                <div style="margin-top:20px; display:flex; flex-direction:column; gap:10px;">
+                    <button class="btn-secondary" onclick="window.App.showToast('Moderation Tool Active: Delete Posts/Users')">Manage Users & Posts</button>
                 </div>
             </div>
         `;
