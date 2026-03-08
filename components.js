@@ -23,7 +23,8 @@ const Components = {
                 <div class="post-content">
                     ${p.content}
                 </div>
-                ${p.media ? `<img src="${p.media}" class="post-media" loading="lazy">` : ''}
+                ${(p.mediaType === 'video' || (!p.mediaType && p.media?.includes('video'))) && p.media ? `<video src="${p.media}" class="post-media" controls loading="lazy"></video>` : ''}
+                ${(p.mediaType === 'image' || (!p.mediaType && p.media && !p.media?.includes('video'))) && p.media ? `<img src="${p.media}" class="post-media" loading="lazy">` : ''}
                 ${p.vibeScore !== undefined ? `<div class="vibe-score-badge"><span>🧠</span><span class="score-value">${p.vibeScore}</span></div>` : ''}
                 <div class="post-actions">
                     <button class="reaction-btn" data-type="like">👍 <span>${p.reactions.like}</span></button>
@@ -32,7 +33,7 @@ const Components = {
                     <button class="reaction-btn" data-type="admire">✨ <span>${p.reactions.admire}</span></button>
                     <button class="reaction-btn" data-type="cap">🧢 <span>${p.reactions.cap}</span></button>
                     <button class="reaction-btn" data-type="wild">🦁 <span>${p.reactions.wild}</span></button>
-                    <button class="action-btn action-comment" onclick="window.App.showCommentModal('${p.id}')">💬 <span>${p.comments ? p.comments.length : 0}</span></button>
+                    <button class="action-btn action-comment" onclick="window.App.showCommentModal('${p.id}')">💬 <span>${p.commentCount || 0}</span></button>
                     <button class="reaction-btn advanced-reactions">🤯 <span>Neural Spark</span></button>
                     <button class="reaction-btn advanced-reactions">🙏 <span>Deep Respect</span></button>
                 </div>

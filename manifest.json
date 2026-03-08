@@ -1,20 +1,40 @@
 {
-  "name": "Vibehub",
+  "name": "Vibehub | Link Your Mind",
   "short_name": "Vibehub",
+  "description": "Futuristic social media platform for linking like-minded vibes",
   "start_url": "index.html",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#050505",
-  "theme_color": "#8b5cf6",
+  "theme_color": "#9d50bb",
+  "categories": ["social", "entertainment", "lifestyle"],
   "icons": [
     {
       "src": "https://i.ibb.co/Fqnj3JKp/1000001392.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "https://i.ibb.co/Fqnj3JKp/1000001392.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Home",
+      "short_name": "Home",
+      "description": "View your timeline",
+      "url": "index.html?view=home"
+    },
+    {
+      "name": "Create Post",
+      "short_name": "Post",
+      "description": "Share a new vibe",
+      "url": "index.html?action=create"
     }
   ]
 }

@@ -35,12 +35,20 @@ class VibeApp {
         // Expose global reaction popup for components
         window.triggerReactionPopup = this.triggerReactionPopup.bind(this);
 
+        // Global error handler
+        window.addEventListener('error', (e) => {
+            console.error('Global error:', e.error);
+        });
+        
+        window.addEventListener('unhandledrejection', (e) => {
+            console.error('Unhandled promise rejection:', e.reason);
+        });
+
         // 1. Show loading screen
         this.showLoadingScreen();
 
         // 2. Register Service Worker (with error handling)
         if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
-            // Switched to simple registration as external asset was causing hard block
             navigator.serviceWorker.register('./service-worker.js')
                 .catch(err => console.log("Service Worker registration failed:", err));
         }
@@ -48,10 +56,174 @@ class VibeApp {
         // 3. Setup Routing & Event Listeners
         this.setupEventListeners();
 
-        // 4. After 3 seconds, execute transition
+        // 4. Listen for Clerk auth events
+        this.setupClerkListeners();
+
+        // 5. After 3 seconds, execute transition
         setTimeout(() => {
             this.transitionToLogin();
         }, 3000);
+    }
+
+    setupClerkListeners() {
+        // Listen for Clerk session changes
+        window.addEventListener('clerk-session-change', async (e) => {
+            if (e.detail) {
+                console.log('Clerk session detected, handling...');
+                await this.services.auth.handleClerkSession();
+            }
+        });
+
+        // Listen for user logged in event from AuthService
+        window.addEventListener('user-logged-in', (e) => {
+            console.log('User logged in:', e.detail);
+            State.user = e.detail;
+            
+            // Hide login screen
+            const login = document.getElementById('login-screen');
+            if (login) {
+                login.style.opacity = '0';
+                setTimeout(() => {
+                    login.style.visibility = 'hidden';
+                }, 500);
+            }
+            
+            // Enable real-time subscriptions
+            this.enableRealTimeSubscriptions();
+            
+            this.showToast(`Welcome, ${e.detail.displayName}! ✨`);
+            this.navigate('home');
+        });
+
+        // Listen for user logged out event
+        window.addEventListener('user-logged-out', () => {
+            console.log('User logged out');
+            State.user = null;
+            this.disableRealTimeSubscriptions();
+            this.navigate('login');
+            this.showToast('You have been logged out');
+        });
+    }
+
+    // Real-time subscriptions for live updates
+    enableRealTimeSubscriptions() {
+        if (!this.services.data) return;
+        
+        console.log('📡 Enabling real-time subscriptions...');
+        
+        // Subscribe to new posts
+        this.postsChannel = this.services.data.subscribeToPosts((event) => {
+            console.log('Real-time event:', event);
+            if (event.type === 'new_post') {
+                // Add new post to top of timeline
+                State.posts.unshift(event.data);
+                if (State.currentView === 'home') {
+                    this.renderView('home');
+                }
+                this.showToast('New vibe posted!', 'info');
+            } else if (event.type === 'post_update') {
+                // Update existing post
+                const index = State.posts.findIndex(p => p.id === event.data.id);
+                if (index !== -1) {
+                    State.posts[index] = { ...State.posts[index], ...event.data };
+                    if (State.currentView === 'home') {
+                        this.renderView('home');
+                    }
+                }
+            }
+        });
+
+        // Subscribe to notifications
+        if (State.user) {
+            this.notificationsChannel = this.services.data.subscribeToUserNotifications(State.user.id, (event) => {
+                if (event.type === 'notification') {
+                    State.notifications.unshift(event.data);
+                    this.updateNotificationBadge();
+                    this.services.data.notifications.sendLocalNotification(
+                        'New VibeHub Alert!',
+                        event.data.message || 'You have a new notification'
+                    );
+                }
+            });
+        }
+
+        // Listen for online/offline status
+        window.addEventListener('online', () => this.handleOnlineStatus(true));
+        window.addEventListener('offline', () => this.handleOnlineStatus(false));
+
+        console.log('✅ Real-time subscriptions enabled');
+    }
+
+    disableRealTimeSubscriptions() {
+        if (this.postsChannel) {
+            if (window.supabaseClient) {
+                window.supabaseClient.removeChannel(this.postsChannel);
+            }
+            this.postsChannel = null;
+        }
+        if (this.notificationsChannel) {
+            if (window.supabaseClient) {
+                window.supabaseClient.removeChannel(this.notificationsChannel);
+            }
+            this.notificationsChannel = null;
+        }
+        console.log('Real-time subscriptions disabled');
+    }
+
+    handleOnlineStatus(isOnline) {
+        const offlineBanner = document.getElementById('offline-banner');
+        if (!offlineBanner && !isOnline) {
+            // Create offline banner
+            const banner = document.createElement('div');
+            banner.id = 'offline-banner';
+            banner.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                background: linear-gradient(135deg, #ff6b00, #ff9f00);
+                color: white;
+                padding: 10px 20px;
+                text-align: center;
+                font-weight: 600;
+                z-index: 10000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+            `;
+            banner.innerHTML = '📡 You appear to be offline. Showing cached data.';
+            document.body.appendChild(banner);
+            
+            // Adjust top bar padding
+            const topBar = document.getElementById('top-bar');
+            if (topBar) topBar.style.paddingTop = '50px';
+        } else if (offlineBanner && isOnline) {
+            // Remove offline banner
+            offlineBanner.remove();
+            
+            // Reset top bar padding
+            const topBar = document.getElementById('top-bar');
+            if (topBar) topBar.style.paddingTop = '';
+            
+            this.showToast('Back online! ✨', 'success');
+            
+            // Refresh data from cloud
+            if (State.currentView === 'home') {
+                this.renderView('home');
+            }
+        }
+    }
+
+    updateNotificationBadge() {
+        const badge = document.getElementById('notif-badge');
+        if (badge && State.notifications) {
+            const count = State.notifications.filter(n => !n.read).length;
+            if (count > 0) {
+                badge.textContent = count > 9 ? '9+' : count;
+                badge.classList.remove('hidden');
+            }
+        }
     }
 
     showLoadingScreen() {
@@ -191,10 +363,14 @@ class VibeApp {
             });
         }
 
-        // Create Post Modal
+        // Create Post Modal - support both desktop and mobile
         const postBtn = document.getElementById('create-post-btn');
         if (postBtn) {
             postBtn.addEventListener('click', () => this.showCreatePostModal());
+        }
+        const postBtnMobile = document.getElementById('create-post-btn-mobile');
+        if (postBtnMobile) {
+            postBtnMobile.addEventListener('click', () => this.showCreatePostModal());
         }
 
         // Admin Trigger (Hidden)
@@ -202,6 +378,55 @@ class VibeApp {
         if (adminTrigger) {
             adminTrigger.addEventListener('click', () => this.navigate('admin'));
         }
+    }
+
+    // Mobile Hamburger Menu
+    toggleMobileMenu() {
+        const hamburger = document.getElementById('hamburger-btn');
+        const drawer = document.getElementById('mobile-drawer');
+        const overlay = document.getElementById('drawer-overlay');
+        
+        if (!hamburger || !drawer) return;
+        
+        const isOpen = drawer.classList.contains('open');
+        
+        if (isOpen) {
+            hamburger.classList.remove('active');
+            drawer.classList.remove('open');
+            if (overlay) overlay.classList.remove('open');
+            document.body.style.overflow = '';
+        } else {
+            hamburger.classList.add('active');
+            drawer.classList.add('open');
+            if (overlay) overlay.classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+    }
+
+    closeMobileMenu() {
+        const hamburger = document.getElementById('hamburger-btn');
+        const drawer = document.getElementById('mobile-drawer');
+        const overlay = document.getElementById('drawer-overlay');
+        
+        if (hamburger) hamburger.classList.remove('active');
+        if (drawer) drawer.classList.remove('open');
+        if (overlay) overlay.classList.remove('open');
+        document.body.style.overflow = '';
+    }
+
+    toggleSearch() {
+        const searchContainer = document.getElementById('search-container');
+        if (!searchContainer) return;
+        
+        searchContainer.classList.toggle('mobile-expand');
+        
+        if (searchContainer.classList.contains('mobile-expand')) {
+            const input = searchContainer.querySelector('input');
+            if (input) {
+                setTimeout(() => input.focus(), 100);
+            }
+        }
+    }
         
         // Global Event Delegation for Reactions
         document.body.addEventListener('click', (e) => {
@@ -293,6 +518,53 @@ class VibeApp {
         this.showToast('Post deleted');
     }
 
+    handlePostImage(input) {
+        const file = input.files[0];
+        if (!file) return;
+        
+        const preview = document.getElementById('media-preview');
+        if (preview) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                preview.innerHTML = `<img src="${e.target.result}" style="max-height:200px;border-radius:8px;margin-top:8px;">`;
+                preview.dataset.file = JSON.stringify({ type: 'image', data: file });
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    handlePostVideo(input) {
+        const file = input.files[0];
+        if (!file) return;
+        
+        if (file.size > 100 * 1024 * 1024) {
+            this.showToast('Video must be under 100MB', 'error');
+            return;
+        }
+        
+        const preview = document.getElementById('media-preview');
+        if (preview) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                preview.innerHTML = `<video src="${e.target.result}" controls style="max-height:200px;border-radius:8px;margin-top:8px;width:100%;"></video>`;
+                preview.dataset.file = JSON.stringify({ type: 'video', data: file });
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    clearMediaPreview() {
+        const preview = document.getElementById('media-preview');
+        if (preview) {
+            preview.innerHTML = '';
+            delete preview.dataset.file;
+        }
+        const imageInput = document.getElementById('image-upload-input');
+        const videoInput = document.getElementById('video-upload-input');
+        if (imageInput) imageInput.value = '';
+        if (videoInput) videoInput.value = '';
+    }
+
     showCreatePostModal() {
         const modal = document.getElementById('modal-container');
         const content = document.getElementById('modal-content');
@@ -302,45 +574,106 @@ class VibeApp {
         content.innerHTML = `
             <h2 class="view-header">Post Your Vibe</h2>
             <textarea id="post-input" class="glass-panel" placeholder="What's your mind linked to?" style="width:100%; min-height:120px; background:rgba(0,0,0,0.5); border:1px solid var(--border-light); color:white; padding:15px; margin:15px 0;"></textarea>
-            <div style="display:flex; gap:10px; margin-bottom:20px;">
-                <button class="btn-secondary">📷 Photo</button>
-                <button class="btn-secondary">🎥 Video</button>
+            
+            <div id="media-preview" style="margin-bottom:15px; min-height:50px;"></div>
+            
+            <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
+                <label class="btn-secondary" style="cursor:pointer; display:inline-flex; align-items:center; gap:5px;">
+                    📷 Photo
+                    <input type="file" id="image-upload-input" accept="image/*" style="display:none" onchange="window.App.handlePostImage(this)">
+                </label>
+                <label class="btn-secondary" style="cursor:pointer; display:inline-flex; align-items:center; gap:5px;">
+                    🎥 Video
+                    <input type="file" id="video-upload-input" accept="video/*" style="display:none" onchange="window.App.handlePostVideo(this)">
+                </label>
+                <button class="btn-secondary" onclick="window.App.clearMediaPreview()" style="display:none;" id="clear-media-btn">✕ Clear</button>
                 <button class="btn-secondary">📍 Location</button>
             </div>
+            
             <div style="display:flex; justify-content:flex-end; gap:10px;">
                 <button class="btn-secondary" onclick="document.getElementById('modal-container').classList.add('hidden')">Cancel</button>
-                <button class="btn-primary" id="final-post-btn">Post Vibe</button>
+                <button class="btn-primary" id="final-post-btn" onclick="window.App.handleCreatePost()">Post Vibe</button>
+            </div>
+            <div id="upload-progress" style="display:none; margin-top:15px;">
+                <div style="background:rgba(255,255,255,0.1); border-radius:4px; height:8px; overflow:hidden;">
+                    <div id="progress-bar" style="background:linear-gradient(90deg, #9d50bb, #6e48aa); height:100%; width:0%; transition:width 0.3s;"></div>
+                </div>
+                <p style="text-align:center; font-size:12px; color:#aaa; margin-top:5px;" id="progress-text">Uploading...</p>
             </div>
         `;
-
-        document.getElementById('final-post-btn').addEventListener('click', () => this.handleCreatePost());
     }
 
     async handleCreatePost() {
         const text = document.getElementById('post-input').value;
-        if (!text || !State.user) return;
+        if (!text && !State.user) {
+            this.showToast('Write something or add media!', 'error');
+            return;
+        }
+        if (!State.user) {
+            this.showToast('Please login first', 'error');
+            return;
+        }
+        
+        const progressDiv = document.getElementById('upload-progress');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        const clearBtn = document.getElementById('clear-media-btn');
+        
+        let mediaFile = null;
+        let mediaType = 'none';
+        
+        const preview = document.getElementById('media-preview');
+        if (preview && preview.dataset.file) {
+            try {
+                const fileData = JSON.parse(preview.dataset.file);
+                mediaFile = fileData.data;
+                mediaType = fileData.type;
+                
+                if (progressDiv) progressDiv.style.display = 'block';
+                if (clearBtn) clearBtn.style.display = 'none';
+            } catch (e) {
+                console.error('Error parsing media file:', e);
+            }
+        }
         
         const newPost = {
-            id: 'p' + Date.now(),
             userId: State.user.id,
+            username: State.user.username,
             displayName: State.user.displayName,
             handle: State.user.username,
             avatar: State.user.profilePhoto,
-            content: text,
-            media: null,
-            type: 'text',
-            engagement: 0,
-            reactions: { like: 0, heat: 0, wild: 0, cap: 0, admire: 0, dislike: 0 },
-            comments: [],
+            content: text || '',
+            mediaFile: mediaFile,
+            mediaType: mediaType,
+            tags: (text.match(/#(\w+)/g) || []).map(t => t.substring(1)),
             timestamp: 'Just now',
-            isSponsored: false,
             tab: 'all'
         };
         
-        await this.services.data.addPost(newPost);
+        if (progressBar) progressBar.style.width = '30%';
+        
+        const result = await this.services.data.addPost(newPost);
+        
+        if (progressBar) progressBar.style.width = '100%';
+        
+        if (result?.error === 'rate_limit') {
+            this.showToast(result.message, 'error');
+            if (progressDiv) progressDiv.style.display = 'none';
+            if (clearBtn) clearBtn.style.display = 'inline-flex';
+            return;
+        }
+        
         document.getElementById('modal-container').classList.add('hidden');
-        this.showToast("Vibe posted to the Pulse!");
+        
+        if (progressDiv) progressDiv.style.display = 'none';
+        
+        this.showToast(mediaType === 'video' ? 'Video vibe posted!' : 'Vibe posted to the Pulse!');
+        
         this.renderView('home');
+        
+        if (State.user) {
+            this.services.data.notifications.requestPermission();
+        }
     }
 
     async showCommentModal(postId) {
@@ -802,55 +1135,158 @@ class VibeApp {
     getAuthHTML(mode) {
         const isLogin = mode === 'login';
         return `
-            <div class="login-content glass-panel" style="border: 2px solid rgba(157, 80, 187, 0.3); box-shadow: 0 0 50px rgba(157, 80, 187, 0.2);">
+            <div class="login-content glass-panel" style="border: 2px solid rgba(255, 165, 0, 0.4); box-shadow: 0 0 60px rgba(255, 165, 0, 0.15), 0 0 100px rgba(157, 80, 187, 0.1); max-width:420px; margin:0 auto;">
                 <div class="login-header">
                     <div class="login-logo">
-                        <div class="login-logo-glow"></div>
+                        <div class="login-logo-glow" style="background: linear-gradient(135deg, #ff9f00, #9d50bb);"></div>
                         <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" alt="Vibehub Logo">
                     </div>
-                    <h1 class="login-title">${isLogin ? 'Login' : 'Join'} Vibehub</h1>
-                    <p class="login-subtitle">${isLogin ? 'Link your mind' : 'Begin your journey'}</p>
+                    <h1 class="login-title" style="background: linear-gradient(135deg, #ff9f00, #9d50bb); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">${isLogin ? 'Welcome Back' : 'Join Vibehub'}</h1>
+                    <p class="login-subtitle" style="color: #aaa;">Link your mind. Share your vibe.</p>
                 </div>
 
                 <div class="login-form">
-                    <div class="login-toggle">
-                        <input type="checkbox" id="admin-toggle">
-                        <label for="admin-toggle">I am an Admin</label>
+                    <!-- Clerk Buttons -->
+                    <button class="clerk-auth-btn clerk-signin-btn" onclick="window.App.handleClerkSignIn()" style="
+                        background: linear-gradient(135deg, #ff9f00 0%, #ff6b00 100%);
+                        border: none;
+                        padding: 14px 20px;
+                        border-radius: 12px;
+                        color: white;
+                        font-weight: 600;
+                        font-size: 15px;
+                        cursor: pointer;
+                        width: 100%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 10px;
+                        transition: all 0.3s ease;
+                        box-shadow: 0 4px 15px rgba(255, 159, 0, 0.3);
+                        margin-bottom: 12px;
+                    ">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                            <polyline points="10 17 15 12 10 7"></polyline>
+                            <line x1="15" y1="12" x2="3" y2="12"></line>
+                        </svg>
+                        Sign in with Clerk
+                    </button>
+                    
+                    <button class="clerk-auth-btn clerk-signup-btn" onclick="window.App.handleClerkSignUp()" style="
+                        background: linear-gradient(135deg, #9d50bb 0%, #6e48aa 100%);
+                        border: none;
+                        padding: 14px 20px;
+                        border-radius: 12px;
+                        color: white;
+                        font-weight: 600;
+                        font-size: 15px;
+                        cursor: pointer;
+                        width: 100%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 10px;
+                        transition: all 0.3s ease;
+                        box-shadow: 0 4px 15px rgba(157, 80, 187, 0.3);
+                        margin-bottom: 20px;
+                    ">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="8.5" cy="7" r="4"></circle>
+                            <line x1="20" y1="8" x2="20" y2="14"></line>
+                            <line x1="23" y1="11" x2="17" y2="11"></line>
+                        </svg>
+                        Create Account
+                    </button>
+                    
+                    <div class="auth-divider" style="display: flex; align-items: center; margin: 20px 0; color: #666;">
+                        <div style="flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,165,0,0.3), transparent);"></div>
+                        <span style="padding: 0 15px; font-size: 13px;">or continue with</span>
+                        <div style="flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(157,80,187,0.3), transparent);"></div>
                     </div>
 
-                    <input type="email" id="login-email" class="login-input" placeholder="Email Address" required>
-                    ${!isLogin ? '<input type="text" id="register-username" class="login-input" placeholder="Choose Username" required>' : ''}
-                    <input type="password" id="login-password" class="login-input" placeholder="Password" required>
-                    <button class="login-submit" onclick="window.App.handleLogin('${mode}')">${isLogin ? '✨ Enter The Pulse' : '🚀 Create My Identity'}</button>
-
-                    <div class="login-footer">
-                        <a href="#" onclick="window.App.navigate('${isLogin ? 'register' : 'login'}')">${isLogin ? 'Need an account? Register' : 'Already linked? Login'}</a>
+                    <!-- Admin fallback -->
+                    <div class="admin-section" style="
+                        background: rgba(255, 165, 0, 0.05);
+                        border: 1px solid rgba(255, 165, 0, 0.2);
+                        border-radius: 12px;
+                        padding: 15px;
+                        margin-bottom: 15px;
+                    ">
+                        <p style="color: #ff9f00; font-size: 12px; margin-bottom: 10px; text-align: center;">🔐 Admin Access Only</p>
+                        <input type="email" id="login-email" class="login-input" placeholder="Admin Email" style="
+                            background: rgba(0,0,0,0.3);
+                            border: 1px solid rgba(255, 165, 0, 0.3);
+                            padding: 12px 15px;
+                            border-radius: 8px;
+                            color: white;
+                            width: 100%;
+                            margin-bottom: 10px;
+                        ">
+                        <input type="password" id="login-password" class="login-input" placeholder="Admin Password" style="
+                            background: rgba(0,0,0,0.3);
+                            border: 1px solid rgba(255, 165, 0, 0.3);
+                            padding: 12px 15px;
+                            border-radius: 8px;
+                            color: white;
+                            width: 100%;
+                            margin-bottom: 10px;
+                        ">
+                        <button class="login-submit" onclick="window.App.handleAdminLogin()" style="
+                            background: linear-gradient(135deg, #ff9f00, #ff6b00);
+                            border: none;
+                            padding: 12px;
+                            border-radius: 8px;
+                            color: white;
+                            font-weight: 600;
+                            width: 100%;
+                            cursor: pointer;
+                            transition: all 0.3s;
+                        ">🔑 Enter as Admin</button>
                     </div>
                 </div>
             </div>
         `;
     }
 
-    async handleLogin(mode = 'login') {
+    async handleClerkSignIn() {
+        if (this.services.auth.clerk) {
+            await this.services.auth.openSignIn();
+        } else {
+            this.showToast('Authentication loading...', 'info');
+            setTimeout(() => this.handleClerkSignIn(), 1000);
+        }
+    }
+
+    async handleClerkSignUp() {
+        if (this.services.auth.clerk) {
+            await this.services.auth.openSignUp();
+        } else {
+            this.showToast('Authentication loading...', 'info');
+            setTimeout(() => this.handleClerkSignUp(), 1000);
+        }
+    }
+
+    async handleAdminLogin() {
         const email = document.getElementById('login-email').value;
         const password = document.getElementById('login-password').value;
-        const isAdmin = document.getElementById('admin-toggle').checked;
-
-        // Simple validation
+        
         if (!email || !password) {
-            this.showToast('Please fill in all fields');
+            this.showToast('Please enter admin credentials', 'error');
             return;
         }
 
-        const user = await this.services.auth.login(email, password, isAdmin);
-        State.user = user;
-
-        if (user.isSuperAdmin) {
-            this.showToast('Welcome, Admin! 🎉');
-        } else {
-            this.showToast('Welcome to the Pulse! ✨');
+        const user = await this.services.auth.login(email, password, true);
+        
+        if (user?.error === 'use_clerk') {
+            this.showToast(user.message, 'error');
+            return;
         }
-
+        
+        State.user = user;
+        this.showToast('Welcome, Admin! 🎉');
+        
         // Hide login screen
         const login = document.getElementById('login-screen');
         if (login) {
@@ -859,7 +1295,7 @@ class VibeApp {
                 login.style.visibility = 'hidden';
             }, 800);
         }
-
+        
         this.navigate('home');
     }
 
