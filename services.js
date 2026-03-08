@@ -334,10 +334,12 @@ class AuthService {
     constructor() {
         this.user = JSON.parse(localStorage.getItem('vibehub_user')) || null;
         this.clerk = null;
-        this.initClerk();
+        this.clerkInitialized = false;
     }
 
     async initClerk() {
+        if (this.clerkInitialized) return;
+        
         // Wait for Clerk to be ready
         const waitForClerk = () => {
             return new Promise((resolve) => {
@@ -354,6 +356,7 @@ class AuthService {
 
         await waitForClerk();
         this.clerk = window.clerk;
+        this.clerkInitialized = true;
         
         // Listen for session changes
         if (this.clerk) {
@@ -591,131 +594,8 @@ class AuthService {
     }
 }
 
-    checkSession() {
-        return this.user;
-    }
-
-    async initClerk() {
-        if (window.Clerk && window.CLERK_PUBLISHABLE_KEY && !this.clerk) {
-            try {
-                this.clerk = await window.Clerk.init({
-                    publishableKey: window.CLERK_PUBLISHABLE_KEY
-                });
-                console.log('Clerk initialized');
-            } catch (e) {
-                console.warn('Clerk init failed:', e);
-            }
-        }
-    }
-
-    async login(email, password, isAdmin = false) {
-        const validAdminEmail = 'yamasseetechnology@gmail.com';
-        const adminPassword = 'citawoo789!';
-
-        return new Promise(async resolve => {
-            let supabaseUser = null;
-            
-            if (window.supabaseClient) {
-                try {
-                    const { data } = await window.supabaseClient
-                        .from('users')
-                        .select('*')
-                        .eq('email', email)
-                        .single();
-                    supabaseUser = data;
-                } catch (e) {
-                    console.log('User not found in Supabase');
-                }
-            }
-
-            setTimeout(async () => {
-                const isSuperAdmin = isAdmin || 
-                                    (email.toLowerCase() === validAdminEmail && password === adminPassword) ||
-                                    email.toLowerCase().includes('admin');
-
-                if (supabaseUser) {
-                    const user = {
-                        id: supabaseUser.id,
-                        username: supabaseUser.username,
-                        displayName: supabaseUser.name,
-                        email: supabaseUser.email,
-                        profilePhoto: supabaseUser.avatar_url,
-                        bannerImage: supabaseUser.banner_url,
-                        bio: supabaseUser.bio,
-                        followersCount: supabaseUser.followers?.length || 0,
-                        followingCount: supabaseUser.following?.length || 0,
-                        postCount: 0,
-                        reactionScore: supabaseUser.vibe_score || 0,
-                        badgeList: supabaseUser.verified ? ['Verified'] : [],
-                        isSuperAdmin: isSuperAdmin,
-                        clerkId: supabaseUser.clerk_id,
-                        createdAt: supabaseUser.created_at
-                    };
-                    this.user = user;
-                    localStorage.setItem('vibehub_user', JSON.stringify(user));
-                    resolve(user);
-                    return;
-                }
-
-                let newUserId = 'u_' + Date.now();
-                if (window.supabaseClient) {
-                    try {
-                        const { data } = await window.supabaseClient
-                            .from('users')
-                            .insert([{
-                                username: email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '_'),
-                                email: email,
-                                name: email.split('@')[0],
-                                avatar_url: 'https://i.pravatar.cc/150?u=' + Date.now(),
-                                bio: 'New to VibeHub!',
-                                followers: [],
-                                following: [],
-                                vibe_score: 0,
-                                role: isSuperAdmin ? 'admin' : 'user'
-                            }])
-                            .select()
-                            .single();
-                        
-                        if (data) newUserId = data.id;
-                    } catch (e) {
-                        console.log('Creating user in Supabase failed:', e);
-                    }
-                }
-
-                const mockUser = {
-                    id: newUserId,
-                    username: isAdmin || email.toLowerCase() === validAdminEmail ? 'super_admin' : email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '_'),
-                    displayName: isAdmin || email.toLowerCase() === validAdminEmail ? 'Super Admin' : email.split('@')[0],
-                    email: email,
-                    profilePhoto: 'https://i.pravatar.cc/150?u=' + Date.now(),
-                    bannerImage: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
-                    bio: 'New to VibeHub!',
-                    followersCount: 0,
-                    followingCount: 0,
-                    postCount: 0,
-                    reactionScore: 0,
-                    badgeList: isAdmin || email.toLowerCase() === validAdminEmail ? ['Admin'] : [],
-                    isSuperAdmin: isSuperAdmin,
-                    createdAt: new Date().toISOString()
-                };
-                
-                this.user = mockUser;
-                localStorage.setItem('vibehub_user', JSON.stringify(mockUser));
-                resolve(mockUser);
-            }, 800);
-        });
-    }
-
-    logout() {
-        this.user = null;
-        localStorage.removeItem('vibehub_user');
-        if (this.clerk) {
-            this.clerk.signOut();
-        }
-        window.location.reload();
-    }
-}
-
+// ============================================
+// DATA SERVICE - Supabase Posts, Comments, etc
 // ============================================
 // DATA SERVICE - Supabase Posts, Comments, etc
 // ============================================
