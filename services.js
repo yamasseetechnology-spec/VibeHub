@@ -340,12 +340,16 @@ class AuthService {
     async initClerk() {
         if (this.clerkInitialized) return;
         
-        // Wait for Clerk to be ready
+        // Wait for Clerk to be ready with 5s timeout
         const waitForClerk = () => {
             return new Promise((resolve) => {
+                const startTime = Date.now();
                 const check = () => {
                     if (window.clerk && window.clerkReady) {
-                        resolve();
+                        resolve(true);
+                    } else if (Date.now() - startTime > 5000) {
+                        console.warn('Clerk SDK took too long to initialize, proceeding anyway.');
+                        resolve(false);
                     } else {
                         setTimeout(check, 100);
                     }
@@ -354,9 +358,14 @@ class AuthService {
             });
         };
 
-        await waitForClerk();
-        this.clerk = window.clerk;
-        this.clerkInitialized = true;
+        const initialized = await waitForClerk();
+        if (initialized) {
+            this.clerk = window.clerk;
+            this.clerkInitialized = true;
+        } else {
+            console.warn('Clerk initialization failed or timed out. Authentication via Clerk will be disabled.');
+            this.clerkInitialized = false;
+        }
         
         // Listen for session changes
         if (this.clerk) {
