@@ -62,10 +62,11 @@ class VibeApp {
 
         // 5. After 3 seconds, execute transition
 
-        // 5. After 3 seconds, execute transition
+        // 5. After 0.5 seconds, execute transition
         setTimeout(() => {
+            console.log("Attempting transitionToLogin...");
             this.transitionToLogin();
-        }, 3000);
+        }, 500);
     }
 
     setupClerkListeners() {
@@ -245,9 +246,13 @@ class VibeApp {
     }
 
     transitionToLogin() {
+        console.log("transitionToLogin called");
         const loading = document.getElementById('loading-screen');
         const login = document.getElementById('login-screen');
         const app = document.getElementById('app');
+
+        console.log("Loading element:", loading);
+        console.log("Login element:", login);
 
         if (loading) {
             loading.style.opacity = '0';
@@ -260,6 +265,16 @@ class VibeApp {
                     login.style.visibility = 'visible';
                     this.initLoginParticles(); // Initialize login particles now that DOM is fully ready
                 }
+                
+                if (app) {
+                    app.classList.remove('hidden');
+                    app.style.opacity = '1';
+                }
+            }, 500);
+        } else {
+            console.warn("Loading screen not found!");
+        }
+    }
                 
                 if (app) {
                     app.classList.remove('hidden');
