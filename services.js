@@ -56,7 +56,7 @@ class AuthService {
 
 // --- DATA SERVICE (Posts, Communities, Marketplace) ---
 class DataService {
-    async getPosts(tab = 'all') {
+    async getPosts(tab = 'all', communityId = null) {
         const posts = [
             {
                 id: 'p1',
@@ -73,7 +73,8 @@ class DataService {
                 timestamp: '2h ago',
                 isSponsored: false,
                 tab: 'all',
-                hashtag: 'mindfulness'
+                hashtag: 'mindfulness',
+                communityId: 'c1' // Synthwave Lovers
             },
             {
                 id: 'p2',
@@ -141,7 +142,8 @@ class DataService {
                 timestamp: '1h ago',
                 isSponsored: false,
                 tab: 'all',
-                hashtag: 'consciousness'
+                hashtag: 'consciousness',
+                communityId: 'c2' // Deep Psychology
             },
             {
                 id: 'ad1',
@@ -167,9 +169,9 @@ class DataService {
             post.vibeScore = calculateVibeScore(post.reactions);
         });
 
-        if (tab === 'all') return posts;
-        if (tab === 'trending') return posts.filter(p => p.tab === tab || p.isSponsored).sort((a, b) => b.vibeScore - a.vibeScore);
-        if (tab === 'we-vibin') return posts.filter(p => p.tab === tab || p.isSponsored);
+        if (tab === 'all') return communityId ? posts.filter(p => p.communityId === communityId) : posts;
+        if (tab === 'trending') return posts.filter(p => !communityId && (p.tab === tab || p.isSponsored)).sort((a, b) => b.vibeScore - a.vibeScore);
+        if (tab === 'we-vibin') return posts.filter(p => !communityId && (p.tab === tab || p.isSponsored));
         return posts;
     }
 

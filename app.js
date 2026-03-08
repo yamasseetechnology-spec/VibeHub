@@ -32,6 +32,9 @@ class VibeApp {
     async init() {
         console.log("Vibehub Initializing...");
 
+        // Expose global reaction popup for components
+        window.triggerReactionPopup = this.triggerReactionPopup.bind(this);
+
         // 1. Show loading screen
         this.showLoadingScreen();
 
@@ -200,6 +203,29 @@ class VibeApp {
             adminTrigger.addEventListener('click', () => this.navigate('admin'));
         }
         
+        // Global Event Delegation for Reactions
+        document.body.addEventListener('click', (e) => {
+            const btn = e.target.closest('.reaction-btn');
+            if (btn) {
+                btn.classList.toggle('active');
+                const countSpan = btn.querySelector('span');
+                if (countSpan) {
+                    let count = parseInt(countSpan.innerText);
+                    count = btn.classList.contains('active') ? count + 1 : count - 1;
+                    countSpan.innerText = count;
+                }
+
+                // Reaction popup animation
+                if (btn.classList.contains('active')) {
+                    const reactionName = btn.innerText.split(' ')[0];
+                    window.triggerReactionPopup(e.clientX, e.clientY, reactionName);
+                }
+
+                btn.style.transform = 'scale(1.2)';
+                setTimeout(() => btn.style.transform = '', 200);
+            }
+        });
+        
         // Handle Back/Forward buttons
         window.addEventListener('popstate', (e) => {
             if (e.state && e.state.view) {
@@ -209,7 +235,7 @@ class VibeApp {
     }
 
     showPostMenu(postId) {
-        // Simple context menu implementation
+        // Context menu implementation
         const post = document.querySelector(`[data-id="${postId}"]`);
         if (!post) return;
 
@@ -220,11 +246,21 @@ class VibeApp {
         const menu = document.createElement('div');
         menu.id = 'post-menu';
         menu.className = 'glass-panel';
-        menu.style.cssText = 'position:absolute; right:20px; padding:10px; z-index:100;';
-        menu.innerHTML = `
-            <button class="btn-secondary" onclick="window.App.deletePost('${postId}')">Delete</button>
-            <button class="btn-secondary">Report</button>
-        `;
+        menu.style.cssText = 'position:absolute; right:20px; top:40px; padding:10px; z-index:100; display:flex; flex-direction:column; min-width:150px;';
+        
+        // Admin Options vs Standard User Options
+        if (State.user && State.user.isSuperAdmin) {
+            menu.innerHTML = `
+                <button class="menu-item text-main" style="border:none; background:transparent; padding:8px; text-align:left; cursor:pointer;" onclick="window.App.deletePost('${postId}')">Delete Post</button>
+                <div style="height:1px; background:var(--border-light); margin:4px 0;"></div>
+                <button class="menu-item text-main" style="border:none; background:transparent; padding:8px; text-align:left; cursor:pointer; color:var(--accent-pink);" onclick="window.App.removeUser('${postId}')">Remove User</button>
+            `;
+        } else {
+            menu.innerHTML = `
+                <button class="menu-item text-main" style="border:none; background:transparent; padding:8px; text-align:left; cursor:pointer;" onclick="window.App.reportPost('${postId}')">Report Post</button>
+            `;
+        }
+        
         post.appendChild(menu);
         
         // Close menu when clicking elsewhere
@@ -235,6 +271,20 @@ class VibeApp {
                 }
             }, {once: true});
         }, 100);
+    }
+
+    reportPost(postId) {
+        // Stub for reporting
+        this.showToast('Post reported for review');
+        const menu = document.getElementById('post-menu');
+        if (menu) menu.remove();
+    }
+
+    removeUser(postId) {
+        // Stub for admin user removal
+        const post = document.querySelector(`[data-id="${postId}"]`);
+        if (post) post.remove(); // hide their post visually
+        this.showToast('User has been removed.');
     }
 
     deletePost(postId) {
@@ -359,27 +409,8 @@ class VibeApp {
     }
 
     attachViewEvents() {
-        // Post Reactions
-        document.querySelectorAll('.reaction-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                btn.classList.toggle('active');
-                const countSpan = btn.querySelector('span');
-                if (!countSpan) return;
-
-                let count = parseInt(countSpan.innerText);
-                count = btn.classList.contains('active') ? count + 1 : count - 1;
-                countSpan.innerText = count;
-
-                // Reaction popup animation
-                if (btn.classList.contains('active')) {
-                    const reactionName = btn.innerText.split(' ')[0];
-                    this.showReactionPopup(e.clientX, e.clientY, reactionName);
-                }
-
-                btn.style.transform = 'scale(1.2)';
-                setTimeout(() => btn.style.transform = '', 200);
-            });
-        });
+        // Post Reactions handling moved to global event delegation in init() or setupEventListeners()
+        // to handle all reactions uniformly.
 
         // Sync Room Live Stream Simulation
         if (State.currentView === 'syncrooms') {
@@ -414,27 +445,34 @@ class VibeApp {
         setTimeout(() => react.remove(), 800);
     }
 
-    showReactionPopup(x, y, reactionName) {
+    triggerReactionPopup(x, y, reactionName) {
         const popup = document.createElement('div');
         popup.className = 'reaction-popup';
         popup.innerHTML = `<span>${reactionName}</span>`;
         popup.style.left = `${x}px`;
         popup.style.top = `${y}px`;
-        popup.style.transform = 'translate(-50%, -100%) scale(0)';
+        popup.style.position = 'fixed';
+        popup.style.pointerEvents = 'none';
+        popup.style.zIndex = '9999';
+        popup.style.fontSize = '1.5rem';
+        popup.style.textShadow = '0 0 10px rgba(255,157,0,0.8)';
+        popup.style.transition = 'all 0.4s ease-out';
+        popup.style.transform = 'translate(-50%, -50%) scale(0.5)';
+        popup.style.opacity = '0';
         document.body.appendChild(popup);
 
         // Trigger animation
         requestAnimationFrame(() => {
-            popup.style.transform = 'translate(-50%, -100%) scale(1.2)';
+            popup.style.transform = 'translate(-50%, -150px) scale(1.5)';
             popup.style.opacity = '1';
         });
 
         setTimeout(() => {
-            popup.style.transform = 'translate(-50%, -150%) scale(0.8)';
             popup.style.opacity = '0';
-        }, 100);
+            popup.style.transform = 'translate(-50%, -200px) scale(0.8)';
+        }, 500);
 
-        setTimeout(() => popup.remove(), 800);
+        setTimeout(() => popup.remove(), 900);
     }
 
     startSyncStream() {
@@ -584,25 +622,41 @@ class VibeApp {
         `;
         return `
             <div class="profile-container">
-                <div class="profile-header">
-                    <img src="${user.profilePhoto}" class="profile-avatar" alt="${user.displayName}">
-                    <div class="profile-info">
-                        <h1 class="view-title">${user.displayName}</h1>
-                        <p class="handle">@${user.username}</p>
-                        <p style="margin-top:10px;">${user.bio}</p>
+                <div class="profile-banner">
+                    <img src="${user.bannerImage || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200'}" alt="Banner">
+                </div>
+                <div class="profile-content">
+                    <div class="profile-header">
+                        <img src="${user.profilePhoto}" class="profile-avatar" alt="${user.displayName}">
+                        <div class="profile-info">
+                            <h1 class="view-title">${user.displayName}</h1>
+                            <p class="handle">@${user.username}</p>
+                            <p class="bio">${user.bio}</p>
+                            <div class="profile-badges">
+                                ${this.generateBadges(user)}
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div class="profile-stats">
-                    <div class="stat-item"><span class="stat-value">${user.followersCount}</span><span class="stat-label">Followers</span></div>
-                    <div class="stat-item"><span class="stat-value">${user.followingCount}</span><span class="stat-label">Following</span></div>
-                    <div class="stat-item"><span class="stat-value">${user.postCount}</span><span class="stat-label">Posts</span></div>
-                    <div class="stat-item"><span class="stat-value">98%</span><span class="stat-label">Vibe Match</span></div>
-                </div>
-                <div class="profile-tabs tabs" style="justify-content:center; margin-top:30px;">
-                    <button class="tab active">Posts</button>
-                    <button class="tab">Videos</button>
-                    <button class="tab">Saved</button>
-                    <button class="tab">Market</button>
+                    <div class="profile-stats glass-panel">
+                        <div class="stat-item"><span class="stat-value">${user.followersCount.toLocaleString()}</span><span class="stat-label">Followers</span></div>
+                        <div class="stat-item"><span class="stat-value">${user.followingCount.toLocaleString()}</span><span class="stat-label">Following</span></div>
+                        <div class="stat-item"><span class="stat-value">${user.postCount.toLocaleString()}</span><span class="stat-label">Posts</span></div>
+                        <div class="stat-item"><span class="stat-value">98%</span><span class="stat-label">Vibe Match</span></div>
+                    </div>
+                    
+                    <div class="top-vibes-section">
+                        <h3 class="section-title">Top 8 Vibes</h3>
+                        <div class="top-vibes-grid">
+                            ${Array(8).fill(0).map((_, i) => `<div class="vibe-img-card"><img src="https://picsum.photos/250?random=${i}" loading="lazy"></div>`).join('')}
+                        </div>
+                    </div>
+
+                    <div class="profile-tabs tabs">
+                        <button class="tab active" style="flex:1;">Posts</button>
+                        <button class="tab" style="flex:1;">Videos</button>
+                        <button class="tab" style="flex:1;">Saved</button>
+                        <button class="tab" style="flex:1;">Market</button>
+                    </div>
                 </div>
             </div>
         `;
@@ -679,6 +733,59 @@ class VibeApp {
         }
 
         this.navigate('home');
+    }
+
+    getCommunitiesHTML(communities) {
+        return `
+            <div class="view-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h1 class="view-title">Communities</h1>
+                    <p class="text-dim">Find your tribe. Link your mind.</p>
+                </div>
+                <button class="btn-primary" onclick="window.App.showToast('Create Community coming soon!')">+ New Group</button>
+            </div>
+            
+            <div class="communities-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-top:20px;">
+                ${communities.map(c => `
+                    <div class="community-card glass-panel" style="overflow:hidden; cursor:pointer;" onclick="window.App.viewCommunity('${c.id}', '${c.name}')">
+                        <img src="${c.banner}" style="width:100%; height:120px; object-fit:cover;" alt="Banner">
+                        <div style="padding:15px;">
+                            <h3 style="font-family:var(--font-display); font-size:1.3rem;">${c.name}</h3>
+                            <p class="text-dim" style="font-size:0.9rem; margin-top:5px; margin-bottom:15px;">${c.desc}</p>
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <span class="badge-admired user-badge" style="margin:0;">${c.members} Members</span>
+                                <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); window.App.showToast('Joined ${c.name}!')">Join</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    async viewCommunity(communityId, communityName) {
+        // Switch to home view but filtered for this community
+        State.currentView = 'home';
+        document.querySelectorAll('.nav-link').forEach(l => {
+            l.classList.toggle('active', l.dataset.view === 'home');
+        });
+        
+        const posts = await this.services.data.getPosts('all', communityId);
+        
+        const container = document.getElementById('view-container');
+        if (!container) return;
+        
+        container.innerHTML = `
+            <div class="view-header animate-fade">
+                <button class="btn-secondary" style="margin-bottom:15px;" onclick="window.App.navigate('communities')">← Back to Communities</button>
+                <h1 class="view-title">${communityName}</h1>
+                <p class="text-dim" style="margin-top:8px;">Viewing community feed.</p>
+            </div>
+            <div id="post-feed">
+                ${posts.length > 0 ? posts.map(p => Components.post(p)).join('') : '<p class="text-dim" style="padding:20px;">No vibes in this community yet.</p>'}
+            </div>
+        `;
+        this.attachViewEvents();
     }
 
     getMessagesHTML(dms) {
