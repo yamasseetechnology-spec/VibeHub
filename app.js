@@ -477,10 +477,63 @@ class VibeApp {
                 <h1 class="view-title">Sync Rooms</h1>
                 <p>Live psychological sync with 125 minds max.</p>
             </div>
-            <div class="rooms-grid">
-                ${rooms.map(r => Components.room(r)).join('')}
+            <div class="rooms-grid" id="rooms-grid">
+                ${rooms.map(r => `
+                    <div class="room-card glass-panel">
+                        <h3>${r.name}</h3>
+                        <p>${r.users} Vibing Now</p>
+                        <button class="btn-primary" onclick="window.App.joinSyncRoom('${r.id}', '${r.name}')">Sync In</button>
+                    </div>
+                `).join('')}
+            </div>
+            <div id="active-chat-container" class="hidden">
+                <div class="view-header"><button class="btn-secondary" onclick="window.App.leaveSyncRoom()">← Back to Rooms</button><h1 class="view-title" id="active-room-name"></h1></div>
+                <div class="chat-container">
+                    <div class="chat-messages" id="chat-messages"></div>
+                    <div class="chat-input">
+                        <input type="text" id="chat-message-input" placeholder="Type a message...">
+                        <button class="btn-primary" onclick="window.App.sendChatMessage()">Send</button>
+                    </div>
+                </div>
             </div>
         `;
+    }
+
+    joinSyncRoom(roomId, roomName) {
+        document.getElementById('rooms-grid').classList.add('hidden');
+        document.getElementById('active-chat-container').classList.remove('hidden');
+        document.getElementById('active-room-name').innerText = roomName;
+        this.activeRoomId = roomId;
+
+        // BroadcastChannel for simple live chat simulation between tabs
+        this.chatChannel = new BroadcastChannel(`vibehub_chat_${roomId}`);
+        this.chatChannel.onmessage = (event) => {
+            this.appendChatMessage(event.data);
+        };
+    }
+
+    leaveSyncRoom() {
+        document.getElementById('rooms-grid').classList.remove('hidden');
+        document.getElementById('active-chat-container').classList.add('hidden');
+        if (this.chatChannel) this.chatChannel.close();
+    }
+
+    sendChatMessage() {
+        const input = document.getElementById('chat-message-input');
+        const message = {
+            text: input.value,
+            user: State.user.username,
+            time: new Date().toLocaleTimeString()
+        };
+        this.chatChannel.postMessage(message);
+        this.appendChatMessage(message);
+        input.value = '';
+    }
+
+    appendChatMessage(message) {
+        const chat = document.getElementById('chat-messages');
+        chat.innerHTML += `<div style="margin-bottom:10px;"><strong>${message.user}:</strong> ${message.text} <span class="text-dim" style="font-size:0.7rem;">${message.time}</span></div>`;
+        chat.scrollTop = chat.scrollHeight;
     }
 
     getProfileHTML(user) {
