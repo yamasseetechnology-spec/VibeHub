@@ -146,8 +146,8 @@
                     border-radius: 0 0 12px 12px;
                 ">
                     <div style="padding: 15px; display: flex; flex-direction: column; gap: 10px;">
-                        <input type="email" id="login-email" class="login-input" placeholder="Admin Email" style="padding: 10px; font-size: 14px;">
-                        <input type="password" id="login-password" class="login-input" placeholder="Admin Password" style="padding: 10px; font-size: 14px;">
+                        <input type="email" id="admin-login-email" class="login-input" placeholder="Admin Email" style="padding: 10px; font-size: 14px;">
+                        <input type="password" id="admin-login-password" class="login-input" placeholder="Admin Password" style="padding: 10px; font-size: 14px;">
                         <button class="login-submit" onclick="window.App.handleAdminLogin()" style="padding: 10px; font-size: 14px;">🔑 Enter</button>
                     </div>
                 </div>
@@ -378,7 +378,7 @@
         
         // Load Clerk SDK
         var s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.umd.min.js';
+        s.src = 'https://unpkg.com/@clerk/clerk-js@5/dist/clerk.browser.umd.min.js';
         document.head.appendChild(s);
         
         await waitForClerk();

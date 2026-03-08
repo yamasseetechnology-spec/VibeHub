@@ -56,8 +56,11 @@ class VibeApp {
         // 3. Setup Routing & Event Listeners
         this.setupEventListeners();
 
-        // 4. Listen for Clerk auth events
+        // 4. Initialize Clerk and setup listeners
+        await this.services.auth.initClerk();
         this.setupClerkListeners();
+
+        // 5. After 3 seconds, execute transition
 
         // 5. After 3 seconds, execute transition
         setTimeout(() => {
@@ -428,6 +431,11 @@ class VibeApp {
         } else {
             hamburger.classList.add('active');
             drawer.classList.add('open');
+            if (overlay) overlay.classList.remove('open');
+            document.body.style.overflow = '';
+        } else {
+            hamburger.classList.add('active');
+            drawer.classList.add('open');
             if (overlay) overlay.classList.add('open');
             document.body.style.overflow = 'hidden';
         }
@@ -457,6 +465,38 @@ class VibeApp {
             }
         }
     }
+        
+    // Global Event Delegation for Reactions
+    document.body.addEventListener('click', (e) => {
+        const btn = e.target.closest('.reaction-btn');
+        if (btn) {
+            btn.classList.toggle('active');
+            const countSpan = btn.querySelector('span');
+            if (countSpan) {
+                let count = parseInt(countSpan.innerText);
+                count = btn.classList.contains('active') ? count + 1 : count - 1;
+                countSpan.innerText = count;
+            }
+
+            // Reaction popup animation
+            if (btn.classList.contains('active')) {
+                const reactionName = btn.innerText.split(' ')[0];
+                window.triggerReactionPopup(e.clientX, e.clientY, reactionName);
+            }
+
+            btn.style.transform = 'scale(1.2)';
+            setTimeout(() => btn.style.transform = '', 200);
+        }
+    });
+        
+    // Handle Back/Forward buttons
+    window.addEventListener('popstate', (e) => {
+        if (e.state && e.state.view) {
+            this.renderView(e.state.view, false);
+        }
+    });
+    }
+
     showPostMenu(postId) {
         // Context menu implementation
         const post = document.querySelector(`[data-id="${postId}"]`);
@@ -1267,8 +1307,8 @@ class VibeApp {
     }
 
     async handleAdminLogin() {
-        const email = document.getElementById('login-email').value;
-        const password = document.getElementById('login-password').value;
+        const email = document.getElementById('admin-login-email').value;
+        const password = document.getElementById('admin-login-password').value;
         
         if (!email || !password) {
             this.showToast('Please enter admin credentials', 'error');
