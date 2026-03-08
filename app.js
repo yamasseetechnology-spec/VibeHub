@@ -492,43 +492,26 @@ class VibeApp {
             </div>
         `;
         return `
-            <div class="profile-header">
-                <div class="banner glass-panel" style="height: 180px; background-image: url('${user.bannerImage}'); background-size:cover;"></div>
-                <div class="profile-meta" style="margin-top: -60px; padding: 0 30px; display: flex; align-items: flex-end; gap: 20px;">
-                    <img src="${user.profilePhoto}" class="user-avatar" style="width: 120px; height: 120px; border: 5px solid var(--bg-deep);" alt="Me">
-                    <div style="padding-bottom: 15px;">
+            <div class="profile-container">
+                <div class="profile-header">
+                    <img src="${user.profilePhoto}" class="profile-avatar" alt="${user.displayName}">
+                    <div class="profile-info">
                         <h1 class="view-title">${user.displayName}</h1>
                         <p class="handle">@${user.username}</p>
+                        <p style="margin-top:10px;">${user.bio}</p>
                     </div>
                 </div>
-                <div class="badges-row" style="padding: 10px 30px;">
-                    ${this.generateBadges(user)}
+                <div class="profile-stats">
+                    <div class="stat-item"><span class="stat-value">${user.followersCount}</span><span class="stat-label">Followers</span></div>
+                    <div class="stat-item"><span class="stat-value">${user.followingCount}</span><span class="stat-label">Following</span></div>
+                    <div class="stat-item"><span class="stat-value">${user.postCount}</span><span class="stat-label">Posts</span></div>
+                    <div class="stat-item"><span class="stat-value">98%</span><span class="stat-label">Vibe Match</span></div>
                 </div>
-                <p style="padding: 10px 30px; line-height:1.6;">${user.bio}</p>
-                <div class="stats" style="display: flex; gap: 40px; padding: 20px 30px; border-bottom:1px solid var(--border-light); overflow-x: auto;">
-                    <div><strong>${user.followersCount}</strong> <span class="text-dim">Followers</span></div>
-                    <div><strong>${user.followingCount}</strong> <span class="text-dim">Following</span></div>
-                    <div><strong>${user.postCount}</strong> <span class="text-dim">Posts</span></div>
-                    <div><strong style="color:var(--accent-cyan);">98%</strong> <span class="text-dim">Vibe Match</span></div>
-                </div>
-                
-                <div class="profile-tabs tabs" style="padding: 0 30px; margin-top:20px;">
+                <div class="profile-tabs tabs" style="justify-content:center; margin-top:30px;">
                     <button class="tab active">Posts</button>
                     <button class="tab">Videos</button>
                     <button class="tab">Saved</button>
                     <button class="tab">Market</button>
-                </div>
-
-                <div class="top-8" style="padding: 30px;">
-                    <h3 class="view-header" style="font-size:1.2rem;">Top 8 Vibes</h3>
-                    <div class="top8-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-top: 15px;">
-                        ${Array(8).fill(0).map((_, i) => `
-                            <div class="top8-item text-center">
-                                <img src="https://i.pravatar.cc/150?u=friend${i}" class="glass-panel" style="width: 100%; aspect-ratio: 1; border-radius: 15px; margin-bottom:5px;" />
-                                <span class="text-dim" style="font-size:0.7rem;">Friend ${i+1}</span>
-                            </div>
-                        `).join('')}
-                    </div>
                 </div>
             </div>
         `;

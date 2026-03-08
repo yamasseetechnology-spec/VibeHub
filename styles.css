@@ -1281,22 +1281,89 @@ body {
     100% { opacity: 0.5; transform: scale(1); }
 }
 
-/* --- Profile Hologram --- */
-.profile-header .banner {
-    position: relative;
-    overflow: hidden;
+/* --- Sleek Profile UI --- */
+.profile-container {
+    padding: 30px;
+    max-width: 900px;
+    margin: 0 auto;
 }
 
-.profile-header .banner::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(45deg, transparent 40%, rgba(255,255,255,0.1) 50%, transparent 60%);
-    background-size: 200% 200%;
-    animation: hologramScan 4s linear infinite;
+.profile-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+    gap: 20px;
 }
 
-@keyframes hologramScan {
-    0% { background-position: -100% -100%; }
-    100% { background-position: 100% 100%; }
+.profile-avatar {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    border: 4px solid var(--primary-purple);
+    padding: 4px;
+}
+
+.profile-info {
+    text-align: center;
+}
+
+.profile-stats {
+    display: flex;
+    justify-content: center;
+    gap: 50px;
+    width: 100%;
+    padding: 20px 0;
+    border-top: 1px solid var(--border-light);
+    border-bottom: 1px solid var(--border-light);
+    margin-top: 20px;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+}
+
+.stat-label {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
+/* --- Sync Room Chat --- */
+.chat-container {
+    height: 500px;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    background: var(--bg-card);
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.chat-input {
+    padding: 20px;
+    display: flex;
+    gap: 10px;
+}
+
+.chat-input input {
+    flex: 1;
+    padding: 10px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border-light);
+    border-radius: 20px;
+    color: white;
 }
