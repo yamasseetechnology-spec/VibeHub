@@ -488,41 +488,40 @@ class AuthService {
         }
     }
 
-    async openSignIn() {
-        const clerk = this.clerk || window.Clerk;
-        if (!clerk) {
-            console.warn('Clerk not initialized');
-            return;
-        }
+    async customSignIn(email, password) {
+        if (!this.clerk) return { error: 'Clerk not initialized' };
         
         try {
-            await clerk.openSignIn({
-                appearance: {
-                    elements: { rootBox: { zIndex: '10000' } }
-                },
-                redirectUrl: window.location.href
+            const signIn = await this.clerk.client.signIn.create({
+                identifier: email,
+                password: password,
             });
+            
+            await this.clerk.setActive({ session: signIn.createdSessionId });
+            return { success: true };
         } catch (error) {
-            console.error('Error opening Clerk sign in:', error);
+            console.error('Custom sign in error:', error);
+            return { error: error.message || 'Sign in failed' };
         }
     }
 
-    async openSignUp() {
-        const clerk = this.clerk || window.Clerk;
-        if (!clerk) {
-            console.warn('Clerk not initialized');
-            return;
-        }
+    async customSignUp(email, password, name) {
+        if (!this.clerk) return { error: 'Clerk not initialized' };
         
         try {
-            await clerk.openSignUp({
-                appearance: {
-                    elements: { rootBox: { zIndex: '10000' } }
-                },
-                redirectUrl: window.location.href
+            const signUp = await this.clerk.client.signUp.create({
+                emailAddress: email,
+                password: password,
             });
+            
+            // Further update user with name if needed, or handle post-signup logic
+            // ...
+            
+            await this.clerk.setActive({ session: signUp.createdSessionId });
+            return { success: true };
         } catch (error) {
-            console.error('Error opening Clerk sign up:', error);
+            console.error('Custom sign up error:', error);
+            return { error: error.message || 'Sign up failed' };
         }
     }
 

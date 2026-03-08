@@ -1257,21 +1257,70 @@ class VibeApp {
         `;
     }
 
-    async handleClerkSignIn() {
-        if (this.services.auth.clerk) {
-            await this.services.auth.openSignIn();
+    toggleAuthMode() {
+        const loginFields = document.getElementById('login-form-fields');
+        const signupFields = document.getElementById('signup-form-fields');
+        const toggleBtn = document.getElementById('toggle-auth-btn');
+        const title = document.querySelector('.login-title');
+        
+        const isLogin = loginFields.style.display === 'block';
+        
+        loginFields.style.display = isLogin ? 'none' : 'block';
+        signupFields.style.display = isLogin ? 'block' : 'none';
+        toggleBtn.innerText = isLogin ? 'Already have an account? Sign In' : 'Need an account? Sign Up';
+        title.innerText = isLogin ? 'Join Vibehub' : 'Welcome Back';
+    }
+
+    async handleCustomSignIn() {
+        const emailInput = document.getElementById('login-email-input');
+        const passwordInput = document.getElementById('login-password-input');
+        const email = emailInput.value.trim();
+        const password = passwordInput.value.trim();
+        
+        if (!email || !password) {
+            this.showToast('Please enter both email and password', 'error');
+            return;
+        }
+        
+        if (!email.includes('@')) {
+             this.showToast('Please enter a valid email address', 'error');
+             return;
+        }
+
+        const result = await this.services.auth.customSignIn(email, password);
+        if (result.success) {
+            this.showToast('Welcome back! ✨');
+            await this.services.auth.handleClerkSession();
         } else {
-            this.showToast('Authentication loading...', 'info');
-            setTimeout(() => this.handleClerkSignIn(), 1000);
+            this.showToast(result.error, 'error');
         }
     }
 
-    async handleClerkSignUp() {
-        if (this.services.auth.clerk) {
-            await this.services.auth.openSignUp();
+    async handleCustomSignUp() {
+        const emailInput = document.getElementById('signup-email-input');
+        const passwordInput = document.getElementById('signup-password-input');
+        const nameInput = document.getElementById('signup-name-input');
+        
+        const email = emailInput.value.trim();
+        const password = passwordInput.value.trim();
+        const name = nameInput.value.trim();
+        
+        if (!email || !password || !name) {
+            this.showToast('Please fill in all fields', 'error');
+            return;
+        }
+        
+        if (password.length < 8) {
+             this.showToast('Password must be at least 8 characters long', 'error');
+             return;
+        }
+
+        const result = await this.services.auth.customSignUp(email, password, name);
+        if (result.success) {
+            this.showToast('Welcome to VibeHub! ✨');
+            await this.services.auth.handleClerkSession();
         } else {
-            this.showToast('Authentication loading...', 'info');
-            setTimeout(() => this.handleClerkSignUp(), 1000);
+            this.showToast(result.error, 'error');
         }
     }
 
