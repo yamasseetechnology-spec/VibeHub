@@ -73,22 +73,6 @@ class VibeApp {
         }, 500);
     }
 
-        // 3. Setup Routing & Event Listeners
-        this.setupEventListeners();
-
-        // 4. Initialize Clerk and setup listeners
-        await this.services.auth.initClerk();
-        this.setupClerkListeners();
-
-        // 5. After 3 seconds, execute transition
-
-        // 5. After 0.5 seconds, execute transition
-        setTimeout(() => {
-            console.log("Attempting transitionToLogin...");
-            this.transitionToLogin();
-        }, 500);
-    }
-
     setupClerkListeners() {
         // Listen for Clerk session changes
         window.addEventListener('clerk-session-change', async (e) => {
