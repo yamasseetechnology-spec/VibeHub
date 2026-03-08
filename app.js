@@ -243,6 +243,7 @@ class VibeApp {
         this.showToast('Post deleted');
     }
 
+    showCreatePostModal() {
         const modal = document.getElementById('modal-container');
         const content = document.getElementById('modal-content');
         if (!modal || !content) return;
