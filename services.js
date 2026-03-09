@@ -381,9 +381,11 @@ export class NotificationService {
 // ============================================
 export class AuthService {
     constructor() {
-        this.user = JSON.parse(localStorage.getItem('vibehub_user')) || null;
+        this.user = JSON.parse(localStorage.getItem('vibehub_user')) || 
+                    JSON.parse(sessionStorage.getItem('vibehub_user')) || null;
         this.clerk = null;
         this.clerkInitialized = false;
+        this.rememberMe = localStorage.getItem('vibehub_remember') === 'true';
     }
 
     async initClerk() {
@@ -518,7 +520,13 @@ export class AuthService {
             };
 
             this.user = user;
-            localStorage.setItem('vibehub_user', JSON.stringify(user));
+            if (this.rememberMe) {
+                localStorage.setItem('vibehub_user', JSON.stringify(user));
+                localStorage.setItem('vibehub_remember', 'true');
+            } else {
+                sessionStorage.setItem('vibehub_user', JSON.stringify(user));
+                localStorage.removeItem('vibehub_remember');
+            }
             
             // Notify app of login
             window.dispatchEvent(new CustomEvent('user-logged-in', { detail: user }));
@@ -530,7 +538,8 @@ export class AuthService {
         }
     }
 
-    async customSignIn(email, password) {
+    async customSignIn(email, password, rememberMe = true) {
+        this.rememberMe = rememberMe;
         if (!this.clerk) {
             // Fallback: try Supabase auth if Clerk not available
             if (window.supabaseClient) {
@@ -564,7 +573,8 @@ export class AuthService {
         }
     }
 
-    async customSignUp(email, password, name) {
+    async customSignUp(email, password, name, rememberMe = true) {
+        this.rememberMe = rememberMe;
         if (!this.clerk) {
             // Fallback: try Supabase auth if Clerk not available
             if (window.supabaseClient) {
@@ -602,7 +612,8 @@ export class AuthService {
         }
     }
 
-    async login(email, password, isAdmin = false) {
+    async login(email, password, isAdmin = false, rememberMe = true) {
+        this.rememberMe = rememberMe;
         // Admin credentials
         const validAdminEmail = 'yamasseetechnology@gmail.com';
         const adminPassword = 'citawoo789!';
@@ -652,7 +663,13 @@ export class AuthService {
                 };
                 
                 this.user = user;
-                localStorage.setItem('vibehub_user', JSON.stringify(user));
+                if (this.rememberMe) {
+                    localStorage.setItem('vibehub_user', JSON.stringify(user));
+                    localStorage.setItem('vibehub_remember', 'true');
+                } else {
+                    sessionStorage.setItem('vibehub_user', JSON.stringify(user));
+                    localStorage.removeItem('vibehub_remember');
+                }
                 resolve(user);
             }, 500);
         });
@@ -669,12 +686,18 @@ export class AuthService {
         
         this.user = null;
         localStorage.removeItem('vibehub_user');
+        localStorage.removeItem('vibehub_remember');
+        sessionStorage.removeItem('vibehub_user');
         window.dispatchEvent(new CustomEvent('user-logged-out'));
     }
 
     async updateProfile(updates) {
         this.user = { ...this.user, ...updates };
-        localStorage.setItem('vibehub_user', JSON.stringify(this.user));
+        if (this.rememberMe) {
+            localStorage.setItem('vibehub_user', JSON.stringify(this.user));
+        } else {
+            sessionStorage.setItem('vibehub_user', JSON.stringify(this.user));
+        }
         
         // Update in Supabase if available
         if (window.supabaseClient && this.user.id) {

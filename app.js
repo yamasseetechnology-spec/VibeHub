@@ -1537,7 +1537,8 @@ class VibeApp {
              return;
         }
 
-        const result = await this.services.auth.customSignIn(email, password);
+        const rememberMe = document.getElementById('remember-me')?.checked ?? true;
+        const result = await this.services.auth.customSignIn(email, password, rememberMe);
         if (result.success) {
             this.showToast('Welcome back! ✨');
             await this.services.auth.handleClerkSession();
@@ -1565,7 +1566,8 @@ class VibeApp {
              return;
         }
 
-        const result = await this.services.auth.customSignUp(email, password, name);
+        const rememberMe = document.getElementById('remember-me')?.checked ?? true;
+        const result = await this.services.auth.customSignUp(email, password, name, rememberMe);
         if (result.success) {
             this.showToast('Welcome to VibeHub! ✨');
             await this.services.auth.handleClerkSession();
@@ -1583,7 +1585,8 @@ class VibeApp {
             return;
         }
 
-        const user = await this.services.auth.login(email, password, true);
+        const rememberMe = document.getElementById('admin-remember-me')?.checked ?? true;
+        const user = await this.services.auth.login(email, password, true, rememberMe);
         
         if (user?.error === 'use_clerk') {
             this.showToast(user.message, 'error');
