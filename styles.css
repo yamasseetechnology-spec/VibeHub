@@ -759,12 +759,90 @@ body {
 }
 
 #top-bar {
-    height: 70px;
+    height: 80px;
     margin-bottom: 20px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0 24px;
+    position: relative;
+    overflow: hidden;
+    z-index: 100;
+}
+
+.brand-center {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.brand-center:hover {
+    transform: translate(-50%, -52%) scale(1.05);
+}
+
+.header-logo {
+    width: 40px;
+    height: 40px;
+    filter: drop-shadow(0 0 10px var(--primary-purple-glow));
+}
+
+.brand-text {
+    font-family: var(--font-display);
+    font-size: 1.8rem;
+    font-weight: 900;
+    background: linear-gradient(to right, var(--primary-purple-bright), var(--primary-orange-bright));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    position: relative;
+}
+
+.brand-glow {
+    position: absolute;
+    width: 150%;
+    height: 150%;
+    background: radial-gradient(circle, var(--primary-purple-glow) 0%, var(--primary-orange-glow) 50%, transparent 70%);
+    opacity: 0.15;
+    filter: blur(20px);
+    z-index: -1;
+    animation: rotate-glow 10s infinite linear;
+}
+
+@keyframes rotate-glow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+#header-particles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.header-spark {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: linear-gradient(var(--primary-purple), var(--primary-orange));
+    opacity: 0;
+    animation: spark-float 3s infinite ease-out;
+}
+
+@keyframes spark-float {
+    0% { transform: translateY(20px) scale(0); opacity: 0; }
+    20% { opacity: 0.8; }
+    100% { transform: translateY(-40px) scale(1.5); opacity: 0; }
 }
 
 .search-container {
@@ -1932,6 +2010,7 @@ body {
     font-weight: 800;
     background: linear-gradient(135deg, #9d50bb, #ff9f00);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
     flex: 1;
 }
@@ -2051,6 +2130,7 @@ body {
     font-weight: 700;
     background: linear-gradient(135deg, #ff9f00, #ff6b00);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 

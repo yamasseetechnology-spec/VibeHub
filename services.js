@@ -467,36 +467,33 @@ export class AuthService {
             }
 
             // Create or update user in Supabase
-            let userData;
-            if (supabaseUser) {
-                userData = supabaseUser;
-            } else {
-                userData = {
-                    id: 'u_' + Date.now(),
-                    clerk_id: clerkId,
-                    username: username,
-                    email: email,
-                    name: displayName,
-                    avatar_url: avatar,
-                    bio: 'New to VibeHub!',
-                    followers: [],
-                    following: [],
-                    vibe_score: 0,
-                    role: 'user',
-                    created_at: new Date().toISOString()
-                };
+            let userData = {
+                clerk_id: clerkId,
+                username: username,
+                email: email,
+                name: displayName,
+                avatar_url: avatar,
+                created_at: supabaseUser ? supabaseUser.created_at : new Date().toISOString(),
+                bio: supabaseUser ? supabaseUser.bio : 'New to VibeHub!',
+                vibe_score: supabaseUser ? supabaseUser.vibe_score : 0,
+                role: supabaseUser ? supabaseUser.role : 'user'
+            };
 
-                if (window.supabaseClient) {
-                    try {
-                        const { data } = await window.supabaseClient
-                            .from('users')
-                            .insert([userData])
-                            .select()
-                            .single();
-                        if (data) userData = data;
-                    } catch (e) {
-                        console.error('Error creating user in Supabase:', e);
-                    }
+            // Use upsert to handle both insert and update case properly
+            if (window.supabaseClient) {
+                try {
+                    const { data, error } = await window.supabaseClient
+                        .from('users')
+                        .upsert([userData], { onConflict: 'clerk_id' })
+                        .select()
+                        .single();
+                    
+                    if (error) throw error;
+                    if (data) userData = data;
+                } catch (e) {
+                    console.error('Error syncing user to Supabase:', e);
+                    // Fallback to supabaseUser if upsert fails but we have existing data
+                    if (supabaseUser) userData = supabaseUser;
                 }
             }
 
@@ -968,7 +965,9 @@ export class DataService {
                 likes: [],
                 dislikes: [],
                 reactions: { cap: [], relate: [], wild: [], facts: [] },
-                comment_count: 0
+                comment_count: 0,
+                created_at: new Date().toISOString(),
+                expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // Default to 1 year for now
             };
 
             const { data, error } = await window.supabaseClient
@@ -994,7 +993,7 @@ export class DataService {
 
         const cacheKey = `posts_${tab}_${communityId || 'all'}`;
         const cached = await this.cache.getCachedPosts(cacheKey);
-        if (cached) {
+        if (cached && Array.isArray(cached)) {
             console.log('Returning cached posts');
             return cached;
         }
@@ -1002,7 +1001,7 @@ export class DataService {
         try {
             let query = window.supabaseClient
                 .from('posts')
-                .select('*')
+                .select('*, users!inner(*)')
                 .order('created_at', { ascending: false });
 
             if (communityId) {
@@ -1012,33 +1011,17 @@ export class DataService {
             const { data, error } = await query;
 
             if (error) {
-                console.error('Error fetching posts:', error);
-                return [];
+                console.error('Error fetching joined posts:', error);
+                // Fallback to non-joined query if relation fails
+                const fallback = await window.supabaseClient
+                    .from('posts')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                if (fallback.error) return [];
+                return this.mapPosts(fallback.data);
             }
 
-            let posts = [];
-            if (data) {
-                posts = data.map(post => ({
-                    id: post.id,
-                    userId: post.user_id,
-                    displayName: post.username,
-                    handle: post.username,
-                    avatar: post.user_avatar,
-                    content: post.text,
-                    media: post.media_url,
-                    mediaType: post.media_type,
-                    type: post.media_type === 'none' ? 'text' : post.media_type,
-                    reactions: {
-                        like: post.likes?.length || 0,
-                        heat: post.reactions?.heat?.length || 0,
-                        wild: post.reactions?.wild?.length || 0,
-                        cap: post.reactions?.cap?.length || 0,
-                        admire: post.reactions?.relate?.length || 0,
-                        dislike: post.dislikes?.length || 0
-                    },
-                    isSponsored: post.is_sponsored
-                }));
-            }
+            let posts = this.mapPosts(data);
 
             // Inject ads every 20 posts
             if (tab === 'vibeline') {
@@ -1069,9 +1052,32 @@ export class DataService {
             await this.cache.cachePosts(cacheKey, posts);
             return posts;
         } catch (error) {
-            console.error('Error fetching posts:', error);
+            console.error('Exception in getPosts:', error);
             return [];
         }
+    }
+
+    mapPosts(data) {
+        return (data || []).map(post => ({
+            id: post.id,
+            userId: post.user_id,
+            displayName: post.users?.name || post.username,
+            handle: post.users?.username || post.username,
+            avatar: post.users?.avatar_url || post.user_avatar || `https://i.pravatar.cc/150?u=${post.user_id}`,
+            content: post.text,
+            media: post.media_url,
+            mediaType: post.media_type,
+            type: post.media_type === 'none' ? 'text' : post.media_type,
+            reactions: {
+                like: post.likes?.length || 0,
+                heat: post.reactions?.heat?.length || 0,
+                wild: post.reactions?.wild?.length || 0,
+                cap: post.reactions?.cap?.length || 0,
+                admire: post.reactions?.relate?.length || 0,
+                dislike: post.dislikes?.length || 0
+            },
+            isSponsored: post.is_sponsored
+        }));
     }
 
     subscribeToPosts(callback) {
@@ -1104,35 +1110,47 @@ export class DataService {
         if (!window.supabaseClient) return { success: true };
 
         try {
-            // Check if user already reacted with this type
-            const { data: existing } = await window.supabaseClient
-                .from('post_reactions')
-                .select('*')
-                .eq('post_id', postId)
-                .eq('user_id', userId)
-                .eq('reaction_type', reactionType)
+            const { data: post, error: fetchError } = await window.supabaseClient
+                .from('posts')
+                .select('likes, dislikes, reactions')
+                .eq('id', postId)
                 .single();
 
-            if (existing) {
-                // Remove reaction (toggle off)
-                await window.supabaseClient
-                    .from('post_reactions')
-                    .delete()
-                    .eq('id', existing.id);
-                return { success: true, action: 'removed' };
+            if (fetchError) throw fetchError;
+
+            if (reactionType === 'like' || reactionType === 'dislike') {
+                const field = reactionType === 'like' ? 'likes' : 'dislikes';
+                let list = post[field] || [];
+                if (list.includes(userId)) {
+                    list = list.filter(id => id !== userId);
+                } else {
+                    list.push(userId);
+                }
+                const { error: updateError } = await window.supabaseClient
+                    .from('posts')
+                    .update({ [field]: list })
+                    .eq('id', postId);
+                if (updateError) throw updateError;
             } else {
-                // Add new reaction
-                await window.supabaseClient
-                    .from('post_reactions')
-                    .insert([{
-                        post_id: postId,
-                        user_id: userId,
-                        reaction_type: reactionType
-                    }]);
-                return { success: true, action: 'added' };
+                let reactions = post.reactions || { cap: [], relate: [], wild: [], facts: [], heat: [] };
+                if (!reactions[reactionType]) reactions[reactionType] = [];
+                
+                if (reactions[reactionType].includes(userId)) {
+                    reactions[reactionType] = reactions[reactionType].filter(id => id !== userId);
+                } else {
+                    reactions[reactionType].push(userId);
+                }
+                
+                const { error: updateError } = await window.supabaseClient
+                    .from('posts')
+                    .update({ reactions })
+                    .eq('id', postId);
+                if (updateError) throw updateError;
             }
+
+            return { success: true };
         } catch (error) {
-            console.error('Error adding reaction:', error);
+            console.error('Error in addReaction:', error);
             return { success: false, error: error.message };
         }
     }
@@ -1160,38 +1178,27 @@ export class DataService {
         if (!window.supabaseClient) return [];
 
         try {
-            // Get posts from this user that haven't expired (48hr)
             const { data, error } = await window.supabaseClient
                 .from('posts')
-                .select('*')
+                .select('*, users!inner(*)')
                 .eq('user_id', userId)
-                .gt('expires_at', new Date().toISOString())
                 .order('created_at', { ascending: false })
                 .limit(50);
 
-            if (error) throw error;
+            if (error) {
+                console.error('Error fetching user posts with join:', error);
+                // Fallback to non-joined query
+                const fallback = await window.supabaseClient
+                    .from('posts')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .order('created_at', { ascending: false })
+                    .limit(50);
+                if (fallback.error) return [];
+                return this.mapPosts(fallback.data);
+            }
 
-            return (data || []).map(post => ({
-                id: post.id,
-                userId: post.user_id,
-                displayName: post.username,
-                handle: post.username,
-                avatar: post.user_avatar,
-                content: post.text,
-                media: post.media_url,
-                mediaType: post.media_type,
-                timestamp: this.formatTimestamp(post.created_at),
-                createdAt: post.created_at,
-                reactions: {
-                    like: post.likes?.length || 0,
-                    heat: post.reactions?.heat?.length || 0,
-                    wild: post.reactions?.wild?.length || 0,
-                    cap: post.reactions?.cap?.length || 0,
-                    admire: post.reactions?.relate?.length || 0,
-                    dislike: post.dislikes?.length || 0
-                },
-                commentCount: post.comments_count || 0
-            }));
+            return this.mapPosts(data);
         } catch (error) {
             console.error('Error fetching user posts:', error);
             return [];
@@ -1269,33 +1276,7 @@ export class DataService {
         }
     }
 
-    async addReaction(postId, userId, reactionType) {
-        if (!window.supabaseClient) return;
 
-        try {
-            const { data: post } = await window.supabaseClient
-                .from('posts')
-                .select('reactions')
-                .eq('id', postId)
-                .single();
-
-            if (post) {
-                const reactions = post.reactions || { cap: [], relate: [], wild: [], facts: [] };
-                if (!reactions[reactionType]) {
-                    reactions[reactionType] = [];
-                }
-                if (!reactions[reactionType].includes(userId)) {
-                    reactions[reactionType].push(userId);
-                    await window.supabaseClient
-                        .from('posts')
-                        .update({ reactions })
-                        .eq('id', postId);
-                }
-            }
-        } catch (error) {
-            console.error('Error adding reaction:', error);
-        }
-    }
 
     async getComments(postId) {
         if (!window.supabaseClient) return [];

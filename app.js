@@ -73,6 +73,12 @@ class VibeApp {
             // 3. Setup Routing & Event Listeners
             this.setupEventListeners();
             console.log("EventListeners setup passed.");
+            
+            // Initialize Premium Header Effects
+            this.initHeaderParticles();
+
+            // 3.5. Initialize Premium Header Effects
+            this.initHeaderParticles();
 
             // 4. Initialize Clerk and setup listeners
             console.log("Initializing Clerk...");
@@ -135,6 +141,33 @@ class VibeApp {
             this.navigate('login');
             this.showToast('You have been logged out');
         });
+    }
+
+    initHeaderParticles() {
+        const container = document.getElementById('header-particles');
+        if (!container) return;
+
+        setInterval(() => {
+            const spark = document.createElement('div');
+            spark.className = 'header-spark';
+            
+            const brand = document.querySelector('.brand-center');
+            if (!brand) return;
+            
+            const rect = brand.getBoundingClientRect();
+            const headerRect = container.getBoundingClientRect();
+            
+            const x = (rect.left - headerRect.left) + Math.random() * rect.width;
+            const y = (rect.top - headerRect.top) + rect.height / 2;
+            
+            spark.style.left = `${x}px`;
+            spark.style.top = `${y}px`;
+            spark.style.background = Math.random() > 0.5 ? 'var(--primary-purple)' : 'var(--primary-orange)';
+            spark.style.animationDelay = `${Math.random() * 2}s`;
+            
+            container.appendChild(spark);
+            setTimeout(() => spark.remove(), 3000);
+        }, 300);
     }
 
     // Real-time subscriptions for live updates
