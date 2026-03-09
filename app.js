@@ -496,15 +496,34 @@ class VibeApp {
         let ptrStartY = 0;
         let ptrCurrentY = 0;
         let isPulling = false;
+        let settledAtTop = false;
+        let scrollIdleTimer = null;
         let lastRefreshTime = 0;
         const PTR_THRESHOLD = 150; // Exaggerated pull distance (Facebook style)
         const PTR_COOLDOWN = 3 * 60 * 1000; // 3 minutes in ms
 
+        // Track when user has SETTLED at the top (not just scrolled through it)
+        window.addEventListener('scroll', () => {
+            settledAtTop = false;
+            clearTimeout(scrollIdleTimer);
+            if (window.scrollY <= 0) {
+                // Only mark as settled after being idle at top for 300ms
+                scrollIdleTimer = setTimeout(() => {
+                    if (window.scrollY <= 0) {
+                        settledAtTop = true;
+                    }
+                }, 300);
+            }
+        }, { passive: true });
+
+        // Also set settled on page load if already at top
+        if (window.scrollY <= 0) settledAtTop = true;
+
         const appBody = document.querySelector('main');
         if (appBody) {
             appBody.addEventListener('touchstart', (e) => {
-                // Only initiate if we're at the very top of the page (strict 0 validation)
-                if (window.scrollY <= 1) {
+                // ONLY initiate if we've been settled at the top for a moment
+                if (settledAtTop && window.scrollY <= 0) {
                     ptrStartY = e.touches[0].clientY;
                     isPulling = true;
                 }
@@ -515,17 +534,18 @@ class VibeApp {
                 ptrCurrentY = e.touches[0].clientY;
                 const pullDistance = ptrCurrentY - ptrStartY;
                 
-                // If scrolling down while strictly at the top
-                if (pullDistance > 0 && window.scrollY <= 1) {
-                    // Prevent default pull-to-refresh on modern mobile browsers
+                // Only allow pull-down gesture while strictly at top and settled
+                if (pullDistance > 0 && window.scrollY <= 0 && settledAtTop) {
                     if (e.cancelable) e.preventDefault();
-                    // Visual feedback (pulling the container down slightly)
                     const viewContainer = document.getElementById('view-container');
                     if (viewContainer) {
                         viewContainer.style.transform = `translateY(${Math.min(pullDistance * 0.3, 70)}px)`;
                     }
                 } else {
+                    // User scrolled away from top — cancel PTR
                     isPulling = false;
+                    const viewContainer = document.getElementById('view-container');
+                    if (viewContainer) viewContainer.style.transform = '';
                 }
             }, { passive: false });
 
@@ -541,13 +561,12 @@ class VibeApp {
                     setTimeout(() => viewContainer.style.transition = '', 300);
                 }
                 
-                // Check if threshold was met
-                if (pullDistance > PTR_THRESHOLD && window.scrollY <= 0) {
+                // Check if threshold was met AND we're still at top
+                if (pullDistance > PTR_THRESHOLD && window.scrollY <= 0 && settledAtTop) {
                     const now = Date.now();
                     if (now - lastRefreshTime > PTR_COOLDOWN) {
                         lastRefreshTime = now;
                         
-                        // Force fresh request
                         this.showToast('Pulling fresh Vibes... 🔥');
                         if (this.services.data.cache.clearCache) {
                             this.services.data.cache.clearCache('posts_');
@@ -557,7 +576,6 @@ class VibeApp {
                             await this.renderView(State.currentView);
                         }
                     } else {
-                        // Cooldown active
                         const remaining = Math.ceil((PTR_COOLDOWN - (now - lastRefreshTime)) / 1000);
                         const mins = Math.floor(remaining / 60);
                         const secs = remaining % 60;
@@ -908,12 +926,12 @@ class VibeApp {
                 <label for="image-upload-input" class="btn-secondary" style="display:inline-flex; align-items:center; gap:5px; cursor:pointer;">
                     📷 Photo
                 </label>
-                <input type="file" id="image-upload-input" accept="image/*" style="opacity:0; position:absolute; z-index:-1;" onchange="window.App.handlePostImage(this)">
+                <input type="file" id="image-upload-input" accept="image/*" capture="environment" style="width:0; height:0; overflow:hidden; position:absolute;" onchange="window.App.handlePostImage(this)">
                 
                 <label for="video-upload-input" class="btn-secondary" style="display:inline-flex; align-items:center; gap:5px; cursor:pointer;">
                     🎥 Video
                 </label>
-                <input type="file" id="video-upload-input" accept="video/*" style="opacity:0; position:absolute; z-index:-1;" onchange="window.App.handlePostVideo(this)">
+                <input type="file" id="video-upload-input" accept="video/*" capture="environment" style="width:0; height:0; overflow:hidden; position:absolute;" onchange="window.App.handlePostVideo(this)">
                 <button class="btn-secondary" onclick="window.App.clearMediaPreview()" style="display:none;" id="clear-media-btn">✕ Clear</button>
                 <button class="btn-secondary">📍 Location</button>
             </div>
@@ -1171,6 +1189,16 @@ class VibeApp {
 
     async startAudioComment(postId) {
         try {
+            // Request microphone permission explicitly for WebView/APK
+            if (navigator.permissions) {
+                try {
+                    const micPermission = await navigator.permissions.query({ name: 'microphone' });
+                    if (micPermission.state === 'denied') {
+                        this.showToast('Microphone access denied. Please enable it in your device Settings > Apps > VibeHub > Permissions.', 'error');
+                        return;
+                    }
+                } catch(e) { /* permissions API not supported, try getUserMedia directly */ }
+            }
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
@@ -2739,6 +2767,16 @@ class VibeApp {
 
     async goLive() {
         try {
+            // Request camera+mic permission explicitly for WebView/APK
+            if (navigator.permissions) {
+                try {
+                    const camPermission = await navigator.permissions.query({ name: 'camera' });
+                    if (camPermission.state === 'denied') {
+                        this.showToast('Camera access denied. Please enable it in your device Settings > Apps > VibeHub > Permissions.', 'error');
+                        return;
+                    }
+                } catch(e) { /* permissions API not supported, try getUserMedia directly */ }
+            }
             const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             const userId = State.user?.id;
             const username = State.user?.username || 'user';
