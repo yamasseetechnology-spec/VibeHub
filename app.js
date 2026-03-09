@@ -1976,6 +1976,57 @@ class VibeApp {
         `;
     }
 
+    async submitAdPost() {
+        const content = document.getElementById('ad-content')?.value?.trim();
+        const media = document.getElementById('ad-media')?.value?.trim();
+        const link = document.getElementById('ad-link')?.value?.trim();
+
+        if (!content) {
+            this.showToast('Ad content is required', 'error');
+            return;
+        }
+
+        const result = await this.services.admin.submitAd(content, media, link);
+        if (result.success) {
+            this.showToast('Sponsored Ad Posted!', 'success');
+            document.getElementById('ad-content').value = '';
+            document.getElementById('ad-media').value = '';
+            document.getElementById('ad-link').value = '';
+        } else {
+            this.showToast(result.error, 'error');
+        }
+    }
+
+    async renderAdminModeration() {
+        const manageContainer = document.getElementById('admin-manage');
+        if (!manageContainer) return;
+
+        // Clear existing moderation content but keep Ad form
+        const existingMod = document.getElementById('moderation-list');
+        if (existingMod) existingMod.remove();
+
+        const reportedPosts = await this.services.admin.getReportedPosts();
+        
+        const modHtml = `
+            <div id="moderation-list" style="margin-top: 20px;">
+                <h3 style="color:var(--accent-pink);">Reported Content</h3>
+                ${reportedPosts.length > 0 ? reportedPosts.map(rp => `
+                    <div class="glass-panel" style="padding:15px; margin-top:10px; border-left: 3px solid var(--accent-pink);">
+                        <p class="text-dim">Reason: <strong>${rp.reason}</strong></p>
+                        <p style="margin: 10px 0;">"${rp.post?.text || 'No text content'}" - @${rp.post?.username || 'Unknown'}</p>
+                        <div style="display:flex; gap:10px;">
+                            <button class="btn-secondary btn-sm" onclick="window.App.handleDeletePost('${rp.post_id}')">Delete Post</button>
+                            <button class="btn-secondary btn-sm" style="color:var(--accent-pink); border-color:var(--accent-pink);" onclick="window.App.handleBanUser('${rp.post?.username}')">Ban User</button>
+                        </div>
+                    </div>
+                `).join('') : '<p class="text-dim" style="margin-top:10px;">No pending reports. Vibes are clean.</p>'}
+            </div>
+        `;
+
+        // Insert before the Ad form
+        manageContainer.insertAdjacentHTML('afterbegin', modHtml);
+    }
+
     async handleDeletePost(postId) {
         await this.services.admin.deletePost(postId);
         this.showToast('Post deleted.');

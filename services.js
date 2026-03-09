@@ -1992,4 +1992,20 @@ export class AdminService {
             return { users: 0, activeNow: 0, postsToday: 0, revenue: '$0' };
         }
     }
+
+    async submitAd(content, mediaUrl, link) {
+        if (!window.supabaseClient) return { success: true };
+        try {
+            await window.supabaseClient.from('sponsored_ads').insert([{
+                content: content,
+                media_url: mediaUrl,
+                media_type: mediaUrl ? 'image' : 'none',
+                link: link
+            }]);
+            return { success: true };
+        } catch (e) {
+            console.error('Error adding ad:', e);
+            return { error: 'Failed to post ad' };
+        }
+    }
 }
