@@ -142,6 +142,9 @@ class VibeApp {
             this.enableRealTimeSubscriptions();
             this.initializeLiveSub();
             
+            // Push initial state to history stack upon login
+            window.history.replaceState({ view: State.currentView }, '', `#${State.currentView}`);
+            
             this.showToast(`Welcome, ${e.detail.displayName}! ✨`);
             // Direct call to render home to ensure it loads immediately after login
             setTimeout(() => {
@@ -457,6 +460,26 @@ class VibeApp {
                 }
                 // If no data-view, let the onclick handler (e.g. showCreatePostModal) do its thing
             });
+        });
+
+        // --- Hardware Back Button Support ---
+        window.addEventListener('popstate', async (e) => {
+            if (e.state && e.state.view) {
+                State.currentView = e.state.view;
+                await this.renderView(e.state.view);
+                
+                // Update bottom nav highlights silently
+                document.querySelectorAll('.mobile-bottom-nav').forEach(nav => nav.classList.remove('active'));
+                const activeNav = document.querySelector(`.mobile-bottom-nav[data-view="${e.state.view}"]`);
+                if (activeNav) activeNav.classList.add('active');
+            } else if (!State.user) {
+                // If no user and we hit back, ensure we stay on login
+                this.transitionToLogin();
+            } else {
+                // Default fallback to home if history gets lost but user is logged in
+                State.currentView = 'home';
+                await this.renderView('home');
+            }
         });
 
         // Global Search
@@ -1272,7 +1295,14 @@ class VibeApp {
     navigate(view, force = false) {
         if (!force && State.currentView === view && window.location.hash === `#${view}`) return;
         
-        history.pushState({ view }, "", `#${view}`);
+        // Push state to browser history for native back button support
+        window.history.pushState({ view }, "", `#${view}`);
+        
+        // Update Bottom Nav Highlighting Silent
+        document.querySelectorAll('.mobile-bottom-nav').forEach(nav => nav.classList.remove('active'));
+        const activeNav = document.querySelector(`.mobile-bottom-nav[data-view="${view}"]`);
+        if (activeNav) activeNav.classList.add('active');
+        
         this.renderView(view);
     }
 
