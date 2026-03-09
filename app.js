@@ -480,8 +480,8 @@ class VibeApp {
         const appBody = document.querySelector('main');
         if (appBody) {
             appBody.addEventListener('touchstart', (e) => {
-                // Only initiate if we're at the very top of the page
-                if (window.scrollY <= 0) {
+                // Only initiate if we're at the very top of the page (strict 0 validation)
+                if (window.scrollY <= 1) {
                     ptrStartY = e.touches[0].clientY;
                     isPulling = true;
                 }
@@ -492,8 +492,8 @@ class VibeApp {
                 ptrCurrentY = e.touches[0].clientY;
                 const pullDistance = ptrCurrentY - ptrStartY;
                 
-                // If scrolling down while at the top
-                if (pullDistance > 0 && window.scrollY <= 0) {
+                // If scrolling down while strictly at the top
+                if (pullDistance > 0 && window.scrollY <= 1) {
                     // Prevent default pull-to-refresh on modern mobile browsers
                     if (e.cancelable) e.preventDefault();
                     // Visual feedback (pulling the container down slightly)
@@ -1518,7 +1518,7 @@ class VibeApp {
         return `
             <div class="view-header animate-fade" style="text-align:center; padding-top: 10px; padding-bottom: 5px;">
                 <h1 class="view-title" style="background: linear-gradient(135deg, #9d50bb, #ff9f00); -webkit-background-clip: text; -webkit-text-fill-color: transparent; display: inline-block; font-size: 2.2rem; filter: drop-shadow(0px 0px 8px rgba(157,80,187,0.5)); margin-bottom: 5px;">The Pulse</h1>
-                <p class="text-dim" style="margin-top:0; font-weight: 500; font-size: 1.05rem; letter-spacing: 0.5px;">Connect minds. Share vibes. Elevate consciousness.</p>
+                <p class="text-dim" style="margin-top:0; font-weight: 600; font-size: 1.05rem; letter-spacing: 0.5px; color: var(--accent-pink);">Connect minds. Share vibes. Elevate consciousness.</p>
             </div>
             <div class="tabs">
                 ${tabs.map(t => `<button class="tab ${activeTab === t.id ? 'active' : ''}" onclick="window.App.switchHomeTab('${t.id}')">${t.label}</button>`).join('')}
@@ -2889,6 +2889,73 @@ class VibeApp {
 
         // Trigger Heat vibe
         await this.handleReaction(postId, 'heat');
+    }
+
+    async viewUserProfile(userId, username) {
+        if (!userId) return;
+        
+        // If it's the current user, just go to the native profile view
+        if (State.user && State.user.id === userId) {
+            this.navigate('profile');
+            return;
+        }
+
+        const container = document.getElementById('view-container');
+        if (!container) return;
+
+        // Load skeleton
+        container.innerHTML = Components.skeletonLoading();
+        State.currentView = `user-${userId}`;
+
+        try {
+            // Fetch User Profile Data
+            const { data: profile } = await window.supabaseClient
+                .from('users')
+                .select('*')
+                .eq('id', userId)
+                .single();
+
+            if (!profile) {
+                container.innerHTML = `<div style="text-align:center; padding:50px;">User not found</div>`;
+                return;
+            }
+
+            // Standardize Profile Format for Component Render
+            const standardProfile = {
+                id: profile.id,
+                username: profile.username || username || 'anon',
+                displayName: profile.display_name || profile.username || 'Anonymous',
+                avatar: profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.username || 'anon'}`,
+                banner: profile.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
+                bio: profile.bio || 'No bio yet...',
+                followersCount: profile.followers_count || 0,
+                followingCount: profile.following_count || 0,
+                postCount: profile.post_count || 0,
+                isFollowing: false // Would need a separate check for real following status
+            };
+
+            // Get User's Posts
+            const { data: postsData } = await window.supabaseClient
+                .from('posts')
+                .select('*, reactions!left(type), comments!left(id)')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false });
+
+            let postsHtml = '';
+            if (postsData && postsData.length > 0) {
+                const formattedPosts = postsData.map(p => this.services.data.formatSupabasePost(p));
+                postsHtml = formattedPosts.map(p => Components.post(p)).join('');
+            } else {
+                postsHtml = `<p class="text-dim" style="text-align:center; padding:40px;">No vibes to show.</p>`;
+            }
+
+            // Render External Profile using the Component
+            container.innerHTML = Components.userProfile(standardProfile, postsHtml);
+
+        } catch (error) {
+            console.error('Error loading external profile:', error);
+            container.innerHTML = `<div style="text-align:center; padding:50px; color:var(--accent-pink);">Failed to load profile. Please try again.</div>`;
+        }
     }
 
     async handleFollow(targetUserId) {
