@@ -637,6 +637,37 @@ class VibeApp {
         this.showToast('User reported to moderation.');
     }
 
+    async handleAdminBan(postId) {
+        if (!State.user || !State.user.isSuperAdmin) return;
+        this.showToast('Banning user...', 'info');
+        try {
+            // First get the post to find the exact author ID
+            const { data: postData } = await window.supabaseClient.from('posts').select('user_id').eq('id', postId).single();
+            if (postData && postData.user_id) {
+                await this.services.admin.banUser(postData.user_id);
+                this.showToast('User has been banned.');
+                this.deletePost(postId); // Also remove the offending post
+            } else {
+                this.showToast('Could not find post author.', 'error');
+            }
+        } catch (e) {
+            console.error('Ban error:', e);
+            this.showToast('Failed to ban user.', 'error');
+        }
+    }
+
+    copyPostLink(postId) {
+        const link = window.location.origin + window.location.pathname + '#post-' + postId;
+        navigator.clipboard.writeText(link).then(() => {
+            this.showToast('Link copied to clipboard! 🔗');
+        }).catch(err => {
+            console.error('Could not copy text: ', err);
+            this.showToast('Failed to copy link', 'error');
+        });
+        const menu = document.getElementById('post-menu');
+        if (menu) menu.remove();
+    }
+
     deletePost(postId) {
         console.log(`Deleting post ${postId}`);
         const post = document.querySelector(`[data-id="${postId}"]`);
