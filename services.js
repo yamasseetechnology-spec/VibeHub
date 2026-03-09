@@ -7,6 +7,27 @@ import { Clerk } from '@clerk/clerk-js';
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || 'pk_test_Z29yZ2VvdXMtb2NlbG90LTg1LmNsZXJrLmFjY291bnRzLmRldiQ';
 
 // ============================================
+// UTILITY FUNCTIONS
+// ============================================
+function calculateUserBadges(userData) {
+    if (!userData) return [];
+    const badges = [];
+    if (userData.verified) badges.push('Verified');
+    
+    // Vibe Boost Badges
+    const vibeLikesCount = userData.vibe_likes?.length || (userData.vibe_likes_count || 0);
+    if (vibeLikesCount >= 200) badges.push('Vibe Legend');
+    else if (vibeLikesCount >= 100) badges.push('Vibe Master');
+    else if (vibeLikesCount >= 50) badges.push('Viber');
+    
+    // Administrative
+    if (userData.role === 'admin' || userData.is_admin) badges.push('Admin');
+    
+    return badges;
+}
+
+// ============================================
+
 // MEDIA SERVICE - Cloudinary (Videos) + ImageKit (Photos)
 // ============================================
 export class MediaService {
@@ -497,6 +518,10 @@ export class AuthService {
                 }
             }
 
+            // Calculate Badges
+            const vibeLikesCount = userData.vibe_likes?.length || 0;
+            const badges = calculateUserBadges(userData);
+
             // Create app user object
             const user = {
                 id: userData.id,
@@ -511,7 +536,8 @@ export class AuthService {
                 followingCount: userData.following?.length || 0,
                 postCount: userData.post_count || 0,
                 reactionScore: userData.vibe_score || 0,
-                badgeList: userData.verified ? ['Verified'] : [],
+                vibeLikesCount: vibeLikesCount,
+                badgeList: badges,
                 isSuperAdmin: false,
                 createdAt: userData.created_at || new Date().toISOString()
             };
@@ -1087,6 +1113,8 @@ export class DataService {
                 admire: post.reactions?.relate?.length || 0,
                 dislike: post.dislikes?.length || 0
             },
+            reactionScore: post.vibe_score || 0,
+            badgeList: calculateUserBadges(post.users),
             isSponsored: post.is_sponsored
         }));
     }
