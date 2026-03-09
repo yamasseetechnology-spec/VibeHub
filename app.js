@@ -1882,7 +1882,7 @@ class VibeApp {
                             `<button class="btn-secondary" onclick="window.App.showEditProfileModal()" style="margin: 20px auto 0;">Edit Profile</button>` : 
                             `<div style="display:flex; gap:10px; margin-top:20px; justify-content:center;">
                                 <button class="btn-primary" onclick="window.App.boostVibe('${user.id}')">I Like Your Vibe ✨</button>
-                                <button class="btn-secondary" onclick="window.App.showToast('Follow coming soon!')">Follow</button>
+                                <button class="btn-secondary" onclick="window.App.navigate('messages')">Message</button>
                              </div>`
                         }
                     </div>
@@ -1946,7 +1946,7 @@ class VibeApp {
                         <label for="banner-upload-input" class="btn-secondary" style="padding:5px 10px; font-size:0.7rem; cursor:pointer; display:inline-block;">
                             📸 Change Banner
                         </label>
-                        <input type="file" id="banner-upload-input" accept="image/*" style="opacity:0; position:absolute; z-index:-1;" onchange="window.App.handleProfileUpload(this, 'banner')">
+                        <input type="file" id="banner-upload-input" accept="image/*" style="width:0; height:0; overflow:hidden; position:absolute;" onchange="window.App.handleProfileUpload(this, 'banner')">
                     </div>
                 </div>
 
@@ -1957,7 +1957,7 @@ class VibeApp {
                         <label for="avatar-upload-input" style="position:absolute; bottom:0; right:0; background:var(--primary-purple); width:28px; height:28px; border-radius:50%; border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:0.8rem; box-shadow:0 0 10px rgba(0,0,0,0.5);">
                             📷
                         </label>
-                        <input type="file" id="avatar-upload-input" accept="image/*" style="opacity:0; position:absolute; z-index:-1;" onchange="window.App.handleProfileUpload(this, 'avatar')">
+                        <input type="file" id="avatar-upload-input" accept="image/*" style="width:0; height:0; overflow:hidden; position:absolute;" onchange="window.App.handleProfileUpload(this, 'avatar')">
                     </div>
 
                     <div style="display:flex; flex-direction:column; gap:15px;">
