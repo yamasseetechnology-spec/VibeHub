@@ -1797,6 +1797,13 @@ export class DataService {
                 .eq('id', userId)
                 .single();
 
+            if (data) {
+                data.badgeList = calculateUserBadges(data);
+                data.displayName = data.name;
+                data.handle = data.username;
+                data.profilePhoto = data.avatar_url;
+                data.bannerImage = data.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200';
+            }
             return data;
         } catch (error) {
             console.error('Error fetching profile:', error);
