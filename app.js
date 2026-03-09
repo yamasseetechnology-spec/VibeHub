@@ -852,7 +852,48 @@ class VibeApp {
         
         this.showToast(mediaType === 'video' ? 'Video vibe posted!' : 'Vibe posted to the Pulse!');
         
-        this.renderView('home');
+        // Optimistic insert: instantly show the new post at the top of the feed
+        this._pendingMediaFile = null;
+        this._pendingMediaType = null;
+
+        // Build a display-ready post object from the saved result
+        const displayPost = {
+            id: result?.id || 'temp_' + Date.now(),
+            userId: State.user.id,
+            displayName: State.user.displayName,
+            handle: State.user.username,
+            avatar: State.user.profilePhoto,
+            content: text || '',
+            media: result?.media_url || '',
+            mediaType: result?.media_type || mediaType,
+            reactions: { like: 0, heat: 0, wild: 0, cap: 0, admire: 0, dislike: 0 },
+            commentCount: 0,
+            timestamp: 'Just now'
+        };
+
+        // If we're already on the home view, prepend; otherwise navigate
+        const feed = document.getElementById('post-feed');
+        if (feed && State.currentView === 'home') {
+            const postHTML = Components.post(displayPost);
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = postHTML;
+            const postEl = wrapper.firstElementChild;
+            if (postEl) {
+                postEl.style.opacity = '0';
+                postEl.style.transform = 'translateY(-20px)';
+                postEl.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+                feed.prepend(postEl);
+                // Trigger animation
+                requestAnimationFrame(() => {
+                    postEl.style.opacity = '1';
+                    postEl.style.transform = 'translateY(0)';
+                });
+            }
+            // Also clear post cache so next full load is fresh
+            this.services.data.cache.clearCache?.('posts_');
+        } else {
+            this.navigate('home', true);
+        }
         
         if (State.user) {
             this.services.data.notifications.requestPermission();
