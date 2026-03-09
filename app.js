@@ -580,15 +580,26 @@ class VibeApp {
             this.showToast('Video must be under 100MB', 'error');
             return;
         }
-        
+
         const preview = document.getElementById('media-preview');
         const clearBtn = document.getElementById('clear-media-btn');
         if (preview) {
             const url = URL.createObjectURL(file);
-            preview.innerHTML = `<video src="${url}" controls style="max-height:200px;border-radius:8px;margin-top:8px;width:100%;"></video>`;
-            this._pendingMediaFile = file;
-            this._pendingMediaType = 'video';
-            if (clearBtn) clearBtn.style.display = 'inline-flex';
+            
+            // Check video duration constraint (max 30s)
+            const video = document.createElement('video');
+            video.src = url;
+            video.onloadedmetadata = () => {
+                if (video.duration > 30) {
+                    this.showToast('Timeline videos must be 30 seconds or less', 'error');
+                    this.clearMediaPreview();
+                    return;
+                }
+                preview.innerHTML = `<video src="${url}" controls style="max-height:200px;border-radius:8px;margin-top:8px;width:100%;"></video>`;
+                this._pendingMediaFile = file;
+                this._pendingMediaType = 'video';
+                if (clearBtn) clearBtn.style.display = 'inline-flex';
+            };
         }
     }
 
@@ -606,10 +617,47 @@ class VibeApp {
         if (preview) {
             const reader = new FileReader();
             reader.onload = (e) => {
-                preview.innerHTML = `<img src="${e.target.result}" style="max-height:200px;border-radius:8px;margin-top:8px;width:100%;object-fit:cover;">`;
-                this._pendingMediaFile = file;
-                this._pendingMediaType = 'image';
-                if (clearBtn) clearBtn.style.display = 'inline-flex';
+                const img = new Image();
+                img.onload = () => {
+                    // Compress image using canvas
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 1200;
+                    const MAX_HEIGHT = 1200;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // Convert to blob
+                    canvas.toBlob((blob) => {
+                        // Create a new File object with the compressed blob
+                        const compressedFile = new File([blob], file.name, {
+                            type: 'image/jpeg',
+                            lastModified: Date.now()
+                        });
+                        
+                        preview.innerHTML = `<img src="${URL.createObjectURL(compressedFile)}" style="max-height:200px;border-radius:8px;margin-top:8px;width:100%;object-fit:cover;">`;
+                        this._pendingMediaFile = compressedFile;
+                        this._pendingMediaType = 'image';
+                        if (clearBtn) clearBtn.style.display = 'inline-flex';
+                    }, 'image/jpeg', 0.8); // 80% quality
+                };
+                img.src = e.target.result;
             };
             reader.readAsDataURL(file);
         }
@@ -752,6 +800,7 @@ class VibeApp {
             </div>
             
             <div class="comment-input-area" style="display:flex; flex-direction:column; gap:10px;">
+                <div id="reply-indicator" style="display:none; font-size:0.8rem; color:var(--text-dim); padding:4px 8px; background:var(--bg-glass); border-radius:8px;"></div>
                 <textarea id="comment-input" class="glass-panel" placeholder="Add a comment..." style="width:100%; min-height:80px; background:rgba(0,0,0,0.5); border:1px solid var(--border-light); color:white; padding:10px;"></textarea>
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div style="display:flex; gap:10px;">
@@ -764,33 +813,86 @@ class VibeApp {
         `;
     }
 
-    renderCommentsHTML(comments) {
+    renderCommentsHTML(comments, depth = 0) {
         if (!comments || comments.length === 0) {
-            return '<p class="text-dim" style="text-align:center; padding:20px;">No comments yet. Be the first to vibe!</p>';
+            if (depth === 0) {
+                return '<p class="text-dim" style="text-align:center; padding:20px;">No comments yet. Be the first to vibe!</p>';
+            }
+            return '';
         }
         
-        return (comments || []).map(c => {
+        return comments.map(c => {
             let mediaContent = '';
-            if (c.type === 'audio') {
-                mediaContent = `<div style="background:var(--bg-glass); padding:8px 15px; border-radius:50px; display:inline-flex; align-items:center; gap:10px; border:1px solid var(--primary-purple); cursor:pointer;"><span style="color:var(--accent-cyan);">▶</span> Audio Comment (0:0${Math.floor(Math.random()*5)+2})</div>`;
+            if (c.type === 'audio' && c.audioUrl) {
+                mediaContent = `<audio controls src="${c.audioUrl}" style="max-width:100%; height:36px;"></audio>`;
+            } else if (c.type === 'audio') {
+                mediaContent = `<div style="background:var(--bg-glass); padding:8px 15px; border-radius:50px; display:inline-flex; align-items:center; gap:10px; border:1px solid var(--primary-purple); cursor:pointer;"><span style="color:var(--accent-cyan);">▶</span> Audio Comment</div>`;
+            } else if (c.type === 'video' && c.videoUrl) {
+                mediaContent = `<video controls src="${c.videoUrl}" style="max-width:200px; border-radius:10px; border:1px solid var(--primary-orange);"></video>`;
             } else if (c.type === 'video') {
                 mediaContent = `<div style="background:black; width:150px; height:80px; border-radius:10px; display:flex; align-items:center; justify-content:center; border:1px solid var(--primary-orange); cursor:pointer;"><span style="color:white; font-size:1.5rem;">▶</span></div>`;
             }
-            
+
+            const indent = Math.min(depth, 4) * 24;
+            const repliesHTML = (c.replies && c.replies.length > 0) ? this.renderCommentsHTML(c.replies, depth + 1) : '';
+
             return `
-                <div class="comment" style="display:flex; gap:12px; margin-bottom:15px; animation: slideInRight 0.3s ease-out;">
-                    <img src="https://i.pravatar.cc/100?u=${c.userId}" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
-                    <div class="comment-body" style="flex:1;">
-                        <div style="display:flex; align-items:baseline; gap:8px;">
-                            <span class="comment-author" style="font-weight:bold; font-size:0.9rem;">${c.displayName || c.userId}</span>
-                            <span class="comment-time text-dim" style="font-size:0.75rem;">${c.time}</span>
+                <div class="comment-thread" style="margin-left:${indent}px; ${depth > 0 ? 'border-left:2px solid var(--border-purple); padding-left:12px;' : ''}">
+                    <div class="comment" style="display:flex; gap:12px; margin-bottom:10px; animation: slideInRight 0.3s ease-out;">
+                        <img src="${c.avatar || 'https://i.pravatar.cc/100?u=' + c.userId}" style="width:${depth > 0 ? '28px' : '36px'}; height:${depth > 0 ? '28px' : '36px'}; border-radius:50%; object-fit:cover; flex-shrink:0;">
+                        <div class="comment-body" style="flex:1; min-width:0;">
+                            <div style="display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;">
+                                <span class="comment-author" style="font-weight:bold; font-size:${depth > 0 ? '0.8rem' : '0.9rem'};">${c.displayName || c.userId}</span>
+                                <span class="comment-time text-dim" style="font-size:0.7rem;">${c.time}</span>
+                            </div>
+                            ${c.text ? `<div class="comment-text" style="font-size:${depth > 0 ? '0.85rem' : '0.95rem'}; margin-top:2px; word-break:break-word;">${c.text}</div>` : ''}
+                            ${mediaContent ? `<div style="margin-top:5px;">${mediaContent}</div>` : ''}
+                            <div style="display:flex; gap:6px; margin-top:4px; align-items:center; flex-wrap:wrap;">
+                                <button class="comment-reply-btn" onclick="window.App.setReplyTarget('${c.id}', '${(c.displayName || c.userId).replace(/'/g, "\\'")}')" style="background:none; border:none; color:var(--text-muted); font-size:0.75rem; cursor:pointer; padding:2px 0;">↩ Reply</button>
+                                <button onclick="window.App.reactToComment('${c.id}','heat')" style="background:none; border:none; cursor:pointer; font-size:0.7rem; color:var(--text-muted);">🔥${c.reactions?.heat || ''}</button>
+                                <button onclick="window.App.reactToComment('${c.id}','like')" style="background:none; border:none; cursor:pointer; font-size:0.7rem; color:var(--text-muted);">❤️${c.reactions?.like || ''}</button>
+                                <button onclick="window.App.reactToComment('${c.id}','wild')" style="background:none; border:none; cursor:pointer; font-size:0.7rem; color:var(--text-muted);">🤯${c.reactions?.wild || ''}</button>
+                            </div>
                         </div>
-                        ${c.text ? `<div class="comment-text" style="font-size:0.95rem; margin-top:2px;">${c.text}</div>` : ''}
-                        ${mediaContent ? `<div style="margin-top:5px;">${mediaContent}</div>` : ''}
                     </div>
+                    ${repliesHTML}
                 </div>
             `;
         }).join('');
+    }
+
+    setReplyTarget(commentId, displayName) {
+        this._replyParentId = commentId;
+        const input = document.getElementById('comment-input');
+        if (input) {
+            input.placeholder = `Replying to ${displayName}...`;
+            input.focus();
+        }
+        // Show a small indicator
+        const indicator = document.getElementById('reply-indicator');
+        if (indicator) {
+            indicator.innerHTML = `Replying to <strong>${displayName}</strong> <button onclick="window.App.clearReplyTarget()" style="background:none; border:none; color:var(--accent-pink); cursor:pointer; font-size:0.8rem;">✕</button>`;
+            indicator.style.display = 'block';
+        }
+    }
+
+    clearReplyTarget() {
+        this._replyParentId = null;
+        const input = document.getElementById('comment-input');
+        if (input) input.placeholder = 'Add a comment...';
+        const indicator = document.getElementById('reply-indicator');
+        if (indicator) indicator.style.display = 'none';
+    }
+
+    async reactToComment(commentId, reactionType) {
+        if (!State.user) {
+            this.showToast('Login to react', 'error');
+            return;
+        }
+        const result = await this.services.data.addCommentReaction(commentId, State.user.id || State.user.username, reactionType);
+        if (result?.success) {
+            this.showToast(result.action === 'added' ? 'Reacted!' : 'Reaction removed');
+        }
     }
 
     async submitTextComment(postId) {
@@ -801,10 +903,13 @@ class VibeApp {
         await this.services.data.addComment(postId, {
             userId: State.user ? State.user.username : 'guest',
             displayName: State.user ? State.user.displayName : 'Guest User',
+            avatar: State.user ? State.user.profilePhoto : '',
             text: text,
+            parentId: this._replyParentId || null,
             type: 'text'
         });
         
+        this._replyParentId = null;
         this.showCommentModal(postId);
         this.showToast("Comment posted!");
         

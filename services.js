@@ -1307,16 +1307,34 @@ export class DataService {
                 .eq('post_id', postId)
                 .order('created_at', { ascending: true });
 
-            return (data || []).map(c => ({
+            // Map flat rows to comment objects
+            const flat = (data || []).map(c => ({
                 id: c.id,
+                parentId: c.parent_id || null,
                 userId: c.user_id,
                 displayName: c.username,
                 avatar: c.user_avatar,
                 text: c.text,
                 audioUrl: c.audio_url,
+                videoUrl: c.video_url,
                 time: this.formatTimestamp(c.created_at),
-                type: c.audio_url ? 'audio' : 'text'
+                type: c.video_url ? 'video' : (c.audio_url ? 'audio' : 'text'),
+                replies: []
             }));
+
+            // Build tree: group children under their parent
+            const map = {};
+            const roots = [];
+            flat.forEach(c => { map[c.id] = c; });
+            flat.forEach(c => {
+                if (c.parentId && map[c.parentId]) {
+                    map[c.parentId].replies.push(c);
+                } else {
+                    roots.push(c);
+                }
+            });
+
+            return roots;
         } catch (error) {
             console.error('Error fetching comments:', error);
             return [];
@@ -1338,11 +1356,13 @@ export class DataService {
                 .from('comments')
                 .insert([{
                     post_id: postId,
+                    parent_id: comment.parentId || null,
                     user_id: comment.userId,
                     username: comment.displayName,
                     user_avatar: comment.avatar,
-                    text: comment.text,
-                    audio_url: comment.audioUrl || ''
+                    text: comment.text || '',
+                    audio_url: comment.audioUrl || '',
+                    video_url: comment.videoUrl || ''
                 }])
                 .select();
 
@@ -1365,6 +1385,63 @@ export class DataService {
         } catch (error) {
             console.error('Error adding comment:', error);
             return null;
+        }
+    }
+
+    async addCommentReaction(commentId, userId, reactionType) {
+        if (!window.supabaseClient) return { success: true, action: 'added' };
+
+        try {
+            // Check if user already reacted with this type
+            const { data: existing } = await window.supabaseClient
+                .from('comment_reactions')
+                .select('*')
+                .eq('comment_id', commentId)
+                .eq('user_id', userId)
+                .eq('reaction_type', reactionType)
+                .single();
+
+            if (existing) {
+                // Toggle off
+                await window.supabaseClient
+                    .from('comment_reactions')
+                    .delete()
+                    .eq('id', existing.id);
+                return { success: true, action: 'removed' };
+            } else {
+                // Add
+                await window.supabaseClient
+                    .from('comment_reactions')
+                    .insert([{
+                        comment_id: commentId,
+                        user_id: userId,
+                        reaction_type: reactionType
+                    }]);
+                return { success: true, action: 'added' };
+            }
+        } catch (error) {
+            console.error('Error toggling comment reaction:', error);
+            return { success: false };
+        }
+    }
+
+    async getCommentReactions(commentId) {
+        if (!window.supabaseClient) return {};
+
+        try {
+            const { data } = await window.supabaseClient
+                .from('comment_reactions')
+                .select('reaction_type')
+                .eq('comment_id', commentId);
+
+            const counts = {};
+            (data || []).forEach(r => {
+                counts[r.reaction_type] = (counts[r.reaction_type] || 0) + 1;
+            });
+            return counts;
+        } catch (error) {
+            console.error('Error fetching comment reactions:', error);
+            return {};
         }
     }
 
