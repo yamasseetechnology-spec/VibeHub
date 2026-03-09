@@ -806,12 +806,12 @@ class VibeApp {
                 <label for="image-upload-input" class="btn-secondary" style="display:inline-flex; align-items:center; gap:5px; cursor:pointer;">
                     📷 Photo
                 </label>
-                <input type="file" id="image-upload-input" accept="image/*" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" onchange="window.App.handlePostImage(this)">
+                <input type="file" id="image-upload-input" accept="image/*" style="opacity:0; position:absolute; z-index:-1;" onchange="window.App.handlePostImage(this)">
                 
                 <label for="video-upload-input" class="btn-secondary" style="display:inline-flex; align-items:center; gap:5px; cursor:pointer;">
                     🎥 Video
                 </label>
-                <input type="file" id="video-upload-input" accept="video/*" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" onchange="window.App.handlePostVideo(this)">
+                <input type="file" id="video-upload-input" accept="video/*" style="opacity:0; position:absolute; z-index:-1;" onchange="window.App.handlePostVideo(this)">
                 <button class="btn-secondary" onclick="window.App.clearMediaPreview()" style="display:none;" id="clear-media-btn">✕ Clear</button>
                 <button class="btn-secondary">📍 Location</button>
             </div>
@@ -1837,7 +1837,7 @@ class VibeApp {
                         <label for="banner-upload-input" class="btn-secondary" style="padding:5px 10px; font-size:0.7rem; cursor:pointer; display:inline-block;">
                             📸 Change Banner
                         </label>
-                        <input type="file" id="banner-upload-input" accept="image/*" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" onchange="window.App.handleProfileUpload(this, 'banner')">
+                        <input type="file" id="banner-upload-input" accept="image/*" style="opacity:0; position:absolute; z-index:-1;" onchange="window.App.handleProfileUpload(this, 'banner')">
                     </div>
                 </div>
 
@@ -1848,7 +1848,7 @@ class VibeApp {
                         <label for="avatar-upload-input" style="position:absolute; bottom:0; right:0; background:var(--primary-purple); width:28px; height:28px; border-radius:50%; border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:0.8rem; box-shadow:0 0 10px rgba(0,0,0,0.5);">
                             📷
                         </label>
-                        <input type="file" id="avatar-upload-input" accept="image/*" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" onchange="window.App.handleProfileUpload(this, 'avatar')">
+                        <input type="file" id="avatar-upload-input" accept="image/*" style="opacity:0; position:absolute; z-index:-1;" onchange="window.App.handleProfileUpload(this, 'avatar')">
                     </div>
 
                     <div style="display:flex; flex-direction:column; gap:15px;">
