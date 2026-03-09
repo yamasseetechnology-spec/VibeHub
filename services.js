@@ -405,114 +405,98 @@ export class AuthService {
         return this.user;
     }
 
-    async handleClerkSession() {
-        if (!this.clerk) return null;
-        
+    async syncUserSession(clerkUser = null, fallbackUser = null) {
         try {
-            const clerkUser = this.clerk.user;
-            if (!clerkUser) return null;
+            let userData = null;
+            let clerkId = clerkUser?.id || null;
+            let email = clerkUser?.primaryEmailAddress?.emailAddress || fallbackUser?.email || '';
+            let displayName = clerkUser?.fullName || fallbackUser?.user_metadata?.full_name || email.split('@')[0];
+            let username = clerkUser?.username || fallbackUser?.user_metadata?.username || email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '_');
+            let avatar = clerkUser?.imageUrl || fallbackUser?.user_metadata?.avatar_url || `https://i.pravatar.cc/150?u=${clerkId || email}`;
 
-            const clerkId = clerkUser.id;
-            const email = clerkUser.primaryEmailAddress?.emailAddress || '';
-            const firstName = clerkUser.firstName || '';
-            const lastName = clerkUser.lastName || '';
-            const displayName = clerkUser.fullName || firstName || email.split('@')[0];
-            const username = clerkUser.username || email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '_');
-            const avatar = clerkUser.imageUrl || `https://i.pravatar.cc/150?u=${clerkId}`;
-
-            // Check if user exists in Supabase
-            let supabaseUser = null;
+            // 1. Sync/Fetch from Supabase
             if (window.supabaseClient) {
-                try {
+                // Try to find user by clerk_id or email
+                const query = clerkId ? 
+                    window.supabaseClient.from('users').select('*').eq('clerk_id', clerkId) :
+                    window.supabaseClient.from('users').select('*').eq('email', email);
+                
+                const { data: existingUser } = await query.single();
+                
+                const payload = {
+                    clerk_id: clerkId,
+                    username: username,
+                    email: email,
+                    name: displayName,
+                    avatar_url: avatar,
+                    updated_at: new Date().toISOString()
+                };
+
+                if (existingUser) {
                     const { data } = await window.supabaseClient
                         .from('users')
-                        .select('*')
-                        .eq('clerk_id', clerkId)
-                        .single();
-                    
-                    if (data) {
-                        supabaseUser = data;
-                    }
-                } catch (e) {
-                    console.log('User not found in Supabase, creating...');
-                }
-            }
-
-            // Create or update user in Supabase
-            let userData = {
-                clerk_id: clerkId,
-                username: username,
-                email: email,
-                name: displayName,
-                avatar_url: avatar,
-                created_at: supabaseUser ? supabaseUser.created_at : new Date().toISOString(),
-                bio: supabaseUser ? supabaseUser.bio : 'New to VibeHub!',
-                vibe_score: supabaseUser ? supabaseUser.vibe_score : 0,
-                role: supabaseUser ? supabaseUser.role : 'user'
-            };
-
-            // Use upsert to handle both insert and update case properly
-            if (window.supabaseClient) {
-                try {
-                    const { data, error } = await window.supabaseClient
-                        .from('users')
-                        .upsert([userData], { onConflict: 'clerk_id' })
+                        .update(payload)
+                        .eq('id', existingUser.id)
                         .select()
                         .single();
+                    userData = data || existingUser;
+                } else {
+                    payload.created_at = new Date().toISOString();
+                    payload.bio = 'New to VibeHub!';
+                    payload.vibe_score = 0;
+                    payload.role = 'user';
                     
-                    if (error) throw error;
-                    if (data) userData = data;
-                } catch (e) {
-                    console.error('Error syncing user to Supabase:', e);
-                    // Fallback to supabaseUser if upsert fails but we have existing data
-                    if (supabaseUser) userData = supabaseUser;
+                    const { data, error } = await window.supabaseClient
+                        .from('users')
+                        .insert([payload])
+                        .select()
+                        .single();
+                    if (!error) userData = data;
                 }
             }
 
-            // Calculate Badges
-            const vibeLikesCount = userData.vibe_likes?.length || 0;
-            const badges = calculateUserBadges(userData);
-
-            // Create app user object
-            const user = {
-                id: userData.id,
+            // 2. Prepare App User Object
+            const finalUser = {
+                id: userData?.id || fallbackUser?.id || clerkId || 'guest',
                 clerkId: clerkId,
-                username: userData.username || username,
-                displayName: userData.name || displayName,
+                username: userData?.username || username,
+                displayName: userData?.name || displayName,
                 email: email,
-                profilePhoto: userData.avatar_url || avatar,
-                bannerImage: userData.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
-                bio: userData.bio || 'New to VibeHub!',
-                followersCount: userData.followers?.length || 0,
-                followingCount: userData.following?.length || 0,
-                postCount: userData.post_count || 0,
-                reactionScore: userData.vibe_score || 0,
-                vibeLikesCount: vibeLikesCount,
-                badgeList: badges,
-                isSuperAdmin: false,
-                createdAt: userData.created_at || new Date().toISOString()
+                profilePhoto: userData?.avatar_url || avatar,
+                bannerImage: userData?.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
+                bio: userData?.bio || 'New to VibeHub!',
+                followersCount: userData?.followers?.length || 0,
+                followingCount: userData?.following?.length || 0,
+                postCount: userData?.post_count || 0,
+                reactionScore: userData?.vibe_score || 0,
+                vibeLikesCount: userData?.vibe_likes?.length || 0,
+                badgeList: userData ? calculateUserBadges(userData) : [],
+                isSuperAdmin: userData?.role === 'admin',
+                createdAt: userData?.created_at || new Date().toISOString()
             };
 
-            this.user = user;
+            this.user = finalUser;
             
-            // Persist based on preference
-            if (this.rememberMe) {
-                localStorage.setItem('vibehub_user', JSON.stringify(user));
-                localStorage.setItem('vibehub_remember', 'true');
-            } else {
-                sessionStorage.setItem('vibehub_user', JSON.stringify(user));
-                localStorage.removeItem('vibehub_remember');
-                localStorage.removeItem('vibehub_user');
-            }
+            // 3. Persist Session
+            const storage = this.rememberMe ? localStorage : sessionStorage;
+            storage.setItem('vibehub_user', JSON.stringify(finalUser));
+            if (this.rememberMe) localStorage.setItem('vibehub_remember', 'true');
+            else localStorage.removeItem('vibehub_remember');
+
+            // 4. Notify App
+            console.log('User session synced:', finalUser);
+            window.dispatchEvent(new CustomEvent('user-logged-in', { detail: finalUser }));
             
-            // Notify app of login
-            window.dispatchEvent(new CustomEvent('user-logged-in', { detail: user }));
-            
-            return user;
+            return finalUser;
         } catch (error) {
-            console.error('Error handling Clerk session:', error);
+            console.error('Error syncing user session:', error);
             return null;
         }
+    }
+
+    // Modern alias for backward compatibility
+    async handleClerkSession() {
+        return this.syncUserSession(this.clerk?.user);
     }
 
     async customSignIn(email, password, rememberMe = true) {
@@ -526,7 +510,8 @@ export class AuthService {
                         password: password
                     });
                     if (error) return { error: error.message };
-                    return { success: true, user: data.user };
+                    const user = await this.syncUserSession(null, data.user);
+                    return { success: true, user: user };
                 } catch (e) {
                     return { error: 'Authentication failed' };
                 }
@@ -541,10 +526,10 @@ export class AuthService {
             });
             
             await this.clerk.setActive({ session: signIn.createdSessionId });
+            // handleClerkSession will be called by Clerk listener
             return { success: true };
         } catch (error) {
             console.error('Custom sign in error:', error);
-            // Handle Clerk API error object structure
             const errorMessage = (error.errors && error.errors[0]?.message) || error.message || 'Sign in failed';
             return { error: errorMessage };
         }
@@ -564,7 +549,8 @@ export class AuthService {
                         }
                     });
                     if (error) return { error: error.message };
-                    return { success: true, user: data.user };
+                    const user = await this.syncUserSession(null, data.user);
+                    return { success: true, user: user };
                 } catch (e) {
                     return { error: 'Registration failed' };
                 }
@@ -580,10 +566,10 @@ export class AuthService {
             });
             
             await this.clerk.setActive({ session: signUp.createdSessionId });
+            // handleClerkSession will be called by Clerk listener
             return { success: true };
         } catch (error) {
             console.error('Custom sign up error:', error);
-            // Clerk errors are often objects with an 'errors' array
             const errorMessage = (error.errors && error.errors[0]?.message) || error.message || 'Sign up failed';
             return { error: errorMessage };
         }

@@ -1971,57 +1971,70 @@ class VibeApp {
     }
 
     async handleCustomSignIn() {
-        const emailInput = document.getElementById('login-email-input');
-        const passwordInput = document.getElementById('login-password-input');
-        const email = emailInput.value.trim();
-        const password = passwordInput.value.trim();
-        
-        if (!email || !password) {
-            this.showToast('Please enter both email and password', 'error');
-            return;
-        }
-        
-        if (!email.includes('@')) {
-             this.showToast('Please enter a valid email address', 'error');
-             return;
-        }
+        try {
+            const emailInput = document.getElementById('login-email-input');
+            const passwordInput = document.getElementById('login-password-input');
+            const rememberMe = document.getElementById('remember-me')?.checked ?? true;
+            
+            const email = emailInput?.value.trim();
+            const password = passwordInput?.value.trim();
+            
+            if (!email || !password) {
+                this.showToast('Please enter both email and password', 'error');
+                return;
+            }
+            
+            if (!email.includes('@')) {
+                 this.showToast('Please enter a valid email address', 'error');
+                 return;
+            }
 
-        const rememberMe = document.getElementById('remember-me')?.checked ?? true;
-        const result = await this.services.auth.customSignIn(email, password, rememberMe);
-        if (result.success) {
-            this.showToast('Welcome back! ✨');
-            await this.services.auth.handleClerkSession();
-        } else {
-            this.showToast(result.error, 'error');
+            this.showToast('Connecting to consciousness...', 'info');
+            const result = await this.services.auth.customSignIn(email, password, rememberMe);
+            if (result.success) {
+                // AuthService already dispatches event and syncs session
+                this.showToast('Welcome back! ✨');
+            } else {
+                this.showToast(result.error || 'Sign in failed', 'error');
+            }
+        } catch (err) {
+            console.error('Sign in handle error:', err);
+            this.showToast('Sign in failed due to a system error', 'error');
         }
     }
 
     async handleCustomSignUp() {
-        const emailInput = document.getElementById('signup-email-input');
-        const passwordInput = document.getElementById('signup-password-input');
-        const nameInput = document.getElementById('signup-name-input');
-        
-        const email = emailInput.value.trim();
-        const password = passwordInput.value.trim();
-        const name = nameInput.value.trim();
-        
-        if (!email || !password || !name) {
-            this.showToast('Please fill in all fields', 'error');
-            return;
-        }
-        
-        if (password.length < 8) {
-             this.showToast('Password must be at least 8 characters long', 'error');
-             return;
-        }
+        try {
+            const emailInput = document.getElementById('signup-email-input');
+            const passwordInput = document.getElementById('signup-password-input');
+            const nameInput = document.getElementById('signup-name-input');
+            
+            const email = emailInput?.value.trim();
+            const password = passwordInput?.value.trim();
+            const name = nameInput?.value.trim();
+            
+            if (!email || !password || !name) {
+                this.showToast('Please fill in all fields', 'error');
+                return;
+            }
+            
+            if (password.length < 8) {
+                 this.showToast('Password must be at least 8 characters long', 'error');
+                 return;
+            }
 
-        const rememberMe = document.getElementById('remember-me')?.checked ?? true;
-        const result = await this.services.auth.customSignUp(email, password, name, rememberMe);
-        if (result.success) {
-            this.showToast('Welcome to VibeHub! ✨');
-            await this.services.auth.handleClerkSession();
-        } else {
-            this.showToast(result.error, 'error');
+            this.showToast('Establishing neural link...', 'info');
+            const rememberMe = document.getElementById('remember-me')?.checked ?? true;
+            const result = await this.services.auth.customSignUp(email, password, name, rememberMe);
+            if (result.success) {
+                this.showToast('Account created! Welcome to VibeHub ✨');
+                // AuthService already dispatches event and syncs session
+            } else {
+                this.showToast(result.error || 'Sign up failed', 'error');
+            }
+        } catch (err) {
+            console.error('Sign up handle error:', err);
+            this.showToast('Account creation failed due to a system error', 'error');
         }
     }
 

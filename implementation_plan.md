@@ -30,3 +30,14 @@
 ## 5. Square Integration
 - Donation buttons prepared for Square Checkout URLs.
 - Placeholder service for handling donation state.
+
+## 6. Media Picker Reliability
+- **Problem**: Label-wrapped file inputs can fail to trigger on some mobile browsers.
+- **Fix**: Use explicit `button` or `div` elements with `onclick` triggers.
+
+## 7. Unified Auth Session Handling
+- **Problem**: The app sits idle after a successful Supabase fallback signup/login because the navigation event is only triggered by `handleClerkSession`.
+- **Fix**: 
+  - Refactor `handleClerkSession` to `syncUserSession` which accepts an optional user object.
+  - Ensure `clerk_id` is handled as optional in the `users` table upsert.
+  - Ensure `user-logged-in` event is always dispatched regardless of the auth provider.
