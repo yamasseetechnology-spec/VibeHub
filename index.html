@@ -168,13 +168,12 @@
                 <button class="nav-link mobile-bottom-nav" data-view="vibestream" title="VibeStream">
                     <span class="icon">📺</span><span class="label">VibeStream</span>
                 </button>
-                <button class="nav-link mobile-bottom-nav create-vibe-btn" onclick="window.App.showCreatePostModal()" title="Create Post" style="
+                <button class="nav-link mobile-bottom-nav create-vibe-btn mobile-only" onclick="window.App.showCreatePostModal()" title="Create Post" style="
                     background: linear-gradient(135deg, #ff9f00, #ff6b00) !important;
                     border-radius: 50% !important;
                     width: 48px !important;
                     height: 48px !important;
                     min-width: 48px !important;
-                    display: flex !important;
                     align-items: center !important;
                     justify-content: center !important;
                     margin-top: -18px !important;
@@ -183,7 +182,7 @@
                     position: relative !important;
                     z-index: 5 !important;
                 ">
-                    <span style="font-size: 28px; line-height: 1; color: white; font-weight: bold;">+</span>
+                    <span style="font-size: 28px; line-height: 1; color: white; font-weight: bold;">🧠</span>
                 </button>
                 <button class="nav-link mobile-bottom-nav" data-view="notifications" title="Notifications">
                     <span class="icon">🔔</span><span class="label">Notifs</span>
@@ -196,11 +195,7 @@
                     <span class="icon">⚙️</span><span class="label">Settings</span>
                 </button>
                 
-                <div class="desktop-only" style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px;">
-                    <button class="nav-link" style="background: linear-gradient(135deg, rgba(255, 159, 0, 0.1), rgba(157, 80, 187, 0.1)); border: 1px solid rgba(157, 80, 187, 0.2);" onclick="window.App.showCreatePostModal()">
-                        <span class="icon">✨</span><span class="label">Post Vibe</span>
-                    </button>
-                </div>
+
             </div>
         </nav>
 
@@ -279,7 +274,7 @@
             z-index: 100;
             transition: transform 0.2s, box-shadow 0.2s;
         ">
-            ✨
+            🧠
         </button>
 
         <!-- Main Content Area -->
@@ -303,7 +298,21 @@
                 </div>
 
                 <div class="top-actions">
-                    <button id="create-post-btn" class="btn-primary desktop-only" onclick="window.App.showCreatePostModal()">Post</button>
+                    <button id="create-post-btn" class="nav-link" onclick="window.App.showCreatePostModal()" title="Create Post" style="
+                        background: linear-gradient(135deg, #ff9f00, #ff6b00) !important;
+                        border-radius: 50% !important;
+                        width: 48px !important;
+                        height: 48px !important;
+                        min-width: 48px !important;
+                        display: flex !important;
+                        align-items: center !important;
+                        justify-content: center !important;
+                        box-shadow: 0 0 20px rgba(255, 159, 0, 0.5), 0 4px 15px rgba(0,0,0,0.3) !important;
+                        border: 2px solid rgba(255, 255, 255, 0.2) !important;
+                        cursor: pointer !important;
+                    ">
+                        <span style="font-size: 28px; line-height: 1; color: white; font-weight: bold;">🧠</span>
+                    </button>
                     <!-- Notification icon for mobile header -->
                     <button class="nav-link mobile-only" data-view="notifications" onclick="window.App.navigate('notifications')" style="padding: 10px; min-width: auto; border: none; background: none;">
                         <span class="icon">🔔</span>

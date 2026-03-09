@@ -496,34 +496,15 @@ class VibeApp {
         let ptrStartY = 0;
         let ptrCurrentY = 0;
         let isPulling = false;
-        let settledAtTop = false;
-        let scrollIdleTimer = null;
         let lastRefreshTime = 0;
-        const PTR_THRESHOLD = 150; // Exaggerated pull distance (Facebook style)
-        const PTR_COOLDOWN = 3 * 60 * 1000; // 3 minutes in ms
-
-        // Track when user has SETTLED at the top (not just scrolled through it)
-        window.addEventListener('scroll', () => {
-            settledAtTop = false;
-            clearTimeout(scrollIdleTimer);
-            if (window.scrollY <= 0) {
-                // Only mark as settled after being idle at top for 300ms
-                scrollIdleTimer = setTimeout(() => {
-                    if (window.scrollY <= 0) {
-                        settledAtTop = true;
-                    }
-                }, 300);
-            }
-        }, { passive: true });
-
-        // Also set settled on page load if already at top
-        if (window.scrollY <= 0) settledAtTop = true;
+        const PTR_THRESHOLD = 150; 
+        const PTR_COOLDOWN = 3 * 60 * 1000; 
 
         const appBody = document.querySelector('main');
         if (appBody) {
             appBody.addEventListener('touchstart', (e) => {
-                // ONLY initiate if we've been settled at the top for a moment
-                if (settledAtTop && window.scrollY <= 0) {
+                // Only start pull if we're at the very top
+                if (window.scrollY <= 0) {
                     ptrStartY = e.touches[0].clientY;
                     isPulling = true;
                 }
@@ -534,18 +515,15 @@ class VibeApp {
                 ptrCurrentY = e.touches[0].clientY;
                 const pullDistance = ptrCurrentY - ptrStartY;
                 
-                // Only allow pull-down gesture while strictly at top and settled
-                if (pullDistance > 0 && window.scrollY <= 0 && settledAtTop) {
+                // If pulling down at top
+                if (pullDistance > 0 && window.scrollY <= 0) {
                     if (e.cancelable) e.preventDefault();
                     const viewContainer = document.getElementById('view-container');
                     if (viewContainer) {
                         viewContainer.style.transform = `translateY(${Math.min(pullDistance * 0.3, 70)}px)`;
                     }
                 } else {
-                    // User scrolled away from top — cancel PTR
                     isPulling = false;
-                    const viewContainer = document.getElementById('view-container');
-                    if (viewContainer) viewContainer.style.transform = '';
                 }
             }, { passive: false });
 
@@ -561,28 +539,22 @@ class VibeApp {
                     setTimeout(() => viewContainer.style.transition = '', 300);
                 }
                 
-                // Check if threshold was met AND we're still at top
-                if (pullDistance > PTR_THRESHOLD && window.scrollY <= 0 && settledAtTop) {
+                if (pullDistance > PTR_THRESHOLD && window.scrollY <= 0) {
                     const now = Date.now();
                     if (now - lastRefreshTime > PTR_COOLDOWN) {
                         lastRefreshTime = now;
-                        
                         this.showToast('Pulling fresh Vibes... 🔥');
                         if (this.services.data.cache.clearCache) {
                             this.services.data.cache.clearCache('posts_');
                         }
-                        
                         if (State.currentView === 'home' || State.currentView === 'trending') {
                             await this.renderView(State.currentView);
                         }
                     } else {
                         const remaining = Math.ceil((PTR_COOLDOWN - (now - lastRefreshTime)) / 1000);
-                        const mins = Math.floor(remaining / 60);
-                        const secs = remaining % 60;
-                        this.showToast(`Feed is hot! Wait ${mins > 0 ? mins + 'm ' : ''}${secs}s to refresh.`);
+                        this.showToast(`Feed is hot! Wait ${Math.floor(remaining/60)}m ${remaining%60}s to refresh.`);
                     }
                 }
-                
                 ptrStartY = 0;
                 ptrCurrentY = 0;
             });
@@ -605,42 +577,6 @@ class VibeApp {
             adminTrigger.addEventListener('click', () => this.navigate('admin'));
         }
 
-        // Global Event Delegation for Reactions
-        document.body.addEventListener('click', async (e) => {
-            const btn = e.target.closest('.reaction-btn');
-            if (btn) {
-                const postCard = btn.closest('.post-card');
-                const postId = postCard?.dataset?.id;
-                const reactionType = btn.dataset?.type;
-                
-                if (!postId || !reactionType) return;
-
-                // Toggle UI
-                btn.classList.toggle('active');
-                const countSpan = btn.querySelector('span');
-                if (countSpan) {
-                    let count = parseInt(countSpan.innerText) || 0;
-                    count = btn.classList.contains('active') ? count + 1 : Math.max(0, count - 1);
-                    countSpan.innerText = count;
-                }
-
-                // Save to Supabase
-                const user = State.user;
-                if (user) {
-                    await this.services.data.addReaction(postId, user.id, reactionType);
-                }
-
-                // Reaction popup animation
-                if (btn.classList.contains('active')) {
-                    const reactionName = btn.innerText.split(' ')[0];
-                    window.triggerReactionPopup(e.clientX, e.clientY, reactionName);
-                }
-
-                btn.style.transform = 'scale(1.2)';
-                setTimeout(() => btn.style.transform = '', 200);
-            }
-        });
-        
         // Handle Back/Forward buttons
         window.addEventListener('popstate', (e) => {
             if (e.state && e.state.view) {
@@ -923,15 +859,15 @@ class VibeApp {
             <div id="media-preview" style="margin-bottom:15px; min-height:50px;"></div>
             
             <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
-                <label for="image-upload-input" class="btn-secondary" style="display:inline-flex; align-items:center; gap:5px; cursor:pointer;">
+                <button class="btn-secondary" onclick="document.getElementById('image-upload-input').click()" style="display:inline-flex; align-items:center; gap:5px;">
                     📷 Photo
-                </label>
-                <input type="file" id="image-upload-input" accept="image/*" capture="environment" style="width:0; height:0; overflow:hidden; position:absolute;" onchange="window.App.handlePostImage(this)">
+                </button>
+                <input type="file" id="image-upload-input" accept="image/*" style="opacity:0; position:absolute; pointer-events:none;" onchange="window.App.handlePostImage(this)">
                 
-                <label for="video-upload-input" class="btn-secondary" style="display:inline-flex; align-items:center; gap:5px; cursor:pointer;">
+                <button class="btn-secondary" onclick="document.getElementById('video-upload-input').click()" style="display:inline-flex; align-items:center; gap:5px;">
                     🎥 Video
-                </label>
-                <input type="file" id="video-upload-input" accept="video/*" capture="environment" style="width:0; height:0; overflow:hidden; position:absolute;" onchange="window.App.handlePostVideo(this)">
+                </button>
+                <input type="file" id="video-upload-input" accept="video/*" style="opacity:0; position:absolute; pointer-events:none;" onchange="window.App.handlePostVideo(this)">
                 <button class="btn-secondary" onclick="window.App.clearMediaPreview()" style="display:none;" id="clear-media-btn">✕ Clear</button>
                 <button class="btn-secondary">📍 Location</button>
             </div>
@@ -1189,16 +1125,6 @@ class VibeApp {
 
     async startAudioComment(postId) {
         try {
-            // Request microphone permission explicitly for WebView/APK
-            if (navigator.permissions) {
-                try {
-                    const micPermission = await navigator.permissions.query({ name: 'microphone' });
-                    if (micPermission.state === 'denied') {
-                        this.showToast('Microphone access denied. Please enable it in your device Settings > Apps > VibeHub > Permissions.', 'error');
-                        return;
-                    }
-                } catch(e) { /* permissions API not supported, try getUserMedia directly */ }
-            }
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
@@ -1248,7 +1174,14 @@ class VibeApp {
 
             mediaRecorder.start();
         } catch (err) {
-            this.showToast("Audio recording failed: " + err.message, 'error');
+            console.error("Audio recording failed:", err);
+            let msg = "Microphone access failed.";
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                msg = "Microphone access denied. Please allow it in device settings.";
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                msg = "No microphone found on this device.";
+            }
+            this.showToast(msg, 'error');
         }
     }
 
@@ -1312,7 +1245,14 @@ class VibeApp {
 
             mediaRecorder.start();
         } catch (err) {
-            this.showToast("Video recording failed: " + err.message, 'error');
+            console.error("Video recording failed:", err);
+            let msg = "Camera/Microphone access failed.";
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                msg = "Permission denied. Check device settings for Camera/Mic.";
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                msg = "No camera or microphone found.";
+            }
+            this.showToast(msg, 'error');
         }
     }
 
@@ -1971,10 +1911,10 @@ class VibeApp {
                 <div class="edit-banner-preview" style="height:120px; position:relative; background:var(--bg-deep);">
                     <img id="preview-banner" src="${user.bannerImage || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200'}" style="width:100%; height:100%; object-fit:cover; opacity:0.6;">
                     <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);">
-                        <label for="banner-upload-input" class="btn-secondary" style="padding:5px 10px; font-size:0.7rem; cursor:pointer; display:inline-block;">
+                        <button onclick="document.getElementById('banner-upload-input').click()" class="btn-secondary" style="padding:5px 10px; font-size:0.7rem; display:inline-block;">
                             📸 Change Banner
-                        </label>
-                        <input type="file" id="banner-upload-input" accept="image/*" style="width:0; height:0; overflow:hidden; position:absolute;" onchange="window.App.handleProfileUpload(this, 'banner')">
+                        </button>
+                        <input type="file" id="banner-upload-input" accept="image/*" style="opacity:0; position:absolute; pointer-events:none;" onchange="window.App.handleProfileUpload(this, 'banner')">
                     </div>
                 </div>
 
@@ -1982,10 +1922,10 @@ class VibeApp {
                     <!-- Avatar Upload Area -->
                     <div style="position:relative; width:80px; height:80px; margin-bottom:20px;">
                         <img id="preview-avatar" src="${user.profilePhoto || 'https://i.pravatar.cc/150'}" style="width:80px; height:80px; border-radius:50%; border:3px solid var(--primary-purple); object-fit:cover; background:var(--bg-deep);">
-                        <label for="avatar-upload-input" style="position:absolute; bottom:0; right:0; background:var(--primary-purple); width:28px; height:28px; border-radius:50%; border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:0.8rem; box-shadow:0 0 10px rgba(0,0,0,0.5);">
+                        <button onclick="document.getElementById('avatar-upload-input').click()" style="position:absolute; bottom:0; right:0; background:var(--primary-purple); width:28px; height:28px; border-radius:50%; border:none; display:flex; align-items:center; justify-content:center; font-size:0.8rem; box-shadow:0 0 10px rgba(0,0,0,0.5); color:white;">
                             📷
-                        </label>
-                        <input type="file" id="avatar-upload-input" accept="image/*" style="width:0; height:0; overflow:hidden; position:absolute;" onchange="window.App.handleProfileUpload(this, 'avatar')">
+                        </button>
+                        <input type="file" id="avatar-upload-input" accept="image/*" style="opacity:0; position:absolute; pointer-events:none;" onchange="window.App.handleProfileUpload(this, 'avatar')">
                     </div>
 
                     <div style="display:flex; flex-direction:column; gap:15px;">
@@ -2767,16 +2707,6 @@ class VibeApp {
 
     async goLive() {
         try {
-            // Request camera+mic permission explicitly for WebView/APK
-            if (navigator.permissions) {
-                try {
-                    const camPermission = await navigator.permissions.query({ name: 'camera' });
-                    if (camPermission.state === 'denied') {
-                        this.showToast('Camera access denied. Please enable it in your device Settings > Apps > VibeHub > Permissions.', 'error');
-                        return;
-                    }
-                } catch(e) { /* permissions API not supported, try getUserMedia directly */ }
-            }
             const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             const userId = State.user?.id;
             const username = State.user?.username || 'user';
@@ -2958,7 +2888,15 @@ class VibeApp {
             // Optimistically update the counter in the DOM
             if (postCard) {
                 const btn = postCard.querySelector(`[data-type="${type}"] span`);
-                if (btn) btn.textContent = parseInt(btn.textContent || 0) + 1;
+                if (btn) {
+                    const currentCount = parseInt(btn.textContent || 0);
+                    // If result says we toggled, the real-time update will eventually correct it, 
+                    // but for immediate feedback we toggle the local count.
+                    // We check if the button has a 'active' class (which it should if already reacted)
+                    const isRemoving = btn.parentElement.classList.contains('active');
+                    btn.textContent = isRemoving ? Math.max(0, currentCount - 1) : currentCount + 1;
+                    btn.parentElement.classList.toggle('active');
+                }
             }
         }
     }
