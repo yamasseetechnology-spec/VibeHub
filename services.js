@@ -4,7 +4,7 @@
  */
 import { Clerk } from '@clerk/clerk-js';
 
-const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || 'pk_test_Z29yZ2VvdXMtb2NlbG90LTg1LmNsZXJrLmFjY291bnRzLmRldiQ';
 
 // ============================================
 // MEDIA SERVICE - Cloudinary (Videos) + ImageKit (Photos)
