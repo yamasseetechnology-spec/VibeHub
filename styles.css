@@ -649,6 +649,10 @@ body {
     opacity: 0;
 }
 
+.hidden {
+    display: none !important;
+}
+
 .desktop-only { display: flex !important; }
 .mobile-only { display: none !important; }
 
@@ -1226,7 +1230,7 @@ body {
     
     #content-area {
         padding: 10px;
-        padding-top: 60px; /* Adjusted padding-top */
+        padding-top: 10px; /* Removed extra padding causing black bar */
         margin-bottom: 80px;
     }
     
@@ -1360,7 +1364,7 @@ body {
     
     #content-area {
         padding: 10px;
-        padding-top: 60px; /* Reduced from 80px to fix spacing */
+        padding-top: 10px; /* Fixed spacing */
         margin-bottom: 80px;
     }
     

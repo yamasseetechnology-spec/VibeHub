@@ -1884,22 +1884,38 @@ class VibeApp {
                 <p class="text-dim">Your vibe circle.</p>
             </div>
             <div class="tabs">
-                <button class="tab active" style="flex:1;">Friends List</button>
-                <button class="tab" style="flex:1;" onclick="window.App.showToast('Friends Feed coming soon!')">Friends Feed</button>
+                <button class="tab active" style="flex:1;" onclick="
+                    this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); 
+                    this.classList.add('active'); 
+                    document.getElementById('friends-list-container').classList.remove('hidden'); 
+                    document.getElementById('friends-feed-container').classList.add('hidden');
+                ">Friends List</button>
+                <button class="tab" style="flex:1;" onclick="
+                    this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); 
+                    this.classList.add('active'); 
+                    document.getElementById('friends-list-container').classList.add('hidden'); 
+                    document.getElementById('friends-feed-container').classList.remove('hidden');
+                ">Friends Feed</button>
             </div>
-            <div class="friends-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:15px; margin-top:20px;">
-                ${friends && friends.length > 0 ? friends.map(f => `
-                    <div class="friend-card glass-panel" style="padding:15px; text-align:center; cursor:pointer;" onclick="window.App.viewUserProfile('${f.id}', '${f.username}')">
-                        <img src="${f.avatar || 'https://i.pravatar.cc/150'}" style="width:60px; height:60px; border-radius:50%; margin-bottom:10px;">
-                        <h4 style="font-size:0.9rem;">${f.displayName || f.username}</h4>
-                        <p class="text-dim" style="font-size:0.75rem;">@${f.username}</p>
+            
+            <div id="friends-list-container">
+                <div class="friends-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:15px; margin-top:20px;">
+                    ${friends && friends.length > 0 ? friends.map(f => `
+                        <div class="friend-card glass-panel" style="padding:15px; text-align:center; cursor:pointer;" onclick="window.App.viewUserProfile('${f.id}', '${f.username}')">
+                            <img src="${f.avatar || 'https://i.pravatar.cc/150'}" style="width:60px; height:60px; border-radius:50%; margin-bottom:10px;">
+                            <h4 style="font-size:0.9rem;">${f.displayName || f.username}</h4>
+                            <p class="text-dim" style="font-size:0.75rem;">@${f.username}</p>
+                        </div>
+                    `).join('') : '<p class="text-dim" style="grid-column:1/-1; text-align:center; padding:30px;">No friends yet. Start connecting!</p>'}
+                </div>
+            </div>
+            
+            <div id="friends-feed-container" class="hidden">
+                <div style="margin-top:20px;">
+                    <h3 class="section-title">Friends' Recent Vibes</h3>
+                    <div id="friends-feed" style="margin-top:15px;">
+                        ${posts && posts.length > 0 ? posts.map(p => Components.post(p)).join('') : '<p class="text-dim" style="text-align:center; padding:20px;">No recent vibes from friends.</p>'}
                     </div>
-                `).join('') : '<p class="text-dim" style="grid-column:1/-1; text-align:center; padding:30px;">No friends yet. Start connecting!</p>'}
-            </div>
-            <div style="margin-top:30px;">
-                <h3 class="section-title">Friends' Recent Vibes</h3>
-                <div id="friends-feed" style="margin-top:15px;">
-                    ${posts && posts.length > 0 ? posts.map(p => Components.post(p)).join('') : '<p class="text-dim" style="text-align:center; padding:20px;">No recent vibes from friends.</p>'}
                 </div>
             </div>
         `;

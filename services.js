@@ -1499,7 +1499,32 @@ export class DataService {
         if (!userId) return [];
         
         if (!window.supabaseClient) {
-            return [];
+            return [
+                {
+                    id: 'fp1',
+                    userId: 'f1',
+                    displayName: 'Cyber Soul',
+                    handle: 'cyber_soul',
+                    avatar: 'https://i.pravatar.cc/150?u=cs',
+                    content: 'Just vibing in the Neon Matrix today. Anyone else linked?',
+                    media: '',
+                    mediaType: 'none',
+                    timestamp: '2h ago',
+                    reactions: { like: 12, heat: 5, wild: 2, cap: 0, admire: 8, dislike: 0 }
+                },
+                {
+                    id: 'fp2',
+                    userId: 'f2',
+                    displayName: 'Neon Dreamer',
+                    handle: 'neon_dreamer',
+                    avatar: 'https://i.pravatar.cc/150?u=nd',
+                    content: 'Check out this new synth track I made! Link in bio.',
+                    media: '',
+                    mediaType: 'none',
+                    timestamp: '5h ago',
+                    reactions: { like: 45, heat: 20, wild: 0, cap: 0, admire: 12, dislike: 1 }
+                }
+            ];
         }
 
         try {
