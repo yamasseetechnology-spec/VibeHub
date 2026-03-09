@@ -494,6 +494,11 @@ export class AuthService {
         }
     }
 
+    // Modern alias for backward compatibility - called by Clerk listener
+    async handleClerkSession() {
+        return this.syncUserSession(this.clerk?.user);
+    }
+
     async customSignIn(email, password, rememberMe = true) {
         this.rememberMe = rememberMe;
         // Try Supabase first for simplicity, fallback to Clerk only if needed
