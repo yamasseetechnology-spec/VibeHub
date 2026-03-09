@@ -582,11 +582,34 @@ class VibeApp {
         }
         
         const preview = document.getElementById('media-preview');
+        const clearBtn = document.getElementById('clear-media-btn');
+        if (preview) {
+            const url = URL.createObjectURL(file);
+            preview.innerHTML = `<video src="${url}" controls style="max-height:200px;border-radius:8px;margin-top:8px;width:100%;"></video>`;
+            this._pendingMediaFile = file;
+            this._pendingMediaType = 'video';
+            if (clearBtn) clearBtn.style.display = 'inline-flex';
+        }
+    }
+
+    handlePostImage(input) {
+        const file = input.files[0];
+        if (!file) return;
+        
+        if (file.size > 20 * 1024 * 1024) {
+            this.showToast('Image must be under 20MB', 'error');
+            return;
+        }
+        
+        const preview = document.getElementById('media-preview');
+        const clearBtn = document.getElementById('clear-media-btn');
         if (preview) {
             const reader = new FileReader();
             reader.onload = (e) => {
-                preview.innerHTML = `<video src="${e.target.result}" controls style="max-height:200px;border-radius:8px;margin-top:8px;width:100%;"></video>`;
-                preview.dataset.file = JSON.stringify({ type: 'video', data: file });
+                preview.innerHTML = `<img src="${e.target.result}" style="max-height:200px;border-radius:8px;margin-top:8px;width:100%;object-fit:cover;">`;
+                this._pendingMediaFile = file;
+                this._pendingMediaType = 'image';
+                if (clearBtn) clearBtn.style.display = 'inline-flex';
             };
             reader.readAsDataURL(file);
         }
@@ -594,9 +617,12 @@ class VibeApp {
 
     clearMediaPreview() {
         const preview = document.getElementById('media-preview');
+        const clearBtn = document.getElementById('clear-media-btn');
         if (preview) {
             preview.innerHTML = '';
-            delete preview.dataset.file;
+            this._pendingMediaFile = null;
+            this._pendingMediaType = null;
+            if (clearBtn) clearBtn.style.display = 'none';
         }
         const imageInput = document.getElementById('image-upload-input');
         const videoInput = document.getElementById('video-upload-input');
@@ -658,21 +684,12 @@ class VibeApp {
         const progressText = document.getElementById('progress-text');
         const clearBtn = document.getElementById('clear-media-btn');
         
-        let mediaFile = null;
-        let mediaType = 'none';
+        let mediaFile = this._pendingMediaFile || null;
+        let mediaType = this._pendingMediaType || 'none';
         
-        const preview = document.getElementById('media-preview');
-        if (preview && preview.dataset.file) {
-            try {
-                const fileData = JSON.parse(preview.dataset.file);
-                mediaFile = fileData.data;
-                mediaType = fileData.type;
-                
-                if (progressDiv) progressDiv.style.display = 'block';
-                if (clearBtn) clearBtn.style.display = 'none';
-            } catch (e) {
-                console.error('Error parsing media file:', e);
-            }
+        if (mediaFile && progressDiv) {
+            progressDiv.style.display = 'block';
+            if (clearBtn) clearBtn.style.display = 'none';
         }
         
         const newPost = {
