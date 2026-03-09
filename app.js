@@ -62,8 +62,12 @@ class VibeApp {
 
             // 4. Initialize Clerk and setup listeners
             console.log("Initializing Clerk...");
-            await this.services.auth.initClerk();
-            console.log("Clerk initialized.");
+            // Wrap Clerk init in a timeout so it doesn't block the app if CDN fails
+            await Promise.race([
+                this.services.auth.initClerk(),
+                new Promise(resolve => setTimeout(resolve, 3000))
+            ]);
+            console.log("Clerk initialization attempted.");
             this.setupClerkListeners();
             console.log("Clerk listeners setup.");
 
@@ -77,13 +81,6 @@ class VibeApp {
                 this.transitionToLogin();
             }, 500);
         }
-    }
-
-        // 5. After 0.5 seconds, execute transition
-        setTimeout(() => {
-            console.log("Attempting transitionToLogin...");
-            this.transitionToLogin();
-        }, 500);
     }
 
     setupClerkListeners() {

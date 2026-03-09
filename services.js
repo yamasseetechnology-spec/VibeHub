@@ -1974,19 +1974,6 @@ class AdminService {
         }
     }
 }
-}
-
-    async getDetailedStats() {
-        if (!window.supabaseClient) return this.getStats();
-
-        try {
-            const [usersCount, postsCount] = await Promise.all([
-                window.supabaseClient.from('users').select('id', { count: 'exact' }),
-                window.supabaseClient.from('posts').select('id', { count: 'exact' })
-            ]);
-
-            return {
-                users: usersCount.count || 0,
                 posts: postsCount.count || 0,
                 activeNow: Math.floor(Math.random() * 500) + 100,
                 postsToday: Math.floor(Math.random() * 100) + 10,
