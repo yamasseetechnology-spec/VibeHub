@@ -1036,11 +1036,16 @@ class VibeApp {
         // Show Loading State in View
         container.innerHTML = '<div class="loader-view"><div class="spinner"></div></div>';
 
+        // Clean up any stale overlays / modals from previous views
+        document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+        const modalContainer = document.getElementById('modal-container');
+        if (modalContainer) modalContainer.classList.add('hidden');
+
         try {
             switch(view) {
                 case 'home':
                     const posts = await this.services.data.getPosts();
-                    container.innerHTML = this.getHomeHTML(posts);
+                    container.innerHTML = this.getHomeHTML(Array.isArray(posts) ? posts : []);
                     break;
                 case 'vibestream':
                     const videos = await this.services.video.getVibeStream();
@@ -1201,6 +1206,7 @@ class VibeApp {
 
     // --- VIEW TEMPLATES ---
     getHomeHTML(posts, activeTab = 'vibeline') {
+        const safePosts = Array.isArray(posts) ? posts : [];
         const tabs = [
             { id: 'vibeline', label: 'Vibeline' },
             { id: 'trending', label: 'Trending' },
@@ -1216,7 +1222,7 @@ class VibeApp {
                 ${tabs.map(t => `<button class="tab ${activeTab === t.id ? 'active' : ''}" onclick="window.App.switchHomeTab('${t.id}')">${t.label}</button>`).join('')}
             </div>
             <div id="post-feed">
-                ${posts && posts.length > 0 ? posts.map(p => Components.post(p)).join('') : '<p class="text-dim" style="padding:30px; text-align:center;">No vibes yet. Be the first to post!</p>'}
+                ${safePosts.length > 0 ? safePosts.map(p => Components.post(p)).join('') : '<p class="text-dim" style="padding:30px; text-align:center;">No vibes yet. Be the first to post!</p>'}
             </div>
         `;
     }
@@ -1227,7 +1233,7 @@ class VibeApp {
             return;
         }
         const posts = await this.services.data.getPosts(tabId);
-        document.getElementById('view-container').innerHTML = this.getHomeHTML(posts, tabId);
+        document.getElementById('view-container').innerHTML = this.getHomeHTML(Array.isArray(posts) ? posts : [], tabId);
         this.attachViewEvents();
     }
 
