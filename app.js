@@ -1332,15 +1332,23 @@ class VibeApp {
                 <div class="profile-content">
                     <div class="profile-header">
                         <img src="${user.profilePhoto || 'https://i.pravatar.cc/150'}" class="profile-avatar" alt="${user.displayName || 'User'}">
-                        <div class="profile-info">
-                            <h1 class="view-title">${user.displayName || 'User'}</h1>
-                            <p class="handle">@${user.username || 'username'}</p>
-                            <p class="bio">${user.bio || ''}</p>
-                            <div class="profile-badges">
+                        <div class="profile-info" style="text-align:center;">
+                            <h1 class="view-title" style="margin-bottom:0;">${user.displayName || 'User'}</h1>
+                            <p class="handle" style="margin-top:2px;">@${user.username || 'username'}</p>
+                            <p class="bio" style="margin-top:10px;">${user.bio || 'Welcome to my Vibe.'}</p>
+                            
+                            ${user.songLink ? `
+                            <div style="margin-top:10px; display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.05); padding:6px 15px; border-radius:30px; border:1px solid var(--border-light);">
+                                <span>🎵</span>
+                                <a href="${user.songLink}" target="_blank" style="color:var(--accent-cyan); text-decoration:none; font-size:0.9rem; font-weight:600;">Vibe Track</a>
+                            </div>
+                            ` : ''}
+
+                            <div class="profile-badges" style="justify-content:center; margin-top:15px;">
                                 ${this.generateBadges(user)}
                             </div>
                         </div>
-                        ${isOwnProfile ? `<button class="btn-secondary" onclick="window.App.showEditProfileModal()" style="margin-left:auto;">Edit Profile</button>` : `<button class="btn-primary" onclick="window.App.showToast('Follow coming soon!')">Follow</button>`}
+                        ${isOwnProfile ? `<button class="btn-secondary" onclick="window.App.showEditProfileModal()" style="margin: 20px auto 0;">Edit Profile</button>` : `<button class="btn-primary" onclick="window.App.showToast('Follow coming soon!')">Follow</button>`}
                     </div>
                     <div class="profile-stats glass-panel">
                         <div class="stat-item"><span class="stat-value">${(user.followersCount || 0).toLocaleString()}</span><span class="stat-label">Followers</span></div>
@@ -1406,6 +1414,10 @@ class VibeApp {
                         <label style="color:var(--text-dim); font-size:0.8rem;">Banner URL</label>
                         <input type="text" id="edit-banner" class="login-input" value="${user.bannerImage || ''}" placeholder="https://..." style="width:100%;">
                     </div>
+                   <div>
+                        <label style="color:var(--text-dim); font-size:0.8rem;">Song Link (Spotify/Soundcloud/YouTube)</label>
+                        <input type="text" id="edit-song" class="login-input" value="${user.songLink || ''}" placeholder="https://..." style="width:100%;">
+                    </div>
                 </div>
                 <div style="display:flex; gap:10px; margin-top:20px;">
                     <button class="btn-secondary" onclick="document.getElementById('edit-profile-modal').remove()" style="flex:1;">Cancel</button>
@@ -1422,13 +1434,14 @@ class VibeApp {
         const bio = document.getElementById('edit-bio')?.value.trim();
         const profilePhoto = document.getElementById('edit-avatar')?.value.trim();
         const bannerImage = document.getElementById('edit-banner')?.value.trim();
+        const songLink = document.getElementById('edit-song')?.value.trim();
         
         if (!displayName || !username) {
             this.showToast('Display name and username are required', 'error');
             return;
         }
         
-        const updates = { displayName, username, bio, profilePhoto, bannerImage };
+        const updates = { displayName, username, bio, profilePhoto, bannerImage, songLink };
         
         // Update in AuthService
         await this.services.auth.updateProfile(updates);
