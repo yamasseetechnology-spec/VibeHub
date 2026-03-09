@@ -1516,9 +1516,9 @@ class VibeApp {
             { id: 'friends', label: 'Friends' }
         ];
         return `
-            <div class="view-header animate-fade">
-                <h1 class="view-title">The Pulse</h1>
-                <p class="text-dim" style="margin-top:8px;">Connect minds. Share vibes. Elevate consciousness.</p>
+            <div class="view-header animate-fade" style="text-align:center; padding-top: 10px; padding-bottom: 5px;">
+                <h1 class="view-title" style="background: linear-gradient(135deg, #9d50bb, #ff9f00); -webkit-background-clip: text; -webkit-text-fill-color: transparent; display: inline-block; font-size: 2.2rem; filter: drop-shadow(0px 0px 8px rgba(157,80,187,0.5)); margin-bottom: 5px;">The Pulse</h1>
+                <p class="text-dim" style="margin-top:0; font-weight: 500; font-size: 1.05rem; letter-spacing: 0.5px;">Connect minds. Share vibes. Elevate consciousness.</p>
             </div>
             <div class="tabs">
                 ${tabs.map(t => `<button class="tab ${activeTab === t.id ? 'active' : ''}" onclick="window.App.switchHomeTab('${t.id}')">${t.label}</button>`).join('')}
