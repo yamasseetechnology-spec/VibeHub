@@ -241,6 +241,11 @@
         <button class="fab-friends mobile-only" onclick="window.App.navigate('friends')" title="Friends">
             🤝
         </button>
+        
+        <!-- Floating Post Button (Mobile) -->
+        <button class="fab-post mobile-only" onclick="window.App.showCreatePostModal()" title="Create Post">
+            ✨
+        </button>
 
         <!-- Main Content Area -->
         <main id="content-area">
@@ -337,9 +342,9 @@
     }
     </script>
 
-    <!-- Clerk SDK (Disabled temporarily) -->
-    <!-- <script async src="https://cdn.clerk.com/v1/clerk.js?publishable_key=pk_test_Z29yZ2VvdXMtb2NlbG90LTg1LmNsZXJrLmFjY291bnRzLmRldiQ"></script> -->
-    <!-- <script>
+    <!-- Clerk SDK -->
+    <script async src="https://cdn.clerk.com/v1/clerk.js?publishable_key=pk_test_Z29yZ2VvdXMtb2NlbG90LTg1LmNsZXJrLmFjY291bnRzLmRldiQ"></script>
+    <script>
     (async function() {
         const waitForClerk = () => {
             return new Promise((resolve) => {
@@ -367,7 +372,7 @@
             }
         }
     })();
-    </script> -->
+    </script>
 
     <!-- Firebase SDK -->
     <script type="module">

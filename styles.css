@@ -1240,8 +1240,28 @@ body {
         font-size: 1.5rem;
         transition: transform 0.3s, box-shadow 0.3s;
     }
+
+    /* Floating Post Button - Bottom Right, above friends button */
+    .fab-post {
+        display: flex !important;
+        position: fixed;
+        bottom: 160px;
+        right: 20px;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent-cyan), var(--primary-purple));
+        border: none;
+        box-shadow: 0 4px 20px rgba(0, 242, 255, 0.5);
+        z-index: 500;
+        cursor: pointer;
+        justify-content: center;
+        align-items: center;
+        font-size: 1.5rem;
+        transition: transform 0.3s, box-shadow 0.3s;
+    }
     
-    .fab-friends:hover {
+    .fab-friends:hover, .fab-post:hover {
         transform: scale(1.1);
         box-shadow: 0 6px 30px rgba(157, 80, 187, 0.7);
     }
@@ -1281,8 +1301,8 @@ body {
     }
     
     #content-area {
-        padding: 15px;
-        padding-top: 80px;
+        padding: 10px;
+        padding-top: 60px; /* Reduced from 80px to fix spacing */
         margin-bottom: 80px;
     }
     
@@ -1991,5 +2011,24 @@ body {
 
 .nav-link[data-view="create"]:hover .icon {
     background: linear-gradient(135deg, rgba(255, 159, 0, 0.4), rgba(255, 107, 0, 0.4));
+}
+
+
+/* --- Mobile Profile Fix --- */
+@media (max-width: 600px) {
+    .profile-container {
+        padding: 10px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .profile-header {
+        padding: 20px 10px;
+    }
+    
+    .profile-stats {
+        gap: 20px;
+        padding: 15px 0;
+    }
 }
 
