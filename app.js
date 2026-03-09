@@ -129,9 +129,9 @@ class VibeApp {
             this.initializeLiveSub();
             
             this.showToast(`Welcome, ${e.detail.displayName}! ✨`);
-            // Small delay to ensure smooth transition and DOM stability
+            // Direct call to render home to ensure it loads immediately after login
             setTimeout(() => {
-                this.navigate('home');
+                this.navigate('home', true);
             }, 300);
         });
 
@@ -1010,7 +1010,8 @@ class VibeApp {
                 clearInterval(timerInterval);
                 const blob = new Blob(chunks, { type: 'audio/webm' });
                 this.showToast("Uploading audio...");
-                const audioUrl = await this.services.video.uploadMedia(blob, 'audio');
+                const result = await this.services.data.media.uploadVideo(blob); // MediaService handles audio/video as generic media via Cloudinary
+                const audioUrl = result?.url;
                 
                 await this.services.data.addComment(postId, {
                     userId: State.user?.username || 'guest',
@@ -1073,7 +1074,8 @@ class VibeApp {
                 clearInterval(timerInterval);
                 const blob = new Blob(chunks, { type: 'video/webm' });
                 this.showToast("Uploading video...");
-                const videoUrl = await this.services.video.uploadMedia(blob, 'video');
+                const result = await this.services.data.media.uploadVideo(blob);
+                const videoUrl = result?.url;
                 
                 await this.services.data.addComment(postId, {
                     userId: State.user?.username || 'guest',
@@ -1098,8 +1100,8 @@ class VibeApp {
         // No longer needed - login screen is the entry point
     }
 
-    navigate(view) {
-        if (State.currentView === view && window.location.hash === `#${view}`) return;
+    navigate(view, force = false) {
+        if (!force && State.currentView === view && window.location.hash === `#${view}`) return;
         
         history.pushState({ view }, "", `#${view}`);
         this.renderView(view);
@@ -1129,6 +1131,15 @@ class VibeApp {
             switch(view) {
                 case 'home':
                     const posts = await this.services.data.getPosts();
+                    if (!posts || posts.length === 0) {
+                        // Retry once for new users or slow loads
+                        setTimeout(async () => {
+                            const retryPosts = await this.services.data.getPosts();
+                            if (retryPosts && retryPosts.length > 0) {
+                                container.innerHTML = this.getHomeHTML(retryPosts);
+                            }
+                        }, 1000);
+                    }
                     container.innerHTML = this.getHomeHTML(Array.isArray(posts) ? posts : []);
                     break;
                 case 'vibestream':
@@ -1330,12 +1341,12 @@ class VibeApp {
 
     getVibeStreamHTML(videos, liveStreams = []) {
         return `
-            <div class="view-header vibestream-header" style="display:flex; justify-content:space-between; align-items:center; gap: 15px; flex-wrap: wrap;">
-                <div style="flex: 1; min-width: 200px;">
+            <div class="view-header vibestream-header" style="display:flex; justify-content:space-between; align-items:center; gap: 15px; flex-wrap: wrap; margin-bottom: 20px;">
+                <div style="flex: 1; min-width: 150px;">
                     <h1 class="view-title">VibeStream</h1>
-                    <p>Vertical vibes for the linked mind.</p>
+                    <p class="text-dim">Vertical vibes for the linked mind.</p>
                 </div>
-                <button class="btn-primary go-live-btn" onclick="window.App.goLive()">Go Live</button>
+                <button class="btn-primary go-live-btn" onclick="window.App.goLive()" style="white-space: nowrap; padding: 12px 25px;">Go Live</button>
             </div>
             
             <div class="live-now-section animate-fade" style="margin-bottom: 30px;">
@@ -1691,8 +1702,13 @@ class VibeApp {
         const modal = document.createElement('div');
         modal.className = 'modal-overlay animate-fade';
         modal.id = 'edit-profile-modal';
+        // Close on clicking outside the content
+        modal.onclick = (e) => {
+            if (e.target === modal) modal.remove();
+        };
+        
         modal.innerHTML = `
-            <div class="modal-content glass-panel" style="max-width:500px; margin:auto; max-height:90vh; overflow-y:auto; position:relative; padding:0; overflow:hidden;">
+            <div class="modal-content glass-panel" style="max-width:500px; width: 90%; margin:auto; max-height:85vh; overflow-y:auto; position:relative; padding:0; overflow-x:hidden; top: 10px;">
                 <!-- Banner Preview Area -->
                 <div class="edit-banner-preview" style="height:120px; position:relative; background:var(--bg-deep);">
                     <img id="preview-banner" src="${user.bannerImage || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200'}" style="width:100%; height:100%; object-fit:cover; opacity:0.6;">
@@ -1767,7 +1783,8 @@ class VibeApp {
 
         try {
             this.showToast(`Uploading ${type}...`);
-            const url = await this.services.video.uploadMedia(file, 'image');
+            const result = await this.services.data.media.uploadImage(file);
+            const url = result?.url;
             
             if (url) {
                 document.getElementById(hiddenInputId).value = url;

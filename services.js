@@ -32,25 +32,12 @@ function calculateUserBadges(userData) {
 // ============================================
 export class MediaService {
     constructor() {
-        this.cloudinaryConfig = window.CLOUDINARY_CONFIG || null;
-        this.imagekitConfig = window.IMAGEKIT_CONFIG || null;
-        this.cloudinaryReady = false;
-        this.imagekitReady = false;
+        this.cloudinaryConfig = window.CLOUDINARY_CONFIG || { cloudName: 'dg35zlppj' };
+        this.cloudinaryReady = !!window.cloudinary;
         this.init();
     }
 
     init() {
-        // Check if Cloudinary widget is loaded
-        if (window.cloudinary) {
-            this.cloudinaryReady = true;
-        }
-        
-        // Check if ImageKit is loaded
-        if (window.imagekit) {
-            this.imagekitReady = true;
-        }
-        
-        // Poll for Cloudinary if not ready
         if (!this.cloudinaryReady) {
             const checkCloudinary = setInterval(() => {
                 if (window.cloudinary) {
@@ -64,88 +51,52 @@ export class MediaService {
 
     async uploadImage(file) {
         if (!file) return null;
-        
-        console.log('Uploading image to ImageKit...');
+        console.log('Uploading image to Cloudinary...');
         
         try {
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('fileName', `vibehub_${Date.now()}_${file.name}`);
-            formData.append('publicKey', this.imagekitConfig?.publicKey || 'public_MImYpMzXVx4PGa/mecXw6V3tw90=');
+            formData.append('upload_preset', 'vibehub_images');
+            formData.append('cloud_name', this.cloudinaryConfig.cloudName);
             
-            const response = await fetch('https://upload.imagekit.io/api/v1/files/upload', {
+            const response = await fetch(`https://api.cloudinary.com/v1_1/${this.cloudinaryConfig.cloudName}/image/upload`, {
                 method: 'POST',
                 body: formData
             });
             
-            if (!response.ok) {
-                throw new Error('ImageKit upload failed');
-            }
+            if (!response.ok) throw new Error('Cloudinary image upload failed');
             
             const data = await response.json();
-            console.log('Image uploaded to ImageKit:', data);
+            console.log('Image uploaded to Cloudinary:', data);
             
             return {
-                url: data.url,
-                thumbnailUrl: data.thumbnailUrl || data.url,
-                fileId: data.fileId,
+                url: data.secure_url,
+                thumbnailUrl: data.secure_url.replace('/upload/', '/upload/w_400,c_fill/'),
+                fileId: data.public_id,
                 type: 'image'
             };
         } catch (error) {
-            console.error('ImageKit upload error:', error);
-            return await this.uploadImageFallback(file);
+            console.error('Cloudinary image upload error:', error);
+            return await this.createLocalPreview(file);
         }
-    }
-
-    async uploadImageFallback(file) {
-        console.log('Trying Cloudinary fallback for image...');
-        
-        return new Promise((resolve) => {
-            if (window.cloudinary && this.cloudinaryConfig) {
-                const uploadWidget = window.cloudinary.createUploadWidget({
-                    cloudName: this.cloudinaryConfig.cloudName,
-                    uploadPreset: 'vibehub_images',
-                    sources: ['local'],
-                    maxFileSize: 5000000
-                }, (error, result) => {
-                    if (!error && result && result.event === 'success') {
-                        resolve({
-                            url: result.info.secure_url,
-                            thumbnailUrl: result.info.secure_url,
-                            fileId: result.info.public_id,
-                            type: 'image'
-                        });
-                    } else if (error) {
-                        console.error('Cloudinary error:', error);
-                        resolve(this.createLocalPreview(file));
-                    }
-                });
-                uploadWidget.open();
-            } else {
-                resolve(this.createLocalPreview(file));
-            }
-        });
     }
 
     async uploadVideo(file) {
         if (!file) return null;
-        
         console.log('Uploading video to Cloudinary...');
         
         try {
             const formData = new FormData();
             formData.append('file', file);
             formData.append('upload_preset', 'vibehub_videos');
-            formData.append('cloud_name', this.cloudinaryConfig?.cloudName || 'dg35zlppj');
+            formData.append('cloud_name', this.cloudinaryConfig.cloudName);
             
-            const response = await fetch(`https://api.cloudinary.com/v1_1/${this.cloudinaryConfig?.cloudName || 'dg35zlppj'}/video/upload`, {
+            const response = await fetch(`https://api.cloudinary.com/v1_1/${this.cloudinaryConfig.cloudName}/video/upload`, {
                 method: 'POST',
                 body: formData
             });
             
-            if (!response.ok) {
-                throw new Error('Cloudinary upload failed');
-            }
+            if (!response.ok) throw new Error('Cloudinary video upload failed');
             
             const data = await response.json();
             console.log('Video uploaded to Cloudinary:', data);
@@ -159,13 +110,13 @@ export class MediaService {
             };
         } catch (error) {
             console.error('Cloudinary video upload error:', error);
-            return this.createLocalPreview(file);
+            return await this.createLocalPreview(file);
         }
     }
 
     createLocalPreview(file) {
-        const reader = new FileReader();
         return new Promise((resolve) => {
+            const reader = new FileReader();
             reader.onload = (e) => {
                 resolve({
                     url: e.target.result,
@@ -181,11 +132,11 @@ export class MediaService {
 
     getOptimizedImageUrl(url, width = 800) {
         if (!url) return '';
-        if (url.includes('ik.imagekit.io')) {
-            return `${url}?tr=w-${width},q-80,f-auto`;
-        }
         if (url.includes('cloudinary.com')) {
             return url.replace('/upload/', `/upload/w_${width},q_80,f_auto/`);
+        }
+        if (url.includes('ik.imagekit.io')) {
+            return `${url}?tr=w-${width},q-80,f-auto`;
         }
         return url;
     }
