@@ -32,27 +32,52 @@ class VibeApp {
     async init() {
         console.log("Vibehub Initializing...");
 
-        // Expose global reaction popup for components
-        window.triggerReactionPopup = this.triggerReactionPopup.bind(this);
+        try {
+            // Expose global reaction popup for components
+            window.triggerReactionPopup = this.triggerReactionPopup.bind(this);
 
-        // Global error handler
-        window.addEventListener('error', (e) => {
-            console.error('Global error:', e.error);
-        });
-        
-        window.addEventListener('unhandledrejection', (e) => {
-            console.error('Unhandled promise rejection:', e.reason);
-        });
+            // Global error handler
+            window.addEventListener('error', (e) => {
+                console.error('Global error:', e.error);
+            });
+            
+            window.addEventListener('unhandledrejection', (e) => {
+                console.error('Unhandled promise rejection:', e.reason);
+            });
 
-        // 1. Show loading screen
-        this.showLoadingScreen();
-        console.log("Loading screen shown.");
+            // 1. Show loading screen
+            this.showLoadingScreen();
+            console.log("Loading screen shown.");
 
-        // 2. Register Service Worker (with error handling)
-        if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
-            navigator.serviceWorker.register('./service-worker.js')
-                .catch(err => console.log("Service Worker registration failed:", err));
+            // 2. Register Service Worker (with error handling)
+            if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+                navigator.serviceWorker.register('./service-worker.js')
+                    .catch(err => console.log("Service Worker registration failed:", err));
+            }
+            console.log("Service worker step passed.");
+
+            // 3. Setup Routing & Event Listeners
+            this.setupEventListeners();
+            console.log("EventListeners setup passed.");
+
+            // 4. Initialize Clerk and setup listeners
+            console.log("Initializing Clerk...");
+            await this.services.auth.initClerk();
+            console.log("Clerk initialized.");
+            this.setupClerkListeners();
+            console.log("Clerk listeners setup.");
+
+        } catch (err) {
+            console.error("Initialization error:", err);
+            this.showToast("Loading failed, trying login anyway...", "error");
+        } finally {
+            // 5. After 0.5 seconds, execute transition
+            console.log("Executing transitionToLogin...");
+            setTimeout(() => {
+                this.transitionToLogin();
+            }, 500);
         }
+    }
         console.log("Service worker step passed.");
 
         // 3. Setup Routing & Event Listeners
@@ -728,7 +753,7 @@ class VibeApp {
             return '<p class="text-dim" style="text-align:center; padding:20px;">No comments yet. Be the first to vibe!</p>';
         }
         
-        return comments.map(c => {
+        return (comments || []).map(c => {
             let mediaContent = '';
             if (c.type === 'audio') {
                 mediaContent = `<div style="background:var(--bg-glass); padding:8px 15px; border-radius:50px; display:inline-flex; align-items:center; gap:10px; border:1px solid var(--primary-purple); cursor:pointer;"><span style="color:var(--accent-cyan);">▶</span> Audio Comment (0:0${Math.floor(Math.random()*5)+2})</div>`;
@@ -1715,7 +1740,7 @@ class VibeApp {
                 <p class="text-dim" style="margin-top:8px;">Viewing community feed.</p>
             </div>
             <div id="post-feed">
-                ${posts.length > 0 ? posts.map(p => Components.post(p)).join('') : '<p class="text-dim" style="padding:20px;">No vibes in this community yet.</p>'}
+                ${posts && posts.length > 0 ? posts.map(p => Components.post(p)).join('') : '<p class="text-dim" style="padding:20px;">No vibes in this community yet.</p>'}
             </div>
         `;
         this.attachViewEvents();
