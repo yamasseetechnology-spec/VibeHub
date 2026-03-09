@@ -410,19 +410,18 @@ export class AuthService {
             this.clerkInitialized = false;
         }
         
-        // Listen for session changes
+        // Listen for session changes (Clerk v6 API)
         if (this.clerk) {
-            this.clerk.addListener('sessionChanged', async (session) => {
+            this.clerk.addListener(({ session }) => {
                 if (session) {
-                    await this.handleClerkSession();
+                    this.handleClerkSession();
                 } else {
                     this.logout();
                 }
             });
             
             // Check existing session
-            const session = await this.clerk.session;
-            if (session) {
+            if (this.clerk.session) {
                 await this.handleClerkSession();
             }
         }
