@@ -1243,10 +1243,19 @@ body {
 
 .post-actions {
     display: flex;
-    gap: 12px;
+    gap: 6px;
     flex-wrap: wrap;
     align-items: center;
     margin-top: 15px;
+}
+
+.post-secondary-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-light);
 }
 
 /* --- Reactions & Actions --- */
@@ -1254,19 +1263,25 @@ body {
     background: var(--bg-glass);
     border: 1px solid var(--border-light);
     color: var(--text-dim);
-    padding: 6px 12px;
+    padding: 5px 10px;
     border-radius: 50px;
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     display: flex;
     align-items: center;
-    gap: 6px;
-    transition: all 0.2s;
+    gap: 4px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .reaction-btn:hover, .action-btn:hover {
     border-color: var(--primary-purple);
     color: var(--text-main);
+    transform: scale(1.08);
+    box-shadow: 0 0 12px rgba(157, 80, 187, 0.3);
+}
+
+.reaction-btn:active {
+    transform: scale(0.92);
 }
 
 .reaction-btn.active[data-type="cap"] { color: #f97316; border-color: #f97316; box-shadow: 0 0 10px rgba(249, 115, 22, 0.3); }
@@ -1768,14 +1783,30 @@ body {
 .reaction-pop {
     position: absolute;
     pointer-events: none;
-    font-size: 2rem;
-    animation: reactionFloat 0.8s ease-out forwards;
+    font-size: 2.5rem;
+    animation: reactionFloat 1.6s ease-out forwards;
     z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.floating-reaction-text {
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--primary-orange);
+    text-shadow: 0 0 10px rgba(255,157,0,0.8), 0 0 20px rgba(157,80,187,0.5);
+    white-space: nowrap;
 }
 
 @keyframes reactionFloat {
-    0% { transform: translateY(0) scale(0.5); opacity: 1; }
-    100% { transform: translateY(-100px) scale(1.5); opacity: 0; }
+    0% { transform: translateY(0) scale(0.3) rotate(-10deg); opacity: 1; filter: brightness(1); }
+    25% { transform: translateY(-50px) scale(2.2) rotate(5deg); opacity: 1; filter: brightness(1.6); }
+    50% { transform: translateY(-100px) scale(1.8) rotate(-3deg); opacity: 0.9; filter: brightness(1.3); }
+    100% { transform: translateY(-180px) scale(1.2) rotate(0deg); opacity: 0; filter: brightness(1); }
 }
 
 /* --- Sync Stream --- */

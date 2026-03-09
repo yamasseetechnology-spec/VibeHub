@@ -2898,10 +2898,30 @@ class VibeApp {
             this.showToast('Login to vibe!', 'info');
             return;
         }
+
+        // Spawn dramatic floating reaction animation
+        const emojiMap = { cap: '🧢', wild: '🤯', like: '👍', dislike: '👎', heat: '🔥', admire: '🙏' };
+        const labelMap = { cap: 'CAP!', wild: 'WILD!', like: 'LIKED!', dislike: 'NAH!', heat: 'HEAT!', admire: 'RESPECT!' };
+        const postCard = document.querySelector(`[data-id="${postId}"]`);
+        if (postCard) {
+            const btn = postCard.querySelector(`[data-type="${type}"]`);
+            const rect = btn ? btn.getBoundingClientRect() : postCard.getBoundingClientRect();
+            const floater = document.createElement('div');
+            floater.className = 'reaction-pop';
+            floater.innerHTML = `<span>${emojiMap[type] || '✨'}</span><span class="floating-reaction-text">${labelMap[type] || type.toUpperCase()}</span>`;
+            floater.style.left = `${rect.left + rect.width / 2 - 20 + (Math.random() * 40 - 20)}px`;
+            floater.style.top = `${rect.top + window.scrollY - 10}px`;
+            document.body.appendChild(floater);
+            setTimeout(() => floater.remove(), 1700);
+        }
+
         const result = await this.services.data.addReaction(postId, State.user.id, type);
         if (result.success) {
-            // Real-time update will happen via subscription, but we can optimistically update
-            this.showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} vibe sent! ✨`);
+            // Optimistically update the counter in the DOM
+            if (postCard) {
+                const btn = postCard.querySelector(`[data-type="${type}"] span`);
+                if (btn) btn.textContent = parseInt(btn.textContent || 0) + 1;
+            }
         }
     }
 

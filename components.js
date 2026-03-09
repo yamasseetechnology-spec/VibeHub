@@ -43,11 +43,16 @@ export const Components = {
                 ${p.vibeScore !== undefined ? `<div class="vibe-score-badge"><span>🧠</span><span class="score-value">${p.vibeScore}</span></div>` : ''}
                 
                 <div class="post-actions">
-                    <button class="reaction-btn main-react" data-type="heat" onclick="window.App.handleReaction('${p.id}', 'heat')">🔥 <span>${reactions.heat}</span></button>
+                    <button class="reaction-btn" data-type="cap" onclick="window.App.handleReaction('${p.id}', 'cap')">🧢 <span>${reactions.cap}</span></button>
+                    <button class="reaction-btn" data-type="wild" onclick="window.App.handleReaction('${p.id}', 'wild')">🤯 <span>${reactions.wild}</span></button>
+                    <button class="reaction-btn" data-type="like" onclick="window.App.handleReaction('${p.id}', 'like')">👍 <span>${reactions.like}</span></button>
+                    <button class="reaction-btn" data-type="dislike" onclick="window.App.handleReaction('${p.id}', 'dislike')">👎 <span>${reactions.dislike}</span></button>
+                    <button class="reaction-btn" data-type="heat" onclick="window.App.handleReaction('${p.id}', 'heat')">🔥 <span>${reactions.heat}</span></button>
+                    <button class="reaction-btn" data-type="admire" onclick="window.App.handleReaction('${p.id}', 'admire')">🙏 <span>${reactions.admire}</span></button>
+                </div>
+                <div class="post-secondary-actions">
                     <button class="action-btn action-comment" onclick="window.App.showCommentModal('${p.id || ''}')">💬 <span>${p.commentCount || 0}</span></button>
-                    <button class="action-btn" onclick="window.App.sharePost('${p.id}')">⤴️</button>
-                    <div class="reaction-divider"></div>
-                    <button class="reaction-btn more-vibes" onclick="window.App.toggleReactionPicker('${p.id}', event)">✨ <span>Vibe...</span></button>
+                    <button class="action-btn" onclick="window.App.sharePost('${p.id}')">⤴️ Share</button>
                 </div>
             </div>
         `;
