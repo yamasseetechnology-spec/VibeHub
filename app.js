@@ -78,18 +78,6 @@ class VibeApp {
             }, 500);
         }
     }
-        console.log("Service worker step passed.");
-
-        // 3. Setup Routing & Event Listeners
-        this.setupEventListeners();
-        console.log("EventListeners setup passed.");
-
-        // 4. Initialize Clerk and setup listeners
-        console.log("Initializing Clerk...");
-        await this.services.auth.initClerk();
-        console.log("Clerk initialized.");
-        this.setupClerkListeners();
-        console.log("Clerk listeners setup.");
 
         // 5. After 0.5 seconds, execute transition
         setTimeout(() => {

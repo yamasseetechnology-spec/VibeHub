@@ -1959,6 +1959,21 @@ class AdminService {
         await window.supabaseClient.from('banned_users').insert([{ user_id: userId }]);
         await window.supabaseClient.from('users').update({ banned: true }).eq('id', userId);
     }
+
+    async getDetailedStats() {
+        if (!window.supabaseClient) return this.getStats();
+
+        try {
+            const [usersCount, postsCount] = await Promise.all([
+                window.supabaseClient.from('users').select('id', { count: 'exact' }),
+                window.supabaseClient.from('posts').select('id', { count: 'exact' })
+            ]);
+            return { users: usersCount.count, activeNow: 0, postsToday: postsCount.count, revenue: '$0' };
+        } catch (e) {
+            return { users: 0, activeNow: 0, postsToday: 0, revenue: '$0' };
+        }
+    }
+}
 }
 
     async getDetailedStats() {
