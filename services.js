@@ -353,7 +353,7 @@ export class NotificationService {
 
     async notifyLike(postAuthor, likerName) {
         await this.sendLocalNotification(
-            'New Like! 💜',
+            'New Like! ðŸ’œ',
             `${likerName} liked your vibe!`,
             'https://i.ibb.co/Fqnj3JKp/1000001392.png'
         );
@@ -361,7 +361,7 @@ export class NotificationService {
 
     async notifyComment(postAuthor, commenterName, comment) {
         await this.sendLocalNotification(
-            'New Comment! 💬',
+            'New Comment! ðŸ’¬',
             `${commenterName}: ${comment.substring(0, 50)}...`,
             'https://i.ibb.co/Fqnj3JKp/1000001392.png'
         );
@@ -369,7 +369,7 @@ export class NotificationService {
 
     async notifyFollow(followerName, userName) {
         await this.sendLocalNotification(
-            'New Follower! ✨',
+            'New Follower! âœ¨',
             `${followerName} is now following you!`,
             'https://i.ibb.co/Fqnj3JKp/1000001392.png'
         );
@@ -399,7 +399,7 @@ export class AuthService {
         try {
             await this.clerk.load();
             this.clerkInitialized = true;
-            console.log('✅ Clerk initialized and ready');
+            console.log('âœ… Clerk initialized and ready');
             
             // Mount Clerk components
             const signInDiv = document.getElementById('sign-in');
@@ -792,7 +792,7 @@ export class DataService {
                 username: 'cyber_soul',
                 email: 'cyber@vibehub.com',
                 name: 'Cyber Soul',
-                bio: 'Neon dreams in a digital world. 🏙️✨',
+                bio: 'Neon dreams in a digital world. ðŸ™ï¸âœ¨',
                 avatar_url: 'https://i.pravatar.cc/150?u=vibehub2',
                 banner_url: 'https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=1200',
                 theme: 'cyan',
@@ -808,7 +808,7 @@ export class DataService {
                 username: 'future_ghost',
                 email: 'ghost@vibehub.com', 
                 name: 'Future Ghost',
-                bio: 'Is anyone else vibing on the new Sync Room features? ⚡',
+                bio: 'Is anyone else vibing on the new Sync Room features? âš¡',
                 avatar_url: 'https://i.pravatar.cc/150?u=vibehub3',
                 banner_url: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1200',
                 theme: 'pink',
@@ -830,7 +830,7 @@ export class DataService {
                 media_url: 'https://images.unsplash.com/photo-1633167606207-d840b5070fc2?w=800',
                 media_type: 'image',
                 tags: ['mindfulness', 'vibes'],
-                mood: '🧠',
+                mood: 'ðŸ§ ',
                 likes: ['u2', 'u3'],
                 dislikes: [],
                 reactions: { cap: ['u2'], relate: ['u3'], wild: ['u2'], facts: [] },
@@ -840,11 +840,11 @@ export class DataService {
                 user_id: 'u2',
                 username: 'cyber_soul', 
                 user_avatar: 'https://i.pravatar.cc/150?u=vibehub2',
-                text: 'Neon dreams in a digital world. The city never sleeps, and neither does the vibe. 🏙️✨ #neon',
+                text: 'Neon dreams in a digital world. The city never sleeps, and neither does the vibe. ðŸ™ï¸âœ¨ #neon',
                 media_url: '',
                 media_type: 'none',
                 tags: ['neon'],
-                mood: '🌃',
+                mood: 'ðŸŒƒ',
                 likes: ['u1'],
                 dislikes: [],
                 reactions: { cap: [], relate: ['u1'], wild: [], facts: [] },
@@ -854,11 +854,11 @@ export class DataService {
                 user_id: 'u3',
                 username: 'future_ghost',
                 user_avatar: 'https://i.pravatar.cc/150?u=vibehub3', 
-                text: "Is anyone else vibing on the new Sync Room features? The energy in there is unreal! ⚡💬",
+                text: "Is anyone else vibing on the new Sync Room features? The energy in there is unreal! âš¡ðŸ’¬",
                 media_url: '',
                 media_type: 'none',
                 tags: ['syncrooms'],
-                mood: '⚡',
+                mood: 'âš¡',
                 likes: ['u1', 'u2'],
                 dislikes: [],
                 reactions: { cap: ['u1'], relate: [], wild: ['u1', 'u2'], facts: ['u2'] },
@@ -875,22 +875,22 @@ export class DataService {
                     owner_id: 'u1',
                     name: 'Synthwave Lovers',
                     description: 'Retrofuturistic vibes only. Neon lights and dark horizons.',
-                    category: '🎵 Music',
-                    emoji_banner: '🌃',
+                    category: 'ðŸŽµ Music',
+                    emoji_banner: 'ðŸŒƒ',
                     subscribers: ['u1', 'u2', 'u3']
                 },
                 {
                     owner_id: 'u2', 
                     name: 'Deep Psychology',
                     description: 'Exploring the linked mind and consciousness.',
-                    category: '🧠 Science',
-                    emoji_banner: '🔮',
+                    category: 'ðŸ§  Science',
+                    emoji_banner: 'ðŸ”®',
                     subscribers: ['u1', 'u3']
                 }
             ];
 
             await window.supabaseClient.from('channels').insert(sampleChannels);
-            console.log('✅ Sample data loaded!');
+            console.log('âœ… Sample data loaded!');
         } catch (error) {
             console.error('Error loading sample data:', error);
         }
@@ -1025,6 +1025,14 @@ export class DataService {
             }
 
             let posts = this.mapPosts(data);
+
+            // Handle Trending Sort
+            if (tab === 'trending') {
+                posts = posts.map(p => ({
+                    ...p,
+                    vibeScore: this.calculateVibeScore(p)
+                })).sort((a, b) => (b.vibeScore || 0) - (a.vibeScore || 0));
+            }
 
             // Inject ads every 20 posts
             if (tab === 'vibeline') {
@@ -1776,7 +1784,7 @@ export class VideoService {
     async getVibeStream() {
         if (!window.supabaseClient) {
             return [
-                { id: 'v1', url: 'https://assets.mixkit.io/videos/preview/mixkit-digital-animation-of-a-blue-and-purple-energy-field-42994-large.mp4', user: 'visual_guru', caption: 'Frequency meditation 🌀' },
+                { id: 'v1', url: 'https://assets.mixkit.io/videos/preview/mixkit-digital-animation-of-a-blue-and-purple-energy-field-42994-large.mp4', user: 'visual_guru', caption: 'Frequency meditation ðŸŒ€' },
                 { id: 'v2', url: 'https://assets.mixkit.io/videos/preview/mixkit-abstract-laser-lights-background-34241-large.mp4', user: 'neon_artist', caption: 'Light show experiment #neon' }
             ];
         }
@@ -1823,6 +1831,62 @@ export class VideoService {
             console.error('Media upload failed:', e);
             return null;
         }
+    }
+
+    // --- LIVE STREAMING ---
+    async startLive(userId, username) {
+        if (!window.supabaseClient) return true;
+        try {
+            await window.supabaseClient
+                .from('live_streams')
+                .insert([{
+                    user_id: userId,
+                    username: username,
+                    status: 'online',
+                    started_at: new Date().toISOString()
+                }]);
+            return true;
+        } catch (e) {
+            console.error('Error starting live:', e);
+            return false;
+        }
+    }
+
+    async endLive(userId) {
+        if (!window.supabaseClient) return true;
+        try {
+            await window.supabaseClient
+                .from('live_streams')
+                .delete()
+                .eq('user_id', userId);
+            return true;
+        } catch (e) {
+            console.error('Error ending live:', e);
+            return false;
+        }
+    }
+
+    async getLiveStreams() {
+        if (!window.supabaseClient) return [];
+        try {
+            const { data } = await window.supabaseClient
+                .from('live_streams')
+                .select('*')
+                .eq('status', 'online');
+            return data || [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    subscribeToLiveStreams(callback) {
+        if (!window.supabaseClient) return null;
+        return window.supabaseClient
+            .channel('live_streams_changes')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'live_streams' }, (payload) => {
+                callback(payload);
+            })
+            .subscribe();
     }
 }
 
@@ -1930,10 +1994,18 @@ export class ChatService {
         if (!window.supabaseClient || !roomId) return;
 
         try {
-            await window.supabaseClient
+            const { data: room } = await window.supabaseClient
                 .from('rooms')
-                .update({ current_user_count: window.supabaseClient.raw('current_user_count - 1') })
-                .eq('id', roomId);
+                .select('current_user_count')
+                .eq('id', roomId)
+                .single();
+
+            if (room) {
+                await window.supabaseClient
+                    .from('rooms')
+                    .update({ current_user_count: Math.max(0, room.current_user_count - 1) })
+                    .eq('id', roomId);
+            }
         } catch (error) {
             console.error('Error leaving room:', error);
         }
@@ -1943,6 +2015,22 @@ export class ChatService {
             this.roomChannel.unsubscribe();
             this.roomChannel = null;
         }
+    }
+
+    subscribeToRoomUpdates(roomId, callback) {
+        if (!window.supabaseClient) return;
+
+        return window.supabaseClient
+            .channel(`room-updates-${roomId}`)
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'rooms',
+                filter: `id=eq.${roomId}`
+            }, (payload) => {
+                callback(payload.new);
+            })
+            .subscribe();
     }
 
     subscribeToRoomMessages(roomId, callback) {
@@ -1963,10 +2051,10 @@ export class ChatService {
         return this.roomChannel;
     }
 
-    async sendRoomMessage(roomId, userId, username, content) {
+    async sendRoomMessage(roomId, userId, username, content, type = 'text', messageId = null) {
         if (!window.supabaseClient) {
             // Mock message for demo
-            return { id: 'msg_' + Date.now(), room_id: roomId, username, content };
+            return { id: 'msg_' + Date.now(), room_id: roomId, username, content, type, message_id: messageId };
         }
 
         try {
@@ -1976,7 +2064,9 @@ export class ChatService {
                     room_id: roomId,
                     user_id: userId,
                     username: username,
-                    content: content
+                    content: content,
+                    type: type,
+                    message_id: messageId
                 }])
                 .select()
                 .single();
@@ -2128,6 +2218,37 @@ export class AdminService {
         } catch (e) {
             console.error('Error adding ad:', e);
             return { error: 'Failed to post ad' };
+        }
+    }
+
+    async reportContent(type, targetId, reporterId) {
+        if (!window.supabaseClient) return true;
+        try {
+            await window.supabaseClient
+                .from('reports')
+                .insert([{
+                    type,
+                    target_id: targetId,
+                    reporter_id: reporterId,
+                    status: 'pending'
+                }]);
+            return true;
+        } catch (error) {
+            console.error('Error reporting content:', error);
+            return false;
+        }
+    }
+
+    async getModerationQueue() {
+        if (!window.supabaseClient) return [];
+        try {
+            const { data } = await window.supabaseClient
+                .from('reports')
+                .select('*, users!inner(*)') 
+                .eq('status', 'pending');
+            return data || [];
+        } catch (e) {
+            return [];
         }
     }
 }

@@ -1,4 +1,4 @@
-:root {
+﻿:root {
     --primary-purple: #9d50bb;
     --primary-purple-bright: #c084fc;
     --primary-purple-glow: rgba(157, 80, 187, 0.6);
@@ -2174,3 +2174,120 @@ body {
     }
 }
 
+
+ / *   - - -   V i b e   R e s p o n s e   A n i m a t i o n s   - - -   * / 
+ @ k e y f r a m e s   v i b e - p u l s e   { 
+         0 %   {   b o x - s h a d o w :   0   0   0   0   v a r ( - - p r i m a r y - o r a n g e - g l o w ) ;   t r a n s f o r m :   s c a l e ( 1 ) ;   } 
+         5 0 %   {   b o x - s h a d o w :   0   0   2 0 p x   5 p x   v a r ( - - p r i m a r y - o r a n g e - g l o w ) ;   t r a n s f o r m :   s c a l e ( 1 . 0 2 ) ;   } 
+         1 0 0 %   {   b o x - s h a d o w :   0   0   0   0   v a r ( - - p r i m a r y - o r a n g e - g l o w ) ;   t r a n s f o r m :   s c a l e ( 1 ) ;   } 
+ } 
+ 
+ . v i b e - p u l s i n g   { 
+         a n i m a t i o n :   v i b e - p u l s e   1 . 5 s   i n f i n i t e   e a s e - i n - o u t ; 
+         b o r d e r - c o l o r :   v a r ( - - p r i m a r y - o r a n g e )   ! i m p o r t a n t ; 
+ } 
+ 
+ . v i b e - t h r e a d - i t e m   { 
+         b o r d e r - l e f t :   3 p x   s o l i d   v a r ( - - p r i m a r y - o r a n g e )   ! i m p o r t a n t ; 
+         p a d d i n g - l e f t :   1 5 p x   ! i m p o r t a n t ; 
+         b a c k g r o u n d :   r g b a ( 2 5 5 ,   1 5 7 ,   0 ,   0 . 0 3 )   ! i m p o r t a n t ; 
+ } 
+ 
+ . v i b e - m e d i a - t h u m b ,   . v i b e - a u d i o - t h u m b   { 
+         t r a n s i t i o n :   a l l   0 . 3 s   c u b i c - b e z i e r ( 0 . 1 7 5 ,   0 . 8 8 5 ,   0 . 3 2 ,   1 . 2 7 5 ) ; 
+         c u r s o r :   p o i n t e r ; 
+ } 
+ 
+
+/* --- VibeStream & Live Styling --- */
+.live-scroll-container::-webkit-scrollbar {
+    display: none;
+}
+
+.live-card {
+    min-width: 100px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+}
+
+.live-card:hover {
+    transform: translateY(-5px);
+    border-color: #ff9d00;
+    box-shadow: 0 5px 15px rgba(255, 126, 95, 0.2);
+}
+
+.live-avatar {
+    position: relative;
+    width: 60px;
+    height: 60px;
+}
+
+.live-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #ff9d00;
+}
+
+.live-tag {
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #ff007f;
+    color: white;
+    font-size: 0.6rem;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(255, 71, 126, 0.5);
+}
+
+.live-username {
+    font-size: 0.8rem;
+    font-weight: 500;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pulse-dot {
+    width: 8px;
+    height: 8px;
+    background: #ff4b2b;
+    border-radius: 50%;
+    box-shadow: 0 0 0 rgba(255, 75, 43, 0.4);
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 75, 43, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(255, 75, 43, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 75, 43, 0); }
+}
+
+@media (max-width: 768px) {
+    .vibestream-header {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: rgba(10, 10, 15, 0.9);
+        backdrop-filter: blur(10px);
+        padding: 10px 0;
+        margin-bottom: 20px;
+    }
+    
+    .go-live-btn {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+}

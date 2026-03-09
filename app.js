@@ -9,7 +9,7 @@ import { Components } from './components.js';
 // --- APP STATE ---
 const State = {
     user: null,
-    currentView: 'home',
+    currentView: null,
     posts: [],
     notifications: [],
     syncRooms: [],
@@ -77,19 +77,17 @@ class VibeApp {
             // Initialize Premium Header Effects
             this.initHeaderParticles();
 
-            // 3.5. Initialize Premium Header Effects
-            this.initHeaderParticles();
-
             // 4. Initialize Clerk and setup listeners
             console.log("Initializing Clerk...");
+            this.setupClerkListeners();
+            console.log("Clerk listeners setup.");
+
             // Wrap Clerk init in a timeout so it doesn't block the app if CDN fails
             await Promise.race([
                 this.services.auth.initClerk(),
                 new Promise(resolve => setTimeout(resolve, 3000))
             ]);
             console.log("Clerk initialization attempted.");
-            this.setupClerkListeners();
-            console.log("Clerk listeners setup.");
 
         } catch (err) {
             console.error("Initialization error:", err);
@@ -128,6 +126,7 @@ class VibeApp {
             
             // Enable real-time subscriptions
             this.enableRealTimeSubscriptions();
+            this.initializeLiveSub();
             
             this.showToast(`Welcome, ${e.detail.displayName}! ✨`);
             // Small delay to ensure smooth transition and DOM stability
@@ -143,6 +142,28 @@ class VibeApp {
             this.disableRealTimeSubscriptions();
             this.navigate('login');
             this.showToast('You have been logged out');
+        });
+    }
+
+    initializeLiveSub() {
+        if (!this.services.video) return;
+        this.services.video.subscribeToLiveStreams((payload) => {
+            if (State.currentView === 'vibestream') {
+                this.services.video.getLiveStreams().then(liveStreams => {
+                    const container = document.querySelector('.live-scroll-container');
+                    if (container) {
+                        container.innerHTML = liveStreams.length > 0 ? liveStreams.map(l => `
+                            <div class="live-card glass-panel" onclick="window.App.showToast('Joining ${l.username}\\'s stream...')">
+                                <div class="live-avatar">
+                                    <img src="https://i.pravatar.cc/150?u=${l.user_id}" alt="${l.username}">
+                                    <span class="live-tag">LIVE</span>
+                                </div>
+                                <span class="live-username">${l.username}</span>
+                            </div>
+                        `).join('') : '<p class="text-dim">No one is live yet.</p>';
+                    }
+                });
+            }
         });
     }
 
@@ -550,32 +571,39 @@ class VibeApp {
 
         const menu = document.createElement('div');
         menu.id = 'post-menu';
-        menu.className = 'glass-panel';
+        menu.className = 'glass-panel animate-scale';
         menu.style.cssText = 'position:absolute; right:20px; top:40px; padding:10px; z-index:100; display:flex; flex-direction:column; min-width:150px;';
         
         // Admin Options vs Standard User Options
         if (State.user && State.user.isSuperAdmin) {
             menu.innerHTML = `
-                <button class="menu-item text-main" style="border:none; background:transparent; padding:8px; text-align:left; cursor:pointer;" onclick="window.App.deletePost('${postId}')">Delete Post</button>
+                <button class="menu-item text-main" style="border:none; background:transparent; padding:8px; text-align:left; cursor:pointer;" onclick="window.App.deletePost('${postId}')">🗑️ Delete Post</button>
                 <div style="height:1px; background:var(--border-light); margin:4px 0;"></div>
-                <button class="menu-item text-main" style="border:none; background:transparent; padding:8px; text-align:left; cursor:pointer; color:var(--accent-pink);" onclick="window.App.removeUser('${postId}')">Remove User</button>
+                <button class="menu-item text-main" style="border:none; background:transparent; padding:8px; text-align:left; cursor:pointer; color:var(--accent-pink);" onclick="window.App.handleAdminBan('${postId}')">🚫 Ban User</button>
             `;
         } else {
             menu.innerHTML = `
-                <button class="menu-item text-main" style="border:none; background:transparent; padding:8px; text-align:left; cursor:pointer;" onclick="window.App.reportPost('${postId}')">Report Post</button>
+                <button class="menu-item text-main" style="border:none; background:transparent; padding:8px; text-align:left; cursor:pointer;" onclick="window.App.reportPost('${postId}')">🚩 Report Vibe</button>
             `;
         }
         
+        menu.innerHTML += `
+            <div style="height:1px; background:var(--border-light); margin:4px 0;"></div>
+            <button class="menu-item text-main" style="border:none; background:transparent; padding:8px; text-align:left; cursor:pointer;" onclick="window.App.copyPostLink('${postId}')">🔗 Copy Link</button>
+        `;
+
         post.appendChild(menu);
         
         // Close menu when clicking elsewhere
         setTimeout(() => {
-            document.addEventListener('click', (e) => {
-                if (e.target !== menu && !menu.contains(e.target)) {
+            const closeMenu = (e) => {
+                if (!menu.contains(e.target)) {
                     menu.remove();
+                    document.removeEventListener('mousedown', closeMenu);
                 }
-            }, {once: true});
-        }, 100);
+            };
+            document.addEventListener('mousedown', closeMenu);
+        }, 10);
     }
 
     reportPost(postId) {
@@ -860,20 +888,16 @@ class VibeApp {
         return comments.map(c => {
             let mediaContent = '';
             if (c.type === 'audio' && c.audioUrl) {
-                mediaContent = `<audio controls src="${c.audioUrl}" style="max-width:100%; height:36px;"></audio>`;
-            } else if (c.type === 'audio') {
-                mediaContent = `<div style="background:var(--bg-glass); padding:8px 15px; border-radius:50px; display:inline-flex; align-items:center; gap:10px; border:1px solid var(--primary-purple); cursor:pointer;"><span style="color:var(--accent-cyan);">▶</span> Audio Comment</div>`;
+                mediaContent = `<div class="vibe-audio-thumb" onclick="window.App.playVibe(this, '${c.audioUrl}', 'audio')">🎙️ Listen to Vibe</div>`;
             } else if (c.type === 'video' && c.videoUrl) {
-                mediaContent = `<video controls src="${c.videoUrl}" style="max-width:200px; border-radius:10px; border:1px solid var(--primary-orange);"></video>`;
-            } else if (c.type === 'video') {
-                mediaContent = `<div style="background:black; width:150px; height:80px; border-radius:10px; display:flex; align-items:center; justify-content:center; border:1px solid var(--primary-orange); cursor:pointer;"><span style="color:white; font-size:1.5rem;">▶</span></div>`;
+                mediaContent = `<video class="vibe-media-thumb" src="${c.videoUrl}" style="max-width:200px; border-radius:10px;" onclick="window.App.playVibe(this, '${c.videoUrl}', 'video')"></video>`;
             }
 
             const indent = Math.min(depth, 4) * 24;
             const repliesHTML = (c.replies && c.replies.length > 0) ? this.renderCommentsHTML(c.replies, depth + 1) : '';
 
             return `
-                <div class="comment-thread" style="margin-left:${indent}px; ${depth > 0 ? 'border-left:2px solid var(--border-purple); padding-left:12px;' : ''}">
+                <div class="comment-thread ${c.type !== 'text' ? 'vibe-thread-item' : ''}" style="margin-left:${indent}px; ${depth > 0 ? 'border-left:2px solid var(--border-purple); padding-left:12px;' : ''}">
                     <div class="comment" style="display:flex; gap:12px; margin-bottom:10px; animation: slideInRight 0.3s ease-out;">
                         <img src="${c.avatar || 'https://i.pravatar.cc/100?u=' + c.userId}" style="width:${depth > 0 ? '28px' : '36px'}; height:${depth > 0 ? '28px' : '36px'}; border-radius:50%; object-fit:cover; flex-shrink:0;">
                         <div class="comment-body" style="flex:1; min-width:0;">
@@ -956,15 +980,36 @@ class VibeApp {
     async startAudioComment(postId) {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="glass-panel" style="max-width:300px; margin:auto; padding:20px; text-align:center;">
+                    <h3 style="margin-bottom:10px;">Recording Audio...</h3>
+                    <div id="recording-timer" style="font-size:2rem; font-weight:bold; color:var(--primary-orange); margin:15px 0;">15</div>
+                    <div class="recording-pulse" style="width:50px; height:50px; background:var(--primary-orange); border-radius:50%; margin:auto; animation: pulse 1s infinite;"></div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
             const mediaRecorder = new MediaRecorder(stream);
             const chunks = [];
-
             mediaRecorder.ondataavailable = e => chunks.push(e.data);
+            
+            let timeLeft = 15;
+            const timerInterval = setInterval(() => {
+                timeLeft--;
+                const timerEl = document.getElementById('recording-timer');
+                if (timerEl) timerEl.innerText = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    if (mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+                }
+            }, 1000);
+
             mediaRecorder.onstop = async () => {
+                clearInterval(timerInterval);
                 const blob = new Blob(chunks, { type: 'audio/webm' });
                 this.showToast("Uploading audio...");
-                
-                // Simulate Cloudinary upload
                 const audioUrl = await this.services.video.uploadMedia(blob, 'audio');
                 
                 await this.services.data.addComment(postId, {
@@ -974,18 +1019,13 @@ class VibeApp {
                     audioUrl: audioUrl
                 });
                 
+                modal.remove();
+                stream.getTracks().forEach(track => track.stop());
                 this.showCommentModal(postId);
                 this.showToast("Audio comment posted! 🎤");
             };
 
             mediaRecorder.start();
-            this.showToast("Recording... (15s max)");
-            setTimeout(() => {
-                if (mediaRecorder.state !== 'inactive') {
-                    mediaRecorder.stop();
-                    stream.getTracks().forEach(track => track.stop());
-                }
-            }, 15000);
         } catch (err) {
             this.showToast("Audio recording failed: " + err.message, 'error');
         }
@@ -1000,12 +1040,14 @@ class VibeApp {
             video.muted = true;
             video.style.width = '100%';
             
-            // Show preview
             const modal = document.createElement('div');
             modal.className = 'modal-overlay';
             modal.innerHTML = `
                 <div class="glass-panel" style="max-width:400px; margin:auto; padding:20px;">
-                    <h3 style="margin-bottom:10px;">Recording Video...</h3>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <h3>Recording Video...</h3>
+                        <div id="video-timer" style="font-size:1.5rem; font-weight:bold; color:var(--primary-orange);">15</div>
+                    </div>
                     <div id="video-preview"></div>
                 </div>
             `;
@@ -1015,11 +1057,22 @@ class VibeApp {
             const mediaRecorder = new MediaRecorder(stream);
             const chunks = [];
             mediaRecorder.ondataavailable = e => chunks.push(e.data);
+            
+            let timeLeft = 15;
+            const timerInterval = setInterval(() => {
+                timeLeft--;
+                const timerEl = document.getElementById('video-timer');
+                if (timerEl) timerEl.innerText = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    if (mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+                }
+            }, 1000);
+
             mediaRecorder.onstop = async () => {
+                clearInterval(timerInterval);
                 const blob = new Blob(chunks, { type: 'video/webm' });
                 this.showToast("Uploading video...");
-                
-                // Simulate Cloudinary upload
                 const videoUrl = await this.services.video.uploadMedia(blob, 'video');
                 
                 await this.services.data.addComment(postId, {
@@ -1036,11 +1089,6 @@ class VibeApp {
             };
 
             mediaRecorder.start();
-            setTimeout(() => {
-                if (mediaRecorder.state !== 'inactive') {
-                    mediaRecorder.stop();
-                }
-            }, 15000);
         } catch (err) {
             this.showToast("Video recording failed: " + err.message, 'error');
         }
@@ -1085,7 +1133,8 @@ class VibeApp {
                     break;
                 case 'vibestream':
                     const videos = await this.services.video.getVibeStream();
-                    container.innerHTML = this.getVibeStreamHTML(videos);
+                    const liveStreams = await this.services.video.getLiveStreams();
+                    container.innerHTML = this.getVibeStreamHTML(videos, liveStreams);
                     break;
                 case 'syncrooms':
                     const rooms = await this.services.chat.getSyncRooms();
@@ -1113,6 +1162,12 @@ class VibeApp {
                     break;
                 case 'guidelines':
                     container.innerHTML = await this.getGuidelinesHTML();
+                    break;
+                case 'disclaimer':
+                    container.innerHTML = await this.getDisclaimerHTML();
+                    break;
+                case 'privacy':
+                    container.innerHTML = await this.getPrivacyHTML();
                     break;
                 case 'settings':
                     container.innerHTML = await this.getSettingsHTML();
@@ -1273,15 +1328,33 @@ class VibeApp {
         this.attachViewEvents();
     }
 
-    getVibeStreamHTML(videos) {
+    getVibeStreamHTML(videos, liveStreams = []) {
         return `
-            <div class="view-header" style="display:flex; justify-content:space-between; align-items:center;">
-                <div>
+            <div class="view-header vibestream-header" style="display:flex; justify-content:space-between; align-items:center; gap: 15px; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 200px;">
                     <h1 class="view-title">VibeStream</h1>
                     <p>Vertical vibes for the linked mind.</p>
                 </div>
-                <button class="btn-primary" onclick="window.App.goLive()">Go Live</button>
+                <button class="btn-primary go-live-btn" onclick="window.App.goLive()">Go Live</button>
             </div>
+            
+            <div class="live-now-section animate-fade" style="margin-bottom: 30px;">
+                <h3 style="margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                    <span class="pulse-dot"></span> Live Now
+                </h3>
+                <div class="live-scroll-container" style="display: flex; gap: 15px; overflow-x: auto; padding-bottom: 10px;">
+                    ${liveStreams.length > 0 ? liveStreams.map(l => `
+                        <div class="live-card glass-panel" onclick="window.App.showToast('Joining ${l.username}\\'s stream...')">
+                            <div class="live-avatar">
+                                <img src="https://i.pravatar.cc/150?u=${l.user_id}" alt="${l.username}">
+                                <span class="live-tag">LIVE</span>
+                            </div>
+                            <span class="live-username">${l.username}</span>
+                        </div>
+                    `).join('') : '<p class="text-dim">No one is live yet.</p>'}
+                </div>
+            </div>
+
             <div class="vibestream-container">
                 ${videos && videos.length > 0 ? videos.map(v => Components.video(v)).join('') : '<p class="text-dim" style="padding:30px; text-align:center;">No videos yet. Go live!</p>'}
             </div>
@@ -1398,13 +1471,23 @@ class VibeApp {
             }
         });
 
+        // Subscribe to realtime room updates (counts)
+        this.services.chat.subscribeToRoomUpdates(roomId, (room) => {
+            const countEl = document.querySelector('#active-chat-container .view-header h1 span');
+            if (countEl) countEl.innerText = ` (${room.current_user_count} / ${room.max_users})`;
+        });
+
         // Subscribe to realtime messages
         this.services.chat.subscribeToRoomMessages(roomId, (message) => {
-            this.appendChatMessage({
-                user: message.username,
-                text: message.content,
-                time: 'now'
-            });
+            if (message.type === 'reaction') {
+                this.appendChatReaction(message.message_id, message.content);
+            } else {
+                this.appendChatMessage({
+                    user: message.username,
+                    text: message.content,
+                    time: 'now'
+                });
+            }
         });
 
         // Also support BroadcastChannel for local multi-tab testing
@@ -1443,6 +1526,23 @@ class VibeApp {
         if (input) input.value = '';
     }
 
+    playVibe(el, url, type) {
+        // Remove pulsing from all other vibes
+        document.querySelectorAll('.vibe-pulsing').forEach(p => p.classList.remove('vibe-pulsing'));
+        
+        // Add pulse to this one
+        el.classList.add('vibe-pulsing');
+        
+        if (type === 'audio') {
+            const audio = new Audio(url);
+            audio.onended = () => el.classList.remove('vibe-pulsing');
+            audio.play();
+        } else {
+            el.play();
+            el.onended = () => el.classList.remove('vibe-pulsing');
+        }
+    }
+
     leaveSyncRoom() {
         document.getElementById('rooms-grid').classList.remove('hidden');
         document.getElementById('active-chat-container').classList.add('hidden');
@@ -1456,8 +1556,50 @@ class VibeApp {
 
     appendChatMessage(message) {
         const chat = document.getElementById('chat-messages');
-        chat.innerHTML += `<div style="margin-bottom:10px;"><strong>${message.user}:</strong> ${message.text} <span class="text-dim" style="font-size:0.7rem;">${message.time}</span></div>`;
+        const msgId = 'msg_' + Date.now();
+        chat.innerHTML += `
+            <div id="${msgId}" style="margin-bottom:10px; position:relative;">
+                <strong>${message.user}:</strong> ${message.text} 
+                <span class="text-dim" style="font-size:0.7rem;">${message.time}</span>
+                <div class="msg-reactions" style="display:flex; gap:5px; margin-top:4px;"></div>
+                <button onclick="window.App.showChatReactionPicker('${msgId}')" style="background:none; border:none; cursor:pointer; font-size:0.8rem; opacity:0.5;">+</button>
+            </div>`;
         chat.scrollTop = chat.scrollHeight;
+    }
+
+    showChatReactionPicker(msgId) {
+        const emojis = ['🔥', '😮', '💯', '🧢', '🙏', '😂'];
+        const picker = document.createElement('div');
+        picker.className = 'glass-panel reaction-picker';
+        picker.style.cssText = `position:fixed; padding:10px; display:flex; gap:10px; z-index:10000; top:50%; left:50%; transform:translate(-50%, -50%);`;
+        picker.innerHTML = emojis.map(e => `<span style="cursor:pointer; font-size:1.5rem;" onclick="window.App.sendChatReaction('${msgId}', '${e}')">${e}</span>`).join('');
+        document.body.appendChild(picker);
+        picker.onclick = (e) => { if(e.target === picker) picker.remove(); };
+        setTimeout(() => { document.addEventListener('click', function handler(event) { if(!picker.contains(event.target)) { picker.remove(); document.removeEventListener('click', handler); } }, true); }, 10);
+    }
+
+    async sendChatReaction(msgId, emoji) {
+        document.querySelector('.reaction-picker')?.remove();
+        await this.services.chat.sendRoomMessage(this.activeRoomId, State.user?.id, State.user?.username, emoji, 'reaction', msgId);
+    }
+
+    appendChatReaction(msgId, emoji) {
+        const msg = document.getElementById(msgId);
+        if (!msg) return;
+        const container = msg.querySelector('.msg-reactions');
+        const existing = Array.from(container.children).find(c => c.dataset.emoji === emoji);
+        if (existing) {
+            const count = parseInt(existing.dataset.count) + 1;
+            existing.dataset.count = count;
+            existing.innerText = `${emoji} ${count}`;
+        } else {
+            const el = document.createElement('span');
+            el.dataset.emoji = emoji;
+            el.dataset.count = 1;
+            el.innerText = `${emoji} 1`;
+            el.style.cssText = `background:rgba(255,255,255,0.1); padding:2px 6px; border-radius:10px; font-size:0.7rem;`;
+            container.appendChild(el);
+        }
     }
 
     async getProfileHTML(user, userPosts = []) {
@@ -1541,54 +1683,121 @@ class VibeApp {
             this.showToast('Please login first', 'error');
             return;
         }
+
+        // Clean up any existing edit modal
+        const existing = document.getElementById('edit-profile-modal');
+        if (existing) existing.remove();
         
         const modal = document.createElement('div');
-        modal.className = 'modal-overlay';
+        modal.className = 'modal-overlay animate-fade';
         modal.id = 'edit-profile-modal';
         modal.innerHTML = `
-            <div class="modal-content glass-panel" style="max-width:450px; margin:auto; max-height:90vh; overflow-y:auto;">
-                <h2 style="margin-bottom:20px;">Edit Profile</h2>
-                <div style="display:flex; flex-direction:column; gap:15px;">
-                    <div>
-                        <label style="color:var(--text-dim); font-size:0.8rem;">Display Name</label>
-                        <input type="text" id="edit-display-name" class="login-input" value="${user.displayName || ''}" style="width:100%;">
-                    </div>
-                    <div>
-                        <label style="color:var(--text-dim); font-size:0.8rem;">Username</label>
-                        <input type="text" id="edit-username" class="login-input" value="${user.username || ''}" style="width:100%;">
-                    </div>
-                    <div>
-                        <label style="color:var(--text-dim); font-size:0.8rem;">Bio</label>
-                        <textarea id="edit-bio" class="login-input" rows="3" style="width:100%; resize:none;">${user.bio || ''}</textarea>
-                    </div>
-                    <div>
-                        <label style="color:var(--text-dim); font-size:0.8rem;">Avatar URL</label>
-                        <input type="text" id="edit-avatar" class="login-input" value="${user.profilePhoto || ''}" placeholder="https://..." style="width:100%;">
-                    </div>
-                    <div>
-                        <label style="color:var(--text-dim); font-size:0.8rem;">Banner URL</label>
-                        <input type="text" id="edit-banner" class="login-input" value="${user.bannerImage || ''}" placeholder="https://..." style="width:100%;">
-                    </div>
-                   <div>
-                        <label style="color:var(--text-dim); font-size:0.8rem;">Song Link (Spotify/Soundcloud/YouTube)</label>
-                        <input type="text" id="edit-song" class="login-input" value="${user.songLink || ''}" placeholder="https://..." style="width:100%;">
+            <div class="modal-content glass-panel" style="max-width:500px; margin:auto; max-height:90vh; overflow-y:auto; position:relative; padding:0; overflow:hidden;">
+                <!-- Banner Preview Area -->
+                <div class="edit-banner-preview" style="height:120px; position:relative; background:var(--bg-deep);">
+                    <img id="preview-banner" src="${user.bannerImage || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200'}" style="width:100%; height:100%; object-fit:cover; opacity:0.6;">
+                    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);">
+                        <label class="btn-secondary" style="padding:5px 10px; font-size:0.7rem; cursor:pointer;">
+                            📸 Change Banner
+                            <input type="file" accept="image/*" style="display:none" onchange="window.App.handleProfileUpload(this, 'banner')">
+                        </label>
                     </div>
                 </div>
-                <div style="display:flex; gap:10px; margin-top:20px;">
-                    <button class="btn-secondary" onclick="document.getElementById('edit-profile-modal').remove()" style="flex:1;">Cancel</button>
-                    <button class="btn-primary" onclick="window.App.saveProfile()" style="flex:1;">Save</button>
+
+                <div style="padding:25px; position:relative; margin-top:-40px;">
+                    <!-- Avatar Upload Area -->
+                    <div style="position:relative; width:80px; height:80px; margin-bottom:20px;">
+                        <img id="preview-avatar" src="${user.profilePhoto || 'https://i.pravatar.cc/150'}" style="width:80px; height:80px; border-radius:50%; border:3px solid var(--primary-purple); object-fit:cover; background:var(--bg-deep);">
+                        <label style="position:absolute; bottom:0; right:0; background:var(--primary-purple); width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:0.7rem; box-shadow:0 0 10px rgba(0,0,0,0.5);">
+                            📷
+                            <input type="file" accept="image/*" style="display:none" onchange="window.App.handleProfileUpload(this, 'avatar')">
+                        </label>
+                    </div>
+
+                    <div style="display:flex; flex-direction:column; gap:15px;">
+                        <div class="input-group">
+                            <label style="color:var(--text-dim); font-size:0.75rem; display:block; margin-bottom:5px; text-transform:uppercase; letter-spacing:1px;">Display Name</label>
+                            <input type="text" id="edit-display-name" class="login-input" value="${user.displayName || ''}" style="width:100%; background:rgba(255,255,255,0.05);">
+                        </div>
+                        <div class="input-group">
+                            <label style="color:var(--text-dim); font-size:0.75rem; display:block; margin-bottom:5px; text-transform:uppercase; letter-spacing:1px;">Username</label>
+                            <input type="text" id="edit-username" class="login-input" value="${user.username || ''}" style="width:100%; background:rgba(255,255,255,0.05);">
+                        </div>
+                        <div class="input-group">
+                            <label style="color:var(--text-dim); font-size:0.75rem; display:block; margin-bottom:5px; text-transform:uppercase; letter-spacing:1px;">Neural Bio</label>
+                            <textarea id="edit-bio" class="login-input" rows="3" style="width:100%; resize:none; background:rgba(255,255,255,0.05);">${user.bio || ''}</textarea>
+                        </div>
+                        <div class="input-group">
+                            <label style="color:var(--text-dim); font-size:0.75rem; display:block; margin-bottom:5px; text-transform:uppercase; letter-spacing:1px;">Vibe Track (Link)</label>
+                            <input type="text" id="edit-song" class="login-input" value="${user.songLink || ''}" placeholder="Spotify/Soundcloud URL" style="width:100%; background:rgba(255,255,255,0.05);">
+                        </div>
+                    </div>
+
+                    <!-- Hidden inputs for uploaded URLs -->
+                    <input type="hidden" id="edit-avatar-url" value="${user.profilePhoto || ''}">
+                    <input type="hidden" id="edit-banner-url" value="${user.bannerImage || ''}">
+
+                    <div style="display:flex; gap:10px; margin-top:30px;">
+                        <button class="btn-secondary" onclick="document.getElementById('edit-profile-modal').remove()" style="flex:1;">Cancel</button>
+                        <button class="btn-primary" id="save-profile-btn" onclick="window.App.saveProfile()" style="flex:1;">Sync Profile</button>
+                    </div>
                 </div>
             </div>
         `;
         document.body.appendChild(modal);
     }
 
+    async handleProfileUpload(input, type) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const previewId = type === 'avatar' ? 'preview-avatar' : 'preview-banner';
+        const hiddenInputId = type === 'avatar' ? 'edit-avatar-url' : 'edit-banner-url';
+        const previewImg = document.getElementById(previewId);
+        const saveBtn = document.getElementById('save-profile-btn');
+
+        if (previewImg) {
+            previewImg.style.opacity = '0.5';
+            previewImg.style.filter = 'grayscale(1)';
+        }
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerText = 'Uploading...';
+        }
+
+        try {
+            this.showToast(`Uploading ${type}...`);
+            const url = await this.services.video.uploadMedia(file, 'image');
+            
+            if (url) {
+                document.getElementById(hiddenInputId).value = url;
+                if (previewImg) {
+                    previewImg.src = url;
+                    previewImg.style.opacity = '1';
+                    previewImg.style.filter = 'none';
+                }
+                this.showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} uploaded! ✨`);
+            }
+        } catch (err) {
+            this.showToast(`Upload failed: ${err.message}`, 'error');
+            if (previewImg) {
+                previewImg.style.opacity = '1';
+                previewImg.style.filter = 'none';
+            }
+        } finally {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerText = 'Sync Profile';
+            }
+        }
+    }
+
     async saveProfile() {
         const displayName = document.getElementById('edit-display-name')?.value.trim();
         const username = document.getElementById('edit-username')?.value.trim();
         const bio = document.getElementById('edit-bio')?.value.trim();
-        const profilePhoto = document.getElementById('edit-avatar')?.value.trim();
-        const bannerImage = document.getElementById('edit-banner')?.value.trim();
+        const profilePhoto = document.getElementById('edit-avatar-url')?.value.trim();
+        const bannerImage = document.getElementById('edit-banner-url')?.value.trim();
         const songLink = document.getElementById('edit-song')?.value.trim();
         
         if (!displayName || !username) {
@@ -1596,16 +1805,43 @@ class VibeApp {
             return;
         }
         
-        const updates = { displayName, username, bio, profilePhoto, bannerImage, songLink };
+        const updates = { 
+            displayName, 
+            username, 
+            bio, 
+            profilePhoto, 
+            bannerImage, 
+            songLink 
+        };
         
-        // Update in AuthService
-        await this.services.auth.updateProfile(updates);
-        
-        // Update local state
-        State.user = { ...State.user, ...updates };
-        
-        this.showToast('Profile updated! ✨');
-        document.getElementById('edit-profile-modal')?.remove();
+        const saveBtn = document.getElementById('save-profile-btn');
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerText = 'Saving...';
+        }
+
+        try {
+            // Update in AuthService (Supabase + Clerk)
+            await this.services.auth.updateProfile(updates);
+            
+            // Update local state
+            State.user = { ...State.user, ...updates };
+            
+            this.showToast('Profile synced with the cloud! ✨');
+            document.getElementById('edit-profile-modal')?.remove();
+            
+            // Refresh view if on profile
+            if (State.currentView === 'profile') {
+                this.renderView('profile');
+            }
+        } catch (err) {
+            this.showToast('Failed to save profile: ' + err.message, 'error');
+        } finally {
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerText = 'Sync Profile';
+            }
+        }
         this.navigate('profile');
     }
 
@@ -2212,15 +2448,81 @@ class VibeApp {
         `;
     }
 
+    getDisclaimerHTML() {
+        return `
+            <div class="view-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <h1 class="view-title">Disclaimer</h1>
+                <button class="btn-secondary" onclick="window.App.navigate('home')">← Back</button>
+            </div>
+            <div class="glass-panel" style="padding:25px; margin-top:20px; line-height:1.6;">
+                <p>VibeHub is a real-time interaction platform. We do not endorse or take responsibility for content posted by users.</p>
+                <p style="margin-top:15px;">Your psychological safety is your own. Use the reporting tools if you encounter disruptive energy.</p>
+                <p style="margin-top:15px;">Features like Sync Rooms and VibeStream rely on live data streams. We are not liable for any data loss or connection interruptions.</p>
+            </div>
+        `;
+    }
+
+    getPrivacyHTML() {
+        return `
+            <div class="view-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <h1 class="view-title">Privacy Policy</h1>
+                <button class="btn-secondary" onclick="window.App.navigate('home')">← Back</button>
+            </div>
+            <div class="glass-panel" style="padding:25px; margin-top:20px; line-height:1.6;">
+                <p><strong>Data Linking:</strong> We collect your interaction history (reactions, boosts) to optimize your vibe match and trending visibility.</p>
+                <p style="margin-top:15px;"><strong>Media Storage:</strong> Live recorded audio and video responses are stored securely and associated with your link profile.</p>
+                <p style="margin-top:15px;"><strong>Third Parties:</strong> We use Supabase and Clerk for identity and data integrity. Your data is never sold to outside advertising entities.</p>
+            </div>
+        `;
+    }
+
     async goLive() {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        const videoElement = document.createElement('video');
-        videoElement.srcObject = stream;
-        videoElement.autoplay = true;
-        videoElement.muted = true;
-        videoElement.className = 'vibe-video-card';
-        document.getElementById('view-container').appendChild(videoElement);
-        this.showToast('You are live!');
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            const userId = State.user?.id;
+            const username = State.user?.username || 'user';
+
+            if (!userId) {
+                this.showToast('Please login to go live.');
+                return;
+            }
+
+            const success = await this.services.video.startLive(userId, username);
+            if (!success) {
+                this.showToast('Failed to start live stream.');
+                return;
+            }
+
+            // Implementation of local preview and "End Live" button
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay live-preview-modal';
+            modal.innerHTML = `
+                <div class="glass-panel" style="padding: 20px; position: relative; max-width: 500px; width: 90%;">
+                    <h2 style="margin-bottom: 15px;">You are LIVE!</h2>
+                    <video id="local-live-preview" autoplay muted class="vibe-video-card" style="width: 100%; border-radius: var(--radius-md);"></video>
+                    <div style="display: flex; justify-content: center; margin-top: 20px;">
+                        <button class="btn-primary" style="background: var(--accent-pink);" id="end-live-btn">End Live</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            const videoElement = modal.querySelector('#local-live-preview');
+            videoElement.srcObject = stream;
+
+            modal.querySelector('#end-live-btn').onclick = async () => {
+                await this.services.video.endLive(userId);
+                stream.getTracks().forEach(track => track.stop());
+                modal.remove();
+                this.showToast('Live stream ended.');
+                this.navigate('vibestream');
+            };
+
+            this.showToast('You are live!');
+        } catch (err) {
+            console.error('Camera error:', err);
+            this.showToast('Could not access camera/mic.', 'error');
+        }
     }
 
 
