@@ -391,7 +391,7 @@ class AuthService {
             return new Promise((resolve) => {
                 const startTime = Date.now();
                 const check = () => {
-                    if (window.clerk && window.clerkReady) {
+                    if (window.Clerk && window.Clerk.isReady()) {
                         resolve(true);
                     } else if (Date.now() - startTime > 5000) {
                         console.warn('Clerk SDK took too long to initialize, proceeding anyway.');
@@ -406,8 +406,15 @@ class AuthService {
 
         const initialized = await waitForClerk();
         if (initialized) {
-            this.clerk = window.clerk;
+            this.clerk = window.Clerk;
             this.clerkInitialized = true;
+            
+            // Mount Clerk components
+            const signInDiv = document.getElementById('sign-in');
+            if (signInDiv) this.clerk.mountSignIn(signInDiv);
+            
+            const signUpDiv = document.getElementById('sign-up');
+            if (signUpDiv) this.clerk.mountSignUp(signUpDiv);
         } else {
             console.warn('Clerk initialization failed or timed out. Authentication via Clerk will be disabled.');
             this.clerkInitialized = false;
