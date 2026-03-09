@@ -1042,7 +1042,7 @@ export class DataService {
 
             // Inject ads every 20 posts
             if (tab === 'vibeline') {
-                const ads = await this.getAds();
+                const ads = typeof this.getAds === 'function' ? await this.getAds() : [];
                 if (ads.length > 0) {
                     const result = [];
                     posts.forEach((post, index) => {
