@@ -199,9 +199,105 @@ CREATE INDEX IF NOT EXISTS idx_post_reactions_post_id ON post_reactions(post_id)
 CREATE INDEX IF NOT EXISTS idx_reported_posts_status ON reported_posts(status);
 
 -- ============================================
--- SEED ADS (Placeholder)
+-- ADD IS_SPONSORED TO POSTS
 -- ============================================
-INSERT INTO ads (image_url, target_url, title, is_active) VALUES
-('https://images.unsplash.com/photo-1557683316-973673baf926?w=600', '#', 'Your Ad Here', true),
-('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600', '#', 'Promote Your Vibe', true)
-ON CONFLICT DO NOTHING;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_sponsored BOOLEAN DEFAULT false;
+
+-- ============================================
+-- ADS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS ads (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    content TEXT,
+    media_url TEXT,
+    media_type TEXT,
+    link_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ============================================
+-- ENABLE REALTIME
+-- ============================================
+ALTER PUBLICATION supabase_realtime ADD TABLE rooms;
+ALTER PUBLICATION supabase_realtime ADD TABLE room_messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE communities;
+ALTER PUBLICATION supabase_realtime ADD TABLE post_reactions;
+ALTER PUBLICATION supabase_realtime ADD TABLE ads;
+
+-- ============================================
+-- AUTO-DELETE ROOMS AFTER 24 HOURS (Trigger)
+-- ============================================
+CREATE OR REPLACE FUNCTION cleanup_expired_rooms()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM rooms WHERE expires_at < now();
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================
+-- HELPER FUNCTIONS
+-- ============================================
+
+-- Increment community member count
+CREATE OR REPLACE FUNCTION increment_community_members(community_id uuid)
+RETURNS void AS $$
+BEGIN
+    UPDATE communities 
+    SET member_count = member_count + 1 
+    WHERE id = community_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Join room function (with 125 user limit check)
+CREATE OR REPLACE FUNCTION join_room(room_uuid uuid)
+RETURNS boolean AS $$
+DECLARE
+    current_count INT;
+    max_limit INT;
+BEGIN
+    SELECT current_user_count, max_users INTO current_count, max_limit 
+    FROM rooms WHERE id = room_uuid;
+    
+    IF current_count IS NULL THEN
+        RETURN false;
+    END IF;
+    
+    IF current_count < max_limit THEN
+        UPDATE rooms SET current_user_count = current_count + 1 WHERE id = room_uuid;
+        RETURN true;
+    ELSE
+        RETURN false;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Leave room function
+CREATE OR REPLACE FUNCTION leave_room(room_uuid uuid)
+RETURNS void AS $$
+BEGIN
+    UPDATE rooms 
+    SET current_user_count = GREATEST(0, current_user_count - 1) 
+    WHERE id = room_uuid;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================
+-- ROW LEVEL SECURITY (Optional - enable as needed)
+-- ============================================
+-- ALTER TABLE rooms ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE room_messages ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE communities ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE friends ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE post_reactions ENABLE ROW LEVEL SECURITY;
+
+-- ============================================
+-- INDEXES FOR PERFORMANCE
+-- ============================================
+CREATE INDEX IF NOT EXISTS idx_room_messages_room_id ON room_messages(room_id);
+CREATE INDEX IF NOT EXISTS idx_room_messages_created_at ON room_messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_expires_at ON posts(expires_at);
+CREATE INDEX IF NOT EXISTS idx_communities_created_at ON communities(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_friends_user_id ON friends(user_id);
+CREATE INDEX IF NOT EXISTS idx_post_reactions_post_id ON post_reactions(post_id);
+CREATE INDEX IF NOT EXISTS idx_reported_posts_status ON reported_posts(status);
+

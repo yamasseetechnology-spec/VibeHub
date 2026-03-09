@@ -997,8 +997,9 @@ class DataService {
                 return [];
             }
 
+            let posts = [];
             if (data) {
-                const transformedPosts = data.map(post => ({
+                posts = data.map(post => ({
                     id: post.id,
                     userId: post.user_id,
                     displayName: post.username,
@@ -1008,44 +1009,46 @@ class DataService {
                     media: post.media_url,
                     mediaType: post.media_type,
                     type: post.media_type === 'none' ? 'text' : post.media_type,
-                    engagement: (post.likes?.length || 0) + (post.reactions?.cap?.length || 0),
                     reactions: {
                         like: post.likes?.length || 0,
-                        heat: post.reactions?.wild?.length || 0,
+                        heat: post.reactions?.heat?.length || 0,
                         wild: post.reactions?.wild?.length || 0,
                         cap: post.reactions?.cap?.length || 0,
                         admire: post.reactions?.relate?.length || 0,
                         dislike: post.dislikes?.length || 0
                     },
-                    likes: post.likes || [],
-                    dislikes: post.dislikes || [],
-                    postReactions: post.reactions || { cap: [], relate: [], wild: [], facts: [] },
-                    comments: [],
-                    commentCount: post.comment_count || 0,
-                    timestamp: this.formatTimestamp(post.created_at),
-                    isSponsored: false,
-                    tab: 'all',
-                    createdAt: post.created_at
+                    isSponsored: post.is_sponsored
                 }));
-
-                transformedPosts.forEach(post => {
-                    post.vibeScore = this.calculateVibeScore(post);
-                });
-
-                if (tab === 'trending') {
-                    return transformedPosts
-                        .filter(p => p.tab === 'trending' || p.isSponsored)
-                        .sort((a, b) => b.vibeScore - a.vibeScore);
-                }
-                if (tab === 'we-vibin') {
-                    return transformedPosts.filter(p => p.tab === 'we-vibin' || p.isSponsored);
-                }
-                
-                await this.cache.cachePosts(cacheKey, transformedPosts, 30);
-                return transformedPosts;
             }
 
-            return [];
+            // Inject ads every 20 posts
+            if (tab === 'vibeline') {
+                const ads = await this.getAds();
+                if (ads.length > 0) {
+                    const result = [];
+                    posts.forEach((post, index) => {
+                        result.push(post);
+                        if ((index + 1) % 20 === 0) {
+                            const ad = ads[(index / 20) % ads.length];
+                            result.push({
+                                id: ad.id,
+                                isSponsored: true,
+                                content: ad.content,
+                                media: ad.media_url,
+                                mediaType: ad.media_type,
+                                displayName: 'Sponsored',
+                                handle: 'ad',
+                                avatar: 'https://i.pravatar.cc/150?u=ad',
+                                reactions: { like: 0, dislike: 0, heat: 0, admire: 0, cap: 0, wild: 0 }
+                            });
+                        }
+                    });
+                    posts = result;
+                }
+            }
+
+            await this.cache.cachePosts(cacheKey, posts);
+            return posts;
         } catch (error) {
             console.error('Error fetching posts:', error);
             return [];
@@ -1523,6 +1526,40 @@ class DataService {
             console.error('Error fetching friends posts:', error);
             return [];
         }
+    }
+
+    async createAdPost(content, mediaUrl, mediaType, linkUrl) {
+        if (!window.supabaseClient) return null;
+
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('ads')
+                .insert([{
+                    content,
+                    media_url: mediaUrl,
+                    media_type: mediaType,
+                    link_url: linkUrl
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            console.error('Error creating ad:', error);
+            return null;
+        }
+    }
+
+    async getAds() {
+        if (!window.supabaseClient) return [];
+        try {
+            const { data } = await window.supabaseClient
+                .from('ads')
+                .select('*')
+                .order('created_at', { ascending: false });
+            return data || [];
+        } catch (e) { return []; }
     }
 
     async getMarketplace() {

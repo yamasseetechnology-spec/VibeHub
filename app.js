@@ -2013,8 +2013,37 @@ class VibeApp {
                 <div style="margin-top:20px; display:flex; flex-direction:column; gap:10px;">
                     <button class="btn-secondary" onclick="window.App.showToast('Moderation Tool Active: Delete Posts/Users')">Manage Users & Posts</button>
                 </div>
+
+                <h3 style="margin-top:30px;">Post Sponsored Ad</h3>
+                <div style="margin-top:15px; display:flex; flex-direction:column; gap:10px;">
+                    <textarea id="ad-content" class="login-input" placeholder="Ad Content"></textarea>
+                    <input type="text" id="ad-media" class="login-input" placeholder="Media URL">
+                    <input type="text" id="ad-link" class="login-input" placeholder="Target Link URL">
+                    <button class="btn-primary" onclick="window.App.submitAdPost()">Post Sponsored Ad</button>
+                </div>
             </div>
         `;
+    }
+
+    async submitAdPost() {
+        const content = document.getElementById('ad-content')?.value.trim();
+        const mediaUrl = document.getElementById('ad-media')?.value.trim();
+        const linkUrl = document.getElementById('ad-link')?.value.trim();
+        
+        if (!content) {
+            this.showToast('Content is required', 'error');
+            return;
+        }
+
+        const ad = await this.services.data.createAdPost(content, mediaUrl, 'image', linkUrl);
+        if (ad) {
+            this.showToast('Ad posted to timeline! 🎉');
+            document.getElementById('ad-content').value = '';
+            document.getElementById('ad-media').value = '';
+            document.getElementById('ad-link').value = '';
+        } else {
+            this.showToast('Failed to post ad', 'error');
+        }
     }
 
     showToast(msg, type = 'info') {
