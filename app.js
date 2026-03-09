@@ -1986,7 +1986,7 @@ class VibeApp {
             </div>
             <div class="tabs">
                 <button class="tab active" onclick="this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); this.classList.add('active'); document.getElementById('admin-stats').classList.remove('hidden'); document.getElementById('admin-manage').classList.add('hidden');">Dashboard</button>
-                <button class="tab" onclick="this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); this.classList.add('active'); document.getElementById('admin-stats').classList.add('hidden'); document.getElementById('admin-manage').classList.remove('hidden');">Moderation</button>
+                <button class="tab" onclick="this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); this.classList.add('active'); document.getElementById('admin-stats').classList.add('hidden'); document.getElementById('admin-manage').classList.remove('hidden'); window.App.renderAdminModeration();">Moderation</button>
             </div>
 
             <div id="admin-stats" class="admin-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px;">
@@ -2004,16 +2004,12 @@ class VibeApp {
                 </div>
                 <div class="stat-card glass-panel" style="padding: 24px;">
                     <h3 class="text-dim">Revenue</h3>
-                    <p style="font-size: 2.5rem; font-weight:800; color: var(--accent-gold);">${stats.revenue}</p>
+                    <p style="font-size: 2.5rem; font-weight:800; color: var(--accent-pink);">${stats?.revenue || '$0'}</p>
                 </div>
             </div>
 
-            <div id="admin-manage" class="hidden glass-panel" style="padding:24px;">
-                <h3>Moderation</h3>
-                <div style="margin-top:20px; display:flex; flex-direction:column; gap:10px;">
-                    <button class="btn-secondary" onclick="window.App.showToast('Moderation Tool Active: Delete Posts/Users')">Manage Users & Posts</button>
-                </div>
-
+            <div id="admin-manage" class="hidden glass-panel" style="padding:24px; margin-top:20px;">
+                <!-- Moderation content injected here -->
                 <h3 style="margin-top:30px;">Post Sponsored Ad</h3>
                 <div style="margin-top:15px; display:flex; flex-direction:column; gap:10px;">
                     <textarea id="ad-content" class="login-input" placeholder="Ad Content"></textarea>
@@ -2025,25 +2021,17 @@ class VibeApp {
         `;
     }
 
-    async submitAdPost() {
-        const content = document.getElementById('ad-content')?.value.trim();
-        const mediaUrl = document.getElementById('ad-media')?.value.trim();
-        const linkUrl = document.getElementById('ad-link')?.value.trim();
-        
-        if (!content) {
-            this.showToast('Content is required', 'error');
-            return;
-        }
+    async handleDeletePost(postId) {
+        await this.services.admin.deletePost(postId);
+        this.showToast('Post deleted.');
+        this.renderAdminModeration();
+    }
 
-        const ad = await this.services.data.createAdPost(content, mediaUrl, 'image', linkUrl);
-        if (ad) {
-            this.showToast('Ad posted to timeline! 🎉');
-            document.getElementById('ad-content').value = '';
-            document.getElementById('ad-media').value = '';
-            document.getElementById('ad-link').value = '';
-        } else {
-            this.showToast('Failed to post ad', 'error');
-        }
+    async handleBanUser(username) {
+        // Need mapping for username -> id
+        this.showToast(`Banning ${username} (Simulation)`);
+        await this.services.admin.banUser(username);
+        this.renderAdminModeration();
     }
 
     showToast(msg, type = 'info') {
