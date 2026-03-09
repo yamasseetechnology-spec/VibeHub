@@ -565,12 +565,26 @@ export class AuthService {
                 firstName: name
             });
             
-            await this.clerk.setActive({ session: signUp.createdSessionId });
-            // handleClerkSession will be called by Clerk listener
-            return { success: true };
+            if (signUp.status === 'complete') {
+                await this.clerk.setActive({ session: signUp.createdSessionId });
+                return { success: true };
+            } else {
+                // If verification is required (e.g. email code)
+                console.log('Sign up status:', signUp.status);
+                // For now, if not complete, we might need a verification view, 
+                // but usually Clerk accounts are set to auto-complete or email-verify.
+                // If it's not complete, we can't setActive yet.
+                return { error: `Account requires ${signUp.status}. Please check your email or contact support.` };
+            }
         } catch (error) {
             console.error('Custom sign up error:', error);
-            const errorMessage = (error.errors && error.errors[0]?.message) || error.message || 'Sign up failed';
+            let errorMessage = 'Sign up failed';
+            if (error.errors && error.errors[0]) {
+                const err = error.errors[0];
+                errorMessage = err.longMessage || err.message || errorMessage;
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
             return { error: errorMessage };
         }
     }
