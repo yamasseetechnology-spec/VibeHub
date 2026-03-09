@@ -675,6 +675,44 @@ class AuthService {
         localStorage.removeItem('vibehub_user');
         window.dispatchEvent(new CustomEvent('user-logged-out'));
     }
+
+    async updateProfile(updates) {
+        this.user = { ...this.user, ...updates };
+        localStorage.setItem('vibehub_user', JSON.stringify(this.user));
+        
+        // Update in Supabase if available
+        if (window.supabaseClient && this.user.id) {
+            try {
+                await window.supabaseClient
+                    .from('users')
+                    .update({
+                        display_name: updates.displayName,
+                        username: updates.username,
+                        avatar_url: updates.profilePhoto,
+                        bio: updates.bio,
+                        banner_url: updates.bannerImage
+                    })
+                    .eq('id', this.user.id);
+            } catch (e) {
+                console.log('Profile update error:', e);
+            }
+        }
+        
+        // Update in Clerk if available
+        if (this.clerk && this.clerk.user) {
+            try {
+                await this.clerk.user.update({
+                    firstName: updates.displayName,
+                    username: updates.username
+                });
+            } catch (e) {
+                console.log('Clerk profile update error:', e);
+            }
+        }
+        
+        window.dispatchEvent(new CustomEvent('user-logged-in', { detail: this.user }));
+        return this.user;
+    }
 }
 
 // ============================================
@@ -1059,6 +1097,48 @@ class DataService {
         return channel;
     }
 
+    async getUserPosts(userId) {
+        if (!window.supabaseClient) return [];
+
+        try {
+            // Get posts from this user that haven't expired (48hr)
+            const { data, error } = await window.supabaseClient
+                .from('posts')
+                .select('*')
+                .eq('user_id', userId)
+                .gt('expires_at', new Date().toISOString())
+                .order('created_at', { ascending: false })
+                .limit(50);
+
+            if (error) throw error;
+
+            return (data || []).map(post => ({
+                id: post.id,
+                userId: post.user_id,
+                displayName: post.username,
+                handle: post.username,
+                avatar: post.user_avatar,
+                content: post.text,
+                media: post.media_url,
+                mediaType: post.media_type,
+                timestamp: this.formatTimestamp(post.created_at),
+                createdAt: post.created_at,
+                reactions: {
+                    like: post.likes?.length || 0,
+                    heat: post.reactions?.heat?.length || 0,
+                    wild: post.reactions?.wild?.length || 0,
+                    cap: post.reactions?.cap?.length || 0,
+                    admire: post.reactions?.relate?.length || 0,
+                    dislike: post.dislikes?.length || 0
+                },
+                commentCount: post.comments_count || 0
+            }));
+        } catch (error) {
+            console.error('Error fetching user posts:', error);
+            return [];
+        }
+    }
+
     subscribeToUserNotifications(userId, callback) {
         if (!window.supabaseClient) return null;
 
@@ -1239,7 +1319,7 @@ class DataService {
 
         try {
             const { data } = await window.supabaseClient
-                .from('channels')
+                .from('communities')
                 .select('*')
                 .order('created_at', { ascending: false });
 
@@ -1247,15 +1327,70 @@ class DataService {
                 id: c.id,
                 name: c.name,
                 description: c.description,
-                category: c.category,
-                emojiBanner: c.emoji_banner,
-                members: c.subscribers?.length || 0,
-                banner: 'https://images.unsplash.com/photo-1614850523296-d8c1af93d400?w=400',
+                members: c.member_count || 0,
+                banner: c.banner_url || 'https://images.unsplash.com/photo-1614850523296-d8c1af93d400?w=400',
                 desc: c.description
             }));
         } catch (error) {
             console.error('Error fetching communities:', error);
             return [];
+        }
+    }
+
+    async createCommunity(name, description, bannerUrl, creatorId) {
+        if (!window.supabaseClient) {
+            return { id: 'c_' + Date.now(), name, members: 1 };
+        }
+
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('communities')
+                .insert([{
+                    name: name,
+                    description: description,
+                    banner_url: bannerUrl,
+                    creator_id: creatorId,
+                    member_count: 1
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+            
+            // Add creator as first member
+            await window.supabaseClient
+                .from('community_members')
+                .insert([{
+                    community_id: data.id,
+                    user_id: creatorId,
+                    role: 'owner'
+                }]);
+
+            return { id: data.id, name: data.name, members: 1 };
+        } catch (error) {
+            console.error('Error creating community:', error);
+            return null;
+        }
+    }
+
+    async joinCommunity(communityId, userId) {
+        if (!window.supabaseClient) return true;
+
+        try {
+            await window.supabaseClient
+                .from('community_members')
+                .insert([{
+                    community_id: communityId,
+                    user_id: userId
+                }]);
+
+            // Increment member count
+            await window.supabaseClient.rpc('increment_community_members', { community_id: communityId });
+            
+            return true;
+        } catch (error) {
+            console.error('Error joining community:', error);
+            return false;
         }
     }
 
@@ -1365,6 +1500,11 @@ class VideoService {
 // CHAT SERVICE - Sync Rooms & DMs
 // ============================================
 class ChatService {
+    constructor() {
+        this.activeRoom = null;
+        this.roomChannel = null;
+    }
+
     async getSyncRooms() {
         if (!window.supabaseClient) {
             return [
@@ -1375,23 +1515,147 @@ class ChatService {
         }
 
         try {
+            // Get active rooms that haven't expired
             const { data } = await window.supabaseClient
-                .from('sync_spaces')
+                .from('rooms')
                 .select('*')
-                .eq('is_active', true)
+                .gt('expires_at', new Date().toISOString())
                 .order('created_at', { ascending: false });
 
             return (data || []).map(s => ({
                 id: s.id,
                 name: s.name,
-                description: s.description,
-                users: s.active_users?.length || 0,
-                active: s.is_active,
+                description: s.description || '',
+                users: s.current_user_count || 0,
+                active: s.current_user_count < s.max_users,
+                maxUsers: s.max_users,
+                expiresAt: s.expires_at,
                 createdAt: s.created_at
             }));
         } catch (error) {
             console.error('Error fetching sync rooms:', error);
             return [];
+        }
+    }
+
+    async createRoom(name, creatorId) {
+        if (!window.supabaseClient) {
+            return { id: 'room_' + Date.now(), name, users: 0, active: true };
+        }
+
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('rooms')
+                .insert([{
+                    name: name,
+                    creator_id: creatorId,
+                    max_users: 125,
+                    current_user_count: 1,
+                    expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+            return { id: data.id, name: data.name, users: 1, active: true };
+        } catch (error) {
+            console.error('Error creating room:', error);
+            return null;
+        }
+    }
+
+    async joinRoom(roomId, userId, username) {
+        if (!window.supabaseClient) {
+            this.activeRoom = roomId;
+            return true;
+        }
+
+        try {
+            // Check current count
+            const { data: room } = await window.supabaseClient
+                .from('rooms')
+                .select('current_user_count, max_users')
+                .eq('id', roomId)
+                .single();
+
+            if (!room || room.current_user_count >= room.max_users) {
+                return false; // Room full
+            }
+
+            // Increment user count
+            await window.supabaseClient
+                .from('rooms')
+                .update({ current_user_count: room.current_user_count + 1 })
+                .eq('id', roomId);
+
+            this.activeRoom = roomId;
+            return true;
+        } catch (error) {
+            console.error('Error joining room:', error);
+            return false;
+        }
+    }
+
+    async leaveRoom(roomId, userId) {
+        if (!window.supabaseClient || !roomId) return;
+
+        try {
+            await window.supabaseClient
+                .from('rooms')
+                .update({ current_user_count: window.supabaseClient.raw('current_user_count - 1') })
+                .eq('id', roomId);
+        } catch (error) {
+            console.error('Error leaving room:', error);
+        }
+
+        this.activeRoom = null;
+        if (this.roomChannel) {
+            this.roomChannel.unsubscribe();
+            this.roomChannel = null;
+        }
+    }
+
+    subscribeToRoomMessages(roomId, callback) {
+        if (!window.supabaseClient) return;
+
+        this.roomChannel = window.supabaseClient
+            .channel(`room-${roomId}`)
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'room_messages',
+                filter: `room_id=eq.${roomId}`
+            }, (payload) => {
+                callback(payload.new);
+            })
+            .subscribe();
+
+        return this.roomChannel;
+    }
+
+    async sendRoomMessage(roomId, userId, username, content) {
+        if (!window.supabaseClient) {
+            // Mock message for demo
+            return { id: 'msg_' + Date.now(), room_id: roomId, username, content };
+        }
+
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('room_messages')
+                .insert([{
+                    room_id: roomId,
+                    user_id: userId,
+                    username: username,
+                    content: content
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            console.error('Error sending message:', error);
+            return null;
         }
     }
 

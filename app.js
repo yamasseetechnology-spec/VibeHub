@@ -829,7 +829,8 @@ class VibeApp {
                     container.innerHTML = this.getSyncRoomsHTML(rooms);
                     break;
                 case 'profile':
-                    container.innerHTML = this.getProfileHTML(State.user);
+                    const userPosts = State.user ? await this.services.data.getUserPosts(State.user.id) : [];
+                    container.innerHTML = this.getProfileHTML(State.user, userPosts);
                     break;
                 case 'login':
                 case 'register':
@@ -1011,31 +1012,96 @@ class VibeApp {
     }
 
     getSyncRoomsHTML(rooms) {
+        const getRoomGlow = (expiresAt) => {
+            if (!expiresAt) return '';
+            const now = new Date();
+            const expires = new Date(expiresAt);
+            const hoursLeft = (expires - now) / (1000 * 60 * 60);
+            
+            if (hoursLeft > 20) return 'box-shadow: 0 0 30px rgba(255, 159, 0, 0.8); border-color: rgba(255, 159, 0, 0.6);';
+            if (hoursLeft > 12) return 'box-shadow: 0 0 20px rgba(255, 159, 0, 0.5); border-color: rgba(255, 159, 0, 0.4);';
+            if (hoursLeft > 6) return 'box-shadow: 0 0 15px rgba(255, 159, 0, 0.3); border-color: rgba(255, 159, 0, 0.3);';
+            return 'box-shadow: 0 0 8px rgba(255, 159, 0, 0.2); border-color: rgba(255, 159, 0, 0.2);';
+        };
+
+        const getTimeRemaining = (expiresAt) => {
+            if (!expiresAt) return '';
+            const now = new Date();
+            const expires = new Date(expiresAt);
+            const hoursLeft = Math.floor((expires - now) / (1000 * 60 * 60));
+            if (hoursLeft <= 0) return 'Expiring soon';
+            if (hoursLeft < 24) return `${hoursLeft}h remaining`;
+            return '';
+        };
+
         return `
-            <div class="view-header">
-                <h1 class="view-title">Sync Rooms</h1>
-                <p>Live psychological sync with 125 minds max.</p>
+            <div class="view-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h1 class="view-title">Sync Rooms</h1>
+                    <p>Live psychological sync with 125 minds max.</p>
+                </div>
+                <button class="btn-primary" onclick="window.App.showCreateRoomModal()">+ Create Room</button>
             </div>
             <div class="rooms-grid" id="rooms-grid">
                 ${rooms && rooms.length > 0 ? rooms.map(r => `
-                    <div class="room-card glass-panel">
+                    <div class="room-card glass-panel" style="${getRoomGlow(r.expiresAt)}">
+                        ${getTimeRemaining(r.expiresAt) ? `<span class="room-timer" style="font-size:0.7rem; color:var(--primary-orange);">${getTimeRemaining(r.expiresAt)}</span>` : ''}
                         <h3>${r.name || 'Unnamed Room'}</h3>
-                        <p>${r.users || 0} Vibing Now</p>
-                        <button class="btn-primary" onclick="window.App.joinSyncRoom('${r.id}', '${r.name}')">Sync In</button>
+                        <p>${r.users || 0} / ${r.maxUsers || 125} Vibing Now</p>
+                        <button class="btn-primary" onclick="window.App.joinSyncRoom('${r.id}', '${r.name}')" ${r.users >= (r.maxUsers || 125) ? 'disabled style="opacity:0.5"' : ''}>${r.users >= (r.maxUsers || 125) ? 'Full' : 'Sync In'}</button>
                     </div>
-                `).join('') : '<p class="text-dim" style="padding:20px; text-align:center;">No active rooms. Start one!</p>'}
+                `).join('') : '<p class="text-dim" style="padding:20px; text-align:center;">No active rooms. Create one!</p>'}
             </div>
             <div id="active-chat-container" class="hidden">
                 <div class="view-header"><button class="btn-secondary" onclick="window.App.leaveSyncRoom()">← Back to Rooms</button><h1 class="view-title" id="active-room-name"></h1></div>
                 <div class="chat-container">
                     <div class="chat-messages" id="chat-messages"></div>
                     <div class="chat-input">
-                        <input type="text" id="chat-message-input" placeholder="Type a message...">
+                        <input type="text" id="chat-message-input" placeholder="Type a message..." onkeypress="if(event.key==='Enter')window.App.sendChatMessage()">
                         <button class="btn-primary" onclick="window.App.sendChatMessage()">Send</button>
                     </div>
                 </div>
             </div>
         `;
+    }
+
+    showCreateRoomModal() {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.id = 'create-room-modal';
+        modal.innerHTML = `
+            <div class="modal-content glass-panel" style="max-width:400px; margin:auto;">
+                <h2 style="margin-bottom:20px;">Create Sync Room</h2>
+                <input type="text" id="new-room-name" class="login-input" placeholder="Room Name" style="width:100%; margin-bottom:15px;">
+                <p class="text-dim" style="font-size:0.8rem; margin-bottom:20px;">Room lasts 24 hours and auto-disappears.</p>
+                <div style="display:flex; gap:10px;">
+                    <button class="btn-secondary" onclick="document.getElementById('create-room-modal').remove()" style="flex:1;">Cancel</button>
+                    <button class="btn-primary" onclick="window.App.createRoom()" style="flex:1;">Create</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    async createRoom() {
+        const nameInput = document.getElementById('new-room-name');
+        const name = nameInput?.value.trim();
+        
+        if (!name) {
+            this.showToast('Please enter a room name', 'error');
+            return;
+        }
+
+        const user = State.user || { id: 'guest_' + Date.now(), username: 'Guest' };
+        const room = await this.services.chat.createRoom(name, user.id);
+        
+        if (room) {
+            this.showToast('Room created! 🎉');
+            document.getElementById('create-room-modal')?.remove();
+            this.navigate('syncrooms');
+        } else {
+            this.showToast('Failed to create room', 'error');
+        }
     }
 
     joinSyncRoom(roomId, roomName) {
@@ -1044,29 +1110,71 @@ class VibeApp {
         document.getElementById('active-room-name').innerText = roomName;
         this.activeRoomId = roomId;
 
-        // BroadcastChannel for simple live chat simulation between tabs
+        const user = State.user || { id: 'guest', username: 'Guest' };
+        
+        // Try to join via service (checks 125 limit)
+        this.services.chat.joinRoom(roomId, user.id, user.username).then(success => {
+            if (!success) {
+                this.showToast('Room is full!', 'error');
+                this.leaveSyncRoom();
+                return;
+            }
+        });
+
+        // Subscribe to realtime messages
+        this.services.chat.subscribeToRoomMessages(roomId, (message) => {
+            this.appendChatMessage({
+                user: message.username,
+                text: message.content,
+                time: 'now'
+            });
+        });
+
+        // Also support BroadcastChannel for local multi-tab testing
         this.chatChannel = new BroadcastChannel(`vibehub_chat_${roomId}`);
         this.chatChannel.onmessage = (event) => {
             this.appendChatMessage(event.data);
         };
     }
 
+    async sendChatMessage() {
+        const input = document.getElementById('chat-message-input');
+        const content = input?.value.trim();
+        
+        if (!content || !this.activeRoomId) return;
+
+        const user = State.user || { id: 'guest', username: 'Guest' };
+        
+        // Send via Supabase
+        await this.services.chat.sendRoomMessage(
+            this.activeRoomId,
+            user.id,
+            user.username,
+            content
+        );
+
+        // Also broadcast for multi-tab
+        if (this.chatChannel) {
+            this.chatChannel.postMessage({
+                user: user.username,
+                text: content,
+                time: 'now'
+            });
+        }
+
+        // Clear input
+        if (input) input.value = '';
+    }
+
     leaveSyncRoom() {
         document.getElementById('rooms-grid').classList.remove('hidden');
         document.getElementById('active-chat-container').classList.add('hidden');
+        
+        const user = State.user || { id: 'guest' };
+        this.services.chat.leaveRoom(this.activeRoomId, user.id);
+        
         if (this.chatChannel) this.chatChannel.close();
-    }
-
-    sendChatMessage() {
-        const input = document.getElementById('chat-message-input');
-        const message = {
-            text: input.value,
-            user: State.user.username,
-            time: new Date().toLocaleTimeString()
-        };
-        this.chatChannel.postMessage(message);
-        this.appendChatMessage(message);
-        input.value = '';
+        this.activeRoomId = null;
     }
 
     appendChatMessage(message) {
@@ -1075,7 +1183,7 @@ class VibeApp {
         chat.scrollTop = chat.scrollHeight;
     }
 
-    getProfileHTML(user) {
+    async getProfileHTML(user, userPosts = []) {
         if (!user) return `
             <div class="auth-required glass-panel" style="padding:40px; text-align:center;">
                 <h2>Identify Your Vibe</h2>
@@ -1083,6 +1191,9 @@ class VibeApp {
                 <button class="btn-primary" onclick="window.App.navigate('login')" style="margin-top:20px;">Login / Register</button>
             </div>
         `;
+        
+        const isOwnProfile = true; // For now, always show edit button since we don't have user viewing other profiles yet
+        
         return `
             <div class="profile-container">
                 <div class="profile-banner">
@@ -1099,6 +1210,7 @@ class VibeApp {
                                 ${this.generateBadges(user)}
                             </div>
                         </div>
+                        ${isOwnProfile ? `<button class="btn-secondary" onclick="window.App.showEditProfileModal()" style="margin-left:auto;">Edit Profile</button>` : `<button class="btn-primary" onclick="window.App.showToast('Follow coming soon!')">Follow</button>`}
                     </div>
                     <div class="profile-stats glass-panel">
                         <div class="stat-item"><span class="stat-value">${(user.followersCount || 0).toLocaleString()}</span><span class="stat-label">Followers</span></div>
@@ -1120,18 +1232,104 @@ class VibeApp {
                         <button class="tab" style="flex:1;">Saved</button>
                         <button class="tab" style="flex:1;">Market</button>
                     </div>
+                    
+                    <div class="user-posts-section" style="margin-top:20px;">
+                        <h3 class="section-title">Recent Vibes</h3>
+                        ${userPosts && userPosts.length > 0 ? userPosts.map(p => Components.post(p)).join('') : '<p class="text-dim" style="padding:20px; text-align:center;">No recent vibes. Post something!</p>'}
+                    </div>
                 </div>
             </div>
         `;
     }
 
+    showEditProfileModal() {
+        const user = State.user;
+        if (!user) {
+            this.showToast('Please login first', 'error');
+            return;
+        }
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.id = 'edit-profile-modal';
+        modal.innerHTML = `
+            <div class="modal-content glass-panel" style="max-width:450px; margin:auto; max-height:90vh; overflow-y:auto;">
+                <h2 style="margin-bottom:20px;">Edit Profile</h2>
+                <div style="display:flex; flex-direction:column; gap:15px;">
+                    <div>
+                        <label style="color:var(--text-dim); font-size:0.8rem;">Display Name</label>
+                        <input type="text" id="edit-display-name" class="login-input" value="${user.displayName || ''}" style="width:100%;">
+                    </div>
+                    <div>
+                        <label style="color:var(--text-dim); font-size:0.8rem;">Username</label>
+                        <input type="text" id="edit-username" class="login-input" value="${user.username || ''}" style="width:100%;">
+                    </div>
+                    <div>
+                        <label style="color:var(--text-dim); font-size:0.8rem;">Bio</label>
+                        <textarea id="edit-bio" class="login-input" rows="3" style="width:100%; resize:none;">${user.bio || ''}</textarea>
+                    </div>
+                    <div>
+                        <label style="color:var(--text-dim); font-size:0.8rem;">Avatar URL</label>
+                        <input type="text" id="edit-avatar" class="login-input" value="${user.profilePhoto || ''}" placeholder="https://..." style="width:100%;">
+                    </div>
+                    <div>
+                        <label style="color:var(--text-dim); font-size:0.8rem;">Banner URL</label>
+                        <input type="text" id="edit-banner" class="login-input" value="${user.bannerImage || ''}" placeholder="https://..." style="width:100%;">
+                    </div>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button class="btn-secondary" onclick="document.getElementById('edit-profile-modal').remove()" style="flex:1;">Cancel</button>
+                    <button class="btn-primary" onclick="window.App.saveProfile()" style="flex:1;">Save</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    async saveProfile() {
+        const displayName = document.getElementById('edit-display-name')?.value.trim();
+        const username = document.getElementById('edit-username')?.value.trim();
+        const bio = document.getElementById('edit-bio')?.value.trim();
+        const profilePhoto = document.getElementById('edit-avatar')?.value.trim();
+        const bannerImage = document.getElementById('edit-banner')?.value.trim();
+        
+        if (!displayName || !username) {
+            this.showToast('Display name and username are required', 'error');
+            return;
+        }
+        
+        const updates = { displayName, username, bio, profilePhoto, bannerImage };
+        
+        // Update in AuthService
+        await this.services.auth.updateProfile(updates);
+        
+        // Update local state
+        State.user = { ...State.user, ...updates };
+        
+        this.showToast('Profile updated! ✨');
+        document.getElementById('edit-profile-modal')?.remove();
+        this.navigate('profile');
+    }
+
     generateBadges(user) {
         const badges = [];
-        if (user.reactionScore > 5000) badges.push({ label: 'Heat Magnet', class: 'badge-heat' });
+        const totalReactions = user.reactionScore || 0;
+        const capCount = user.reactions?.cap || 0;
+        const wildCount = user.reactions?.wild || 0;
+        const heatCount = user.reactions?.heat || 0;
+        const admireCount = user.reactions?.admire || 0;
+        const likeCount = user.reactions?.like || 0;
+
+        if (capCount >= 500) badges.push({ label: 'Cap Detector', class: 'badge-truth' });
+        if (wildCount >= 500) badges.push({ label: 'Wild Card', class: 'badge-wild' });
+        if (heatCount >= 500) badges.push({ label: 'Heat Magnet', class: 'badge-heat' });
+        if (admireCount >= 500) badges.push({ label: 'Respected', class: 'badge-admired' });
+        if (likeCount >= 500) badges.push({ label: 'Vibe King', class: 'badge-gold' });
+        
         if (user.postCount > 20) badges.push({ label: 'Truth Detector', class: 'badge-truth' });
         if (user.followersCount > 1000) badges.push({ label: 'Admired Creator', class: 'badge-admired' });
         
-        return badges.map(b => `<span class="user-badge ${b.class}">${b.label}</span>`).join(' ');
+        return badges.length > 0 ? badges.map(b => `<span class="user-badge ${b.class}">${b.label}</span>`).join(' ') : '<span class="text-dim">No badges yet</span>';
     }
 
     getAuthHTML(mode) {
@@ -1373,7 +1571,7 @@ class VibeApp {
                     <h1 class="view-title">Communities</h1>
                     <p class="text-dim">Find your tribe. Link your mind.</p>
                 </div>
-                <button class="btn-primary" onclick="window.App.showToast('Create Community coming soon!')">+ New Group</button>
+                <button class="btn-primary" onclick="window.App.showCreateCommunityModal()">+ New Group</button>
             </div>
             
             <div class="communities-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-top:20px;">
@@ -1385,13 +1583,71 @@ class VibeApp {
                             <p class="text-dim" style="font-size:0.9rem; margin-top:5px; margin-bottom:15px;">${c.desc || ''}</p>
                             <div style="display:flex; justify-content:space-between; align-items:center;">
                                 <span class="badge-admired user-badge" style="margin:0;">${c.members || 0} Members</span>
-                                <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); window.App.showToast('Joined ${c.name}!')">Join</button>
+                                <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); window.App.joinCommunity('${c.id}', '${c.name}')">Join</button>
                             </div>
                         </div>
                     </div>
                 `).join('') : '<p class="text-dim" style="padding:30px; text-align:center;">No communities yet. Create one!</p>'}
             </div>
         `;
+    }
+
+    showCreateCommunityModal() {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.id = 'create-community-modal';
+        modal.innerHTML = `
+            <div class="modal-content glass-panel" style="max-width:450px; margin:auto;">
+                <h2 style="margin-bottom:20px;">Create Community</h2>
+                <div style="display:flex; flex-direction:column; gap:15px;">
+                    <input type="text" id="new-community-name" class="login-input" placeholder="Community Name" style="width:100%;">
+                    <textarea id="new-community-desc" class="login-input" rows="3" placeholder="Description" style="width:100%; resize:none;"></textarea>
+                    <input type="text" id="new-community-banner" class="login-input" placeholder="Banner Image URL (optional)" style="width:100%;">
+                </div>
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button class="btn-secondary" onclick="document.getElementById('create-community-modal').remove()" style="flex:1;">Cancel</button>
+                    <button class="btn-primary" onclick="window.App.createCommunity()" style="flex:1;">Create</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    async createCommunity() {
+        const name = document.getElementById('new-community-name')?.value.trim();
+        const description = document.getElementById('new-community-desc')?.value.trim();
+        const bannerUrl = document.getElementById('new-community-banner')?.value.trim();
+        
+        if (!name) {
+            this.showToast('Please enter a community name', 'error');
+            return;
+        }
+        
+        const user = State.user || { id: 'guest' };
+        const community = await this.services.data.createCommunity(name, description, bannerUrl, user.id);
+        
+        if (community) {
+            this.showToast('Community created! 🎉');
+            document.getElementById('create-community-modal')?.remove();
+            this.navigate('communities');
+        } else {
+            this.showToast('Failed to create community', 'error');
+        }
+    }
+
+    async joinCommunity(communityId, communityName) {
+        if (!State.user) {
+            this.showToast('Please login to join communities', 'error');
+            return;
+        }
+        
+        const success = await this.services.data.joinCommunity(communityId, State.user.id);
+        if (success) {
+            this.showToast(`Joined ${communityName}! 🎉`);
+            this.navigate('communities');
+        } else {
+            this.showToast('Failed to join community', 'error');
+        }
     }
 
     getMarketplaceHTML(items) {
