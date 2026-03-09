@@ -2,11 +2,14 @@
  * VIBEHUB SERVICE LAYER
  * All cloud services integrated: Supabase, Cloudinary, ImageKit, Clerk, Redis, Firebase
  */
+import { Clerk } from '@clerk/clerk-js';
+
+const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 // ============================================
 // MEDIA SERVICE - Cloudinary (Videos) + ImageKit (Photos)
 // ============================================
-class MediaService {
+export class MediaService {
     constructor() {
         this.cloudinaryConfig = window.CLOUDINARY_CONFIG || null;
         this.imagekitConfig = window.IMAGEKIT_CONFIG || null;
@@ -178,7 +181,7 @@ class MediaService {
 // ============================================
 // CACHE SERVICE - Redis Rate Limiting
 // ============================================
-class CacheService {
+export class CacheService {
     constructor() {
         this.redisUrl = window.UPSTASH_CONFIG?.url;
         this.redisToken = window.UPSTASH_CONFIG?.token;
@@ -281,7 +284,7 @@ class CacheService {
 // ============================================
 // NOTIFICATION SERVICE - Firebase Push
 // ============================================
-class NotificationService {
+export class NotificationService {
     constructor() {
         this.token = null;
         this.enabled = !!(window.firebaseApp);
@@ -376,7 +379,7 @@ class NotificationService {
 // ============================================
 // AUTH SERVICE - Clerk + Supabase
 // ============================================
-class AuthService {
+export class AuthService {
     constructor() {
         this.user = JSON.parse(localStorage.getItem('vibehub_user')) || null;
         this.clerk = null;
@@ -386,28 +389,15 @@ class AuthService {
     async initClerk() {
         if (this.clerkInitialized) return;
         
-        // Wait for Clerk to be ready with 5s timeout
-        const waitForClerk = () => {
-            return new Promise((resolve) => {
-                const startTime = Date.now();
-                const check = () => {
-                    if (window.Clerk && window.Clerk.isReady()) {
-                        resolve(true);
-                    } else if (Date.now() - startTime > 5000) {
-                        console.warn('Clerk SDK took too long to initialize, proceeding anyway.');
-                        resolve(false);
-                    } else {
-                        setTimeout(check, 100);
-                    }
-                };
-                check();
-            });
-        };
+        // Wait for Clerk to be ready
+        if (!this.clerk) {
+            this.clerk = new Clerk(publishableKey);
+        }
 
-        const initialized = await waitForClerk();
-        if (initialized) {
-            this.clerk = window.Clerk;
+        try {
+            await this.clerk.load();
             this.clerkInitialized = true;
+            console.log('✅ Clerk initialized and ready');
             
             // Mount Clerk components
             const signInDiv = document.getElementById('sign-in');
@@ -415,8 +405,8 @@ class AuthService {
             
             const signUpDiv = document.getElementById('sign-up');
             if (signUpDiv) this.clerk.mountSignUp(signUpDiv);
-        } else {
-            console.warn('Clerk initialization failed or timed out. Authentication via Clerk will be disabled.');
+        } catch (e) {
+            console.error('Clerk SDK failed to load:', e);
             this.clerkInitialized = false;
         }
         
@@ -725,7 +715,7 @@ class AuthService {
 // ============================================
 // DATA SERVICE - Supabase Posts, Comments, etc
 // ============================================
-class DataService {
+export class DataService {
     constructor() {
         this.media = new MediaService();
         this.cache = new CacheService();
@@ -1638,7 +1628,7 @@ class DataService {
 // ============================================
 // VIDEO SERVICE - VibeStream
 // ============================================
-class VideoService {
+export class VideoService {
     async getVibeStream() {
         if (!window.supabaseClient) {
             return [
@@ -1695,7 +1685,7 @@ class VideoService {
 // ============================================
 // CHAT SERVICE - Sync Rooms & DMs
 // ============================================
-class ChatService {
+export class ChatService {
     constructor() {
         this.activeRoom = null;
         this.roomChannel = null;
@@ -1929,7 +1919,7 @@ class ChatService {
 // ============================================
 // ADMIN SERVICE
 // ============================================
-class AdminService {
+export class AdminService {
     async getStats() {
         if (!window.supabaseClient) {
             return { users: 12482, activeNow: 1205, postsToday: 458, revenue: '$1,240' };

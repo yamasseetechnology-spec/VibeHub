@@ -3,6 +3,8 @@
  * Futuristic Social Media Framework
  * Prepared for Supabase Integration
  */
+import { AuthService, DataService, VideoService, ChatService, AdminService } from './services.js';
+import { Components } from './components.js';
 
 // --- APP STATE ---
 const State = {
@@ -38,6 +40,7 @@ class VibeApp {
             };
         }
         this.init();
+        window.App = this;
     }
 
     async init() {

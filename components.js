@@ -4,7 +4,7 @@
  */
 
 // --- COMPONENTS OBJECT ---
-const Components = {
+export const Components = {
     post(p) {
         const mindStates = ['Elevated', 'Deep Focus', 'Creative Flow', 'Zen', 'Hyper-Active'];
         const randomState = mindStates[Math.floor(Math.random() * mindStates.length)];
