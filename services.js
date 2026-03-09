@@ -353,11 +353,10 @@ export class NotificationService {
 // ============================================
 export class AuthService {
     constructor() {
-        this.user = JSON.parse(localStorage.getItem('vibehub_user')) || 
-                    JSON.parse(sessionStorage.getItem('vibehub_user')) || null;
+        this.user = JSON.parse(localStorage.getItem('vibehub_user')) || null;
         this.clerk = null;
         this.clerkInitialized = false;
-        this.rememberMe = localStorage.getItem('vibehub_remember') === 'true';
+        this.rememberMe = true; // Hardcode to true to ensure localStorage is always used
     }
 
     async initClerk() {
@@ -659,14 +658,11 @@ export class AuthService {
                     createdAt: new Date().toISOString()
                 };
                 
+                
                 this.user = user;
-                if (this.rememberMe) {
-                    localStorage.setItem('vibehub_user', JSON.stringify(user));
-                    localStorage.setItem('vibehub_remember', 'true');
-                } else {
-                    sessionStorage.setItem('vibehub_user', JSON.stringify(user));
-                    localStorage.removeItem('vibehub_remember');
-                }
+                // Force persistent storage specifically for mobile reliability
+                localStorage.setItem('vibehub_user', JSON.stringify(user));
+                localStorage.setItem('vibehub_remember', 'true');
                 resolve(user);
             }, 500);
         });
@@ -690,10 +686,9 @@ export class AuthService {
 
     async updateProfile(updates) {
         this.user = { ...this.user, ...updates };
-        if (this.rememberMe) {
+        if (this.user) {
             localStorage.setItem('vibehub_user', JSON.stringify(this.user));
-        } else {
-            sessionStorage.setItem('vibehub_user', JSON.stringify(this.user));
+            localStorage.setItem('vibehub_remember', 'true');
         }
         
         // Update in Supabase if available

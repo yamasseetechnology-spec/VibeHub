@@ -469,6 +469,85 @@ class VibeApp {
             });
         }
 
+        // --- Custom Pull-to-Refresh System ---
+        let ptrStartY = 0;
+        let ptrCurrentY = 0;
+        let isPulling = false;
+        let lastRefreshTime = 0;
+        const PTR_THRESHOLD = 150; // Exaggerated pull distance (Facebook style)
+        const PTR_COOLDOWN = 3 * 60 * 1000; // 3 minutes in ms
+
+        const appBody = document.querySelector('main');
+        if (appBody) {
+            appBody.addEventListener('touchstart', (e) => {
+                // Only initiate if we're at the very top of the page
+                if (window.scrollY <= 0) {
+                    ptrStartY = e.touches[0].clientY;
+                    isPulling = true;
+                }
+            }, { passive: true });
+
+            appBody.addEventListener('touchmove', (e) => {
+                if (!isPulling) return;
+                ptrCurrentY = e.touches[0].clientY;
+                const pullDistance = ptrCurrentY - ptrStartY;
+                
+                // If scrolling down while at the top
+                if (pullDistance > 0 && window.scrollY <= 0) {
+                    // Prevent default pull-to-refresh on modern mobile browsers
+                    if (e.cancelable) e.preventDefault();
+                    // Visual feedback (pulling the container down slightly)
+                    const viewContainer = document.getElementById('view-container');
+                    if (viewContainer) {
+                        viewContainer.style.transform = `translateY(${Math.min(pullDistance * 0.3, 70)}px)`;
+                    }
+                } else {
+                    isPulling = false;
+                }
+            }, { passive: false });
+
+            appBody.addEventListener('touchend', async () => {
+                if (!isPulling) return;
+                isPulling = false;
+                const pullDistance = ptrCurrentY - ptrStartY;
+                
+                const viewContainer = document.getElementById('view-container');
+                if (viewContainer) {
+                    viewContainer.style.transform = '';
+                    viewContainer.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                    setTimeout(() => viewContainer.style.transition = '', 300);
+                }
+                
+                // Check if threshold was met
+                if (pullDistance > PTR_THRESHOLD && window.scrollY <= 0) {
+                    const now = Date.now();
+                    if (now - lastRefreshTime > PTR_COOLDOWN) {
+                        lastRefreshTime = now;
+                        
+                        // Force fresh request
+                        this.showToast('Pulling fresh Vibes... 🔥');
+                        if (this.services.data.cache.clearCache) {
+                            this.services.data.cache.clearCache('posts_');
+                        }
+                        
+                        if (State.currentView === 'home' || State.currentView === 'trending') {
+                            await this.renderView(State.currentView);
+                        }
+                    } else {
+                        // Cooldown active
+                        const remaining = Math.ceil((PTR_COOLDOWN - (now - lastRefreshTime)) / 1000);
+                        const mins = Math.floor(remaining / 60);
+                        const secs = remaining % 60;
+                        this.showToast(`Feed is hot! Wait ${mins > 0 ? mins + 'm ' : ''}${secs}s to refresh.`);
+                    }
+                }
+                
+                ptrStartY = 0;
+                ptrCurrentY = 0;
+            });
+        }
+        // --- End Pull to Refresh ---
+
         // Create Post Modal - support both desktop and mobile
         const postBtn = document.getElementById('create-post-btn');
         if (postBtn) {
