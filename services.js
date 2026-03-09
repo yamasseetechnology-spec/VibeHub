@@ -494,29 +494,39 @@ export class AuthService {
         }
     }
 
-    // Modern alias for backward compatibility
-    async handleClerkSession() {
-        return this.syncUserSession(this.clerk?.user);
-    }
-
     async customSignIn(email, password, rememberMe = true) {
         this.rememberMe = rememberMe;
-        if (!this.clerk) {
-            // Fallback: try Supabase auth if Clerk not available
-            if (window.supabaseClient) {
-                try {
-                    const { data, error } = await window.supabaseClient.auth.signInWithPassword({
-                        email: email,
-                        password: password
-                    });
-                    if (error) return { error: error.message };
+        // Try Supabase first for simplicity, fallback to Clerk only if needed
+        if (window.supabaseClient) {
+            try {
+                const { data, error } = await window.supabaseClient.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+                
+                if (!error) {
                     const user = await this.syncUserSession(null, data.user);
                     return { success: true, user: user };
-                } catch (e) {
-                    return { error: 'Authentication failed' };
                 }
+                
+                // If Supabase fails but we have Clerk, try Clerk as fallback
+                if (this.clerk) {
+                     const signIn = await this.clerk.client.signIn.create({
+                        identifier: email,
+                        password: password,
+                    });
+                    await this.clerk.setActive({ session: signIn.createdSessionId });
+                    return { success: true };
+                }
+                
+                return { error: error.message };
+            } catch (e) {
+                console.error('Supabase sign in error:', e);
             }
-            return { error: 'Clerk not initialized. Please refresh the page.' };
+        }
+
+        if (!this.clerk) {
+            return { error: 'Auth system not ready. Please refresh.' };
         }
         
         try {
@@ -524,38 +534,50 @@ export class AuthService {
                 identifier: email,
                 password: password,
             });
-            
             await this.clerk.setActive({ session: signIn.createdSessionId });
-            // handleClerkSession will be called by Clerk listener
             return { success: true };
         } catch (error) {
-            console.error('Custom sign in error:', error);
-            const errorMessage = (error.errors && error.errors[0]?.message) || error.message || 'Sign in failed';
+            console.error('Clerk sign in error:', error);
+            const errorMessage = (error.errors && error.errors[0]?.longMessage) || error.message || 'Sign in failed';
             return { error: errorMessage };
         }
     }
 
     async customSignUp(email, password, name, rememberMe = true) {
         this.rememberMe = rememberMe;
-        if (!this.clerk) {
-            // Fallback: try Supabase auth if Clerk not available
-            if (window.supabaseClient) {
-                try {
-                    const { data, error } = await window.supabaseClient.auth.signUp({
-                        email: email,
-                        password: password,
-                        options: {
-                            data: { full_name: name }
-                        }
-                    });
-                    if (error) return { error: error.message };
+        
+        // Try Supabase first for "Lite Auth" (less restrictive)
+        if (window.supabaseClient) {
+            try {
+                const { data, error } = await window.supabaseClient.auth.signUp({
+                    email: email,
+                    password: password,
+                    options: {
+                        data: { full_name: name, username: email.split('@')[0].toLowerCase() }
+                    }
+                });
+
+                if (!error) {
+                    // Supabase signup success
                     const user = await this.syncUserSession(null, data.user);
                     return { success: true, user: user };
-                } catch (e) {
-                    return { error: 'Registration failed' };
                 }
+                
+                // If Supabase fails (e.g. user already exists or other error), we might still want to try Clerk 
+                // but let's stick to Supabase if it worked. If error is "User already registered", 
+                // we should probably just return that.
+                if (error.message.includes('already registered')) {
+                    return { error: 'This email is already registered. Try signing in!' };
+                }
+
+                console.warn('Supabase signup failed, trying Clerk fallback...', error);
+            } catch (e) {
+                console.error('Supabase signup exception:', e);
             }
-            return { error: 'Clerk not initialized. Please refresh the page.' };
+        }
+
+        if (!this.clerk) {
+            return { error: 'Auth system not ready.' };
         }
         
         try {
@@ -569,21 +591,14 @@ export class AuthService {
                 await this.clerk.setActive({ session: signUp.createdSessionId });
                 return { success: true };
             } else {
-                // If verification is required (e.g. email code)
-                console.log('Sign up status:', signUp.status);
-                // For now, if not complete, we might need a verification view, 
-                // but usually Clerk accounts are set to auto-complete or email-verify.
-                // If it's not complete, we can't setActive yet.
-                return { error: `Account requires ${signUp.status}. Please check your email or contact support.` };
+                return { error: `Clerk account requires ${signUp.status}. Use a stronger password or check your email.` };
             }
         } catch (error) {
-            console.error('Custom sign up error:', error);
+            console.error('Clerk sign up error:', error);
             let errorMessage = 'Sign up failed';
             if (error.errors && error.errors[0]) {
                 const err = error.errors[0];
                 errorMessage = err.longMessage || err.message || errorMessage;
-            } else if (error.message) {
-                errorMessage = error.message;
             }
             return { error: errorMessage };
         }
