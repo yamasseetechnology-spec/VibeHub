@@ -843,6 +843,14 @@ class VibeApp {
                 case 'notifications':
                     container.innerHTML = this.getNotificationsHTML();
                     break;
+                case 'friends':
+                    const friends = await this.services.data.getFriends(State.user?.id);
+                    const friendsPosts = await this.services.data.getFriendsPosts(State.user?.id);
+                    container.innerHTML = this.getFriendsHTML(friends, friendsPosts);
+                    break;
+                case 'guidelines':
+                    container.innerHTML = this.getGuidelinesHTML();
+                    break;
                 case 'settings':
                     container.innerHTML = this.getSettingsHTML();
                     break;
@@ -974,7 +982,8 @@ class VibeApp {
         const tabs = [
             { id: 'vibeline', label: 'Vibeline' },
             { id: 'trending', label: 'Trending' },
-            { id: 'we-vibin', label: 'We Vibin' }
+            { id: 'we-vibin', label: 'We Vibin' },
+            { id: 'friends', label: 'Friends' }
         ];
         return `
             <div class="view-header animate-fade">
@@ -991,6 +1000,10 @@ class VibeApp {
     }
 
     async switchHomeTab(tabId) {
+        if (tabId === 'friends') {
+            this.navigate('friends');
+            return;
+        }
         const posts = await this.services.data.getPosts(tabId);
         document.getElementById('view-container').innerHTML = this.getHomeHTML(posts, tabId);
         this.attachViewEvents();
@@ -1791,10 +1804,89 @@ class VibeApp {
                     <button class="btn-primary" style="margin-top:15px;" onclick="window.App.handleDonation()">Donate to Vibe Evolution</button>
                 </div>
                 <div class="glass-panel" style="padding:20px;">
+                    <h3>Community</h3>
+                    <button class="btn-secondary" style="margin-top:10px; width:100%;" onclick="window.App.navigate('guidelines')">Community Guidelines</button>
+                </div>
+                <div class="glass-panel" style="padding:20px;">
                     <h3>Account Security</h3>
                     <button class="btn-secondary" style="margin-top:10px; width:100%;">Update Passlink</button>
                 </div>
                 <button class="btn-secondary" style="color:var(--accent-pink); border-color:var(--accent-pink);" onclick="window.App.services.auth.logout()">Disconnect Session</button>
+            </div>
+        `;
+    }
+
+    getFriendsHTML(friends, posts) {
+        return `
+            <div class="view-header">
+                <h1 class="view-title">Friends</h1>
+                <p class="text-dim">Your vibe circle.</p>
+            </div>
+            <div class="tabs">
+                <button class="tab active" style="flex:1;">Friends List</button>
+                <button class="tab" style="flex:1;" onclick="window.App.showToast('Friends Feed coming soon!')">Friends Feed</button>
+            </div>
+            <div class="friends-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:15px; margin-top:20px;">
+                ${friends && friends.length > 0 ? friends.map(f => `
+                    <div class="friend-card glass-panel" style="padding:15px; text-align:center; cursor:pointer;" onclick="window.App.viewUserProfile('${f.id}', '${f.username}')">
+                        <img src="${f.avatar || 'https://i.pravatar.cc/150'}" style="width:60px; height:60px; border-radius:50%; margin-bottom:10px;">
+                        <h4 style="font-size:0.9rem;">${f.displayName || f.username}</h4>
+                        <p class="text-dim" style="font-size:0.75rem;">@${f.username}</p>
+                    </div>
+                `).join('') : '<p class="text-dim" style="grid-column:1/-1; text-align:center; padding:30px;">No friends yet. Start connecting!</p>'}
+            </div>
+            <div style="margin-top:30px;">
+                <h3 class="section-title">Friends' Recent Vibes</h3>
+                <div id="friends-feed" style="margin-top:15px;">
+                    ${posts && posts.length > 0 ? posts.map(p => Components.post(p)).join('') : '<p class="text-dim" style="text-align:center; padding:20px;">No recent vibes from friends.</p>'}
+                </div>
+            </div>
+        `;
+    }
+
+    async viewUserProfile(userId, username) {
+        this.showToast(`Viewing ${username}'s profile...`);
+    }
+
+    getGuidelinesHTML() {
+        return `
+            <div class="view-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <h1 class="view-title">Community Guidelines</h1>
+                <button class="btn-secondary" onclick="window.App.navigate('home')">← Back to Home</button>
+            </div>
+            <div class="glass-panel" style="padding:25px; margin-top:20px;">
+                <h2 style="color:var(--primary-orange); margin-bottom:20px;">VibeHub Community Standards</h2>
+                
+                <div style="margin-bottom:25px;">
+                    <h3 style="color:var(--primary-purple);">1. Be Respectful</h3>
+                    <p class="text-dim" style="margin-top:5px;">Treat all members with respect. No harassment, hate speech, or bullying.</p>
+                </div>
+                
+                <div style="margin-bottom:25px;">
+                    <h3 style="color:var(--primary-purple);">2. Authentic Interactions</h3>
+                    <p class="text-dim" style="margin-top:5px;">Be yourself. No catfishing, impersonation, or fake accounts.</p>
+                </div>
+                
+                <div style="margin-bottom:25px;">
+                    <h3 style="color:var(--primary-purple);">3. Quality Content</h3>
+                    <p class="text-dim" style="margin-top:5px;">Post original content. No spam, bot activity, or excessive self-promotion.</p>
+                </div>
+                
+                <div style="margin-bottom:25px;">
+                    <h3 style="color:var(--primary-purple);">4. Privacy & Safety</h3>
+                    <p class="text-dim" style="margin-top:5px;">Don't share personal info of others. Report suspicious activity.</p>
+                </div>
+                
+                <div style="margin-bottom:25px;">
+                    <h3 style="color:var(--primary-purple);">5. Reaction Culture</h3>
+                    <p class="text-dim" style="margin-top:5px;">Use reactions thoughtfully: Cap (call out misinformation), Wild (amazing content), Heat (trending), Admire (show respect), Like (general approval).</p>
+                </div>
+                
+                <div style="margin-top:30px; padding:15px; background:rgba(255,0,0,0.1); border-radius:10px;">
+                    <p style="color:var(--accent-pink);">Violations may result in warnings, temporary suspension, or permanent banning depending on severity.</p>
+                </div>
+                
+                <button class="btn-primary" style="margin-top:25px; width:100%;" onclick="window.App.navigate('home')">I Understand - Return to Home</button>
             </div>
         `;
     }

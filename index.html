@@ -211,6 +211,9 @@
                 <button class="drawer-link" data-view="communities" onclick="window.App.navigate('communities'); window.App.closeMobileMenu();">
                     <span class="icon">👥</span><span>Communities</span>
                 </button>
+                <button class="drawer-link" data-view="friends" onclick="window.App.navigate('friends'); window.App.closeMobileMenu();">
+                    <span class="icon">🤝</span><span>Friends</span>
+                </button>
                 <button class="drawer-link" data-view="search" onclick="window.App.navigate('search'); window.App.closeMobileMenu();">
                     <span class="icon">🔍</span><span>Search</span>
                 </button>
@@ -223,9 +226,17 @@
                 <button class="drawer-link" data-view="settings" onclick="window.App.navigate('settings'); window.App.closeMobileMenu();">
                     <span class="icon">⚙️</span><span>Settings</span>
                 </button>
+                <button class="drawer-link" data-view="guidelines" onclick="window.App.navigate('guidelines'); window.App.closeMobileMenu();">
+                    <span class="icon">📋</span><span>Guidelines</span>
+                </button>
             </div>
         </div>
         <div id="drawer-overlay" class="drawer-overlay" onclick="window.App.closeMobileMenu()"></div>
+
+        <!-- Floating Friends Button (Mobile) -->
+        <button class="fab-friends mobile-only" onclick="window.App.navigate('friends')" title="Friends">
+            🤝
+        </button>
 
         <!-- Main Content Area -->
         <main id="content-area">

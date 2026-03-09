@@ -1394,6 +1394,100 @@ class DataService {
         }
     }
 
+    async getFriends(userId) {
+        if (!userId) return [];
+        
+        if (!window.supabaseClient) {
+            return [
+                { id: 'f1', username: 'cyber_soul', displayName: 'Cyber Soul', avatar: 'https://i.pravatar.cc/150?u=cs' },
+                { id: 'f2', username: 'neon_dreamer', displayName: 'Neon Dreamer', avatar: 'https://i.pravatar.cc/150?u=nd' }
+            ];
+        }
+
+        try {
+            const { data } = await window.supabaseClient
+                .from('friends')
+                .select('friend_id, friend:friend_id(*)')
+                .eq('user_id', userId);
+
+            return (data || []).map(f => ({
+                id: f.friend_id,
+                username: f.friend?.username || 'unknown',
+                displayName: f.friend?.display_name || f.friend?.username || 'User',
+                avatar: f.friend?.avatar_url || 'https://i.pravatar.cc/150?u=' + f.friend_id
+            }));
+        } catch (error) {
+            console.error('Error fetching friends:', error);
+            return [];
+        }
+    }
+
+    async addFriend(userId, friendId) {
+        if (!window.supabaseClient) return true;
+
+        try {
+            await window.supabaseClient
+                .from('friends')
+                .insert([{ user_id: userId, friend_id: friendId }]);
+            return true;
+        } catch (error) {
+            console.error('Error adding friend:', error);
+            return false;
+        }
+    }
+
+    async getFriendsPosts(userId) {
+        if (!userId) return [];
+        
+        if (!window.supabaseClient) {
+            return [];
+        }
+
+        try {
+            // Get friends' IDs
+            const { data: friends } = await window.supabaseClient
+                .from('friends')
+                .select('friend_id')
+                .eq('user_id', userId);
+
+            if (!friends || friends.length === 0) return [];
+
+            const friendIds = friends.map(f => f.friend_id);
+
+            // Get friends' posts
+            const { data } = await window.supabaseClient
+                .from('posts')
+                .select('*')
+                .in('user_id', friendIds)
+                .gt('expires_at', new Date().toISOString())
+                .order('created_at', { ascending: false })
+                .limit(50);
+
+            return (data || []).map(post => ({
+                id: post.id,
+                userId: post.user_id,
+                displayName: post.username,
+                handle: post.username,
+                avatar: post.user_avatar,
+                content: post.text,
+                media: post.media_url,
+                mediaType: post.media_type,
+                timestamp: this.formatTimestamp(post.created_at),
+                reactions: {
+                    like: post.likes?.length || 0,
+                    heat: post.reactions?.heat?.length || 0,
+                    wild: post.reactions?.wild?.length || 0,
+                    cap: post.reactions?.cap?.length || 0,
+                    admire: post.reactions?.relate?.length || 0,
+                    dislike: post.dislikes?.length || 0
+                }
+            }));
+        } catch (error) {
+            console.error('Error fetching friends posts:', error);
+            return [];
+        }
+    }
+
     async getMarketplace() {
         if (!window.supabaseClient) {
             return [

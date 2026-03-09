@@ -1205,7 +1205,13 @@ body {
     .mobile-only { display: flex !important; }
     
     /* Show hamburger on mobile */
-    .hamburger-btn { display: flex; }
+    .hamburger-btn { 
+        display: flex !important; 
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 1001;
+    }
     
     /* Top bar mobile */
     #top-bar {
@@ -1213,6 +1219,31 @@ body {
         padding-left: 60px;
         padding-right: 10px;
         height: 60px;
+    }
+    
+    /* Floating Friends Button - Bottom Right */
+    .fab-friends {
+        display: flex !important;
+        position: fixed;
+        bottom: 90px;
+        right: 20px;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--primary-purple), var(--primary-orange));
+        border: none;
+        box-shadow: 0 4px 20px rgba(157, 80, 187, 0.5);
+        z-index: 500;
+        cursor: pointer;
+        justify-content: center;
+        align-items: center;
+        font-size: 1.5rem;
+        transition: transform 0.3s, box-shadow 0.3s;
+    }
+    
+    .fab-friends:hover {
+        transform: scale(1.1);
+        box-shadow: 0 6px 30px rgba(157, 80, 187, 0.7);
     }
     
     .search-container { display: none; }
