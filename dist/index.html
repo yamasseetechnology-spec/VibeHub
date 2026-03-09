@@ -17,7 +17,7 @@
     <!-- PWA -->
     <meta name="theme-color" content="#050505">
     <link rel="manifest" href="/vibehub/assets/manifest-xH2Y_cj-.json">
-  <script type="module" crossorigin src="/vibehub/assets/index-BQcyNWT-.js"></script>
+  <script type="module" crossorigin src="/vibehub/assets/index-CL9hD9Zl.js"></script>
   <link rel="stylesheet" crossorigin href="/vibehub/assets/index-BRhCAcBn.css">
 </head>
 <body>
@@ -169,8 +169,22 @@
                 <button class="nav-link mobile-bottom-nav" data-view="vibestream" title="VibeStream">
                     <span class="icon">📺</span><span class="label">VibeStream</span>
                 </button>
-                <button class="nav-link mobile-bottom-nav create-vibe-btn" onclick="window.App.showCreatePostModal()" title="Create Post">
-                    <span class="icon-plus">+</span>
+                <button class="nav-link mobile-bottom-nav create-vibe-btn" onclick="window.App.showCreatePostModal()" title="Create Post" style="
+                    background: linear-gradient(135deg, #ff9f00, #ff6b00) !important;
+                    border-radius: 50% !important;
+                    width: 48px !important;
+                    height: 48px !important;
+                    min-width: 48px !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    margin-top: -18px !important;
+                    box-shadow: 0 0 20px rgba(255, 159, 0, 0.5), 0 4px 15px rgba(0,0,0,0.3) !important;
+                    border: 2px solid rgba(255, 255, 255, 0.2) !important;
+                    position: relative !important;
+                    z-index: 5 !important;
+                ">
+                    <span style="font-size: 28px; line-height: 1; color: white; font-weight: bold;">+</span>
                 </button>
                 <button class="nav-link mobile-bottom-nav" data-view="notifications" title="Notifications">
                     <span class="icon">🔔</span><span class="label">Notifs</span>
@@ -247,7 +261,25 @@
         </button>
         
         <!-- Floating Post Button (Mobile) -->
-        <button class="fab-post mobile-only" onclick="window.App.showCreatePostModal()" title="Create Post">
+        <button class="fab-post mobile-only" onclick="window.App.showCreatePostModal()" title="Create Post" style="
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ff9f00, #ff6b00);
+            border: none;
+            color: white;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 20px rgba(255, 159, 0, 0.5), 0 2px 10px rgba(0,0,0,0.3);
+            cursor: pointer;
+            z-index: 100;
+            transition: transform 0.2s, box-shadow 0.2s;
+        ">
             ✨
         </button>
 

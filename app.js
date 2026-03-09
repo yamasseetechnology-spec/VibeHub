@@ -452,7 +452,10 @@ class VibeApp {
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 const view = e.currentTarget.dataset.view;
-                this.navigate(view);
+                if (view) {
+                    this.navigate(view);
+                }
+                // If no data-view, let the onclick handler (e.g. showCreatePostModal) do its thing
             });
         });
 
