@@ -14,9 +14,12 @@ export const Components = {
             <div class="post-card glass-panel ${p.isSponsored ? 'sponsored-ad' : ''}" data-id="${p.id || ''}">
                 ${p.isSponsored ? '<span class="ad-label">Sponsored Vibe</span>' : ''}
                 <div class="post-header">
-                    <img src="${p.avatar || 'https://i.pravatar.cc/150'}" class="user-avatar" alt="${p.displayName || 'User'}">
+                    <img src="${p.avatar || 'https://i.pravatar.cc/150'}" class="user-avatar" alt="${p.displayName || 'User'}" 
+                         style="cursor:pointer;" onclick="window.App.viewUserProfile('${p.userId}', '${p.handle}')">
                     <div class="user-info">
-                        <span class="name">${p.displayName || 'User'} <span class="mind-state" title="Current Neural State">${randomState}</span></span>
+                        <span class="name" style="cursor:pointer;" onclick="window.App.viewUserProfile('${p.userId}', '${p.handle}')">
+                            ${p.displayName || 'User'} <span class="mind-state" title="Current Neural State">${randomState}</span>
+                        </span>
                         <span class="handle">@${p.handle || 'username'} • ${p.timestamp || 'Just now'}</span>
                     </div>
                     <button class="more-options" onclick="window.App.showPostMenu('${p.id || ''}')">•••</button>

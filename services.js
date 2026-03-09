@@ -517,12 +517,15 @@ export class AuthService {
             };
 
             this.user = user;
+            
+            // Persist based on preference
             if (this.rememberMe) {
                 localStorage.setItem('vibehub_user', JSON.stringify(user));
                 localStorage.setItem('vibehub_remember', 'true');
             } else {
                 sessionStorage.setItem('vibehub_user', JSON.stringify(user));
                 localStorage.removeItem('vibehub_remember');
+                localStorage.removeItem('vibehub_user');
             }
             
             // Notify app of login
@@ -1151,6 +1154,42 @@ export class DataService {
             return { success: true };
         } catch (error) {
             console.error('Error in addReaction:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    async boostUserVibe(targetUserId, likerId) {
+        if (!window.supabaseClient) return { success: true, action: 'added' };
+
+        try {
+            const { data: user, error: fetchError } = await window.supabaseClient
+                .from('users')
+                .select('vibe_likes')
+                .eq('id', targetUserId)
+                .single();
+
+            if (fetchError) throw fetchError;
+
+            let vibeLikes = user.vibe_likes || [];
+            let action = 'added';
+
+            if (vibeLikes.includes(likerId)) {
+                vibeLikes = vibeLikes.filter(id => id !== likerId);
+                action = 'removed';
+            } else {
+                vibeLikes.push(likerId);
+            }
+
+            const { error: updateError } = await window.supabaseClient
+                .from('users')
+                .update({ vibe_likes: vibeLikes })
+                .eq('id', targetUserId);
+
+            if (updateError) throw updateError;
+
+            return { success: true, action };
+        } catch (error) {
+            console.error('Error boosting user vibe:', error);
             return { success: false, error: error.message };
         }
     }

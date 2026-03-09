@@ -130,7 +130,10 @@ class VibeApp {
             this.enableRealTimeSubscriptions();
             
             this.showToast(`Welcome, ${e.detail.displayName}! ✨`);
-            this.navigate('home');
+            // Small delay to ensure smooth transition and DOM stability
+            setTimeout(() => {
+                this.navigate('home');
+            }, 300);
         });
 
         // Listen for user logged out event
@@ -1059,12 +1062,12 @@ class VibeApp {
         const container = document.getElementById('view-container');
         if (!container) return;
         
-        // Update Nav UI
-        if (updateNav) {
-            document.querySelectorAll('.nav-link').forEach(l => {
-                l.classList.toggle('active', l.dataset.view === view);
-            });
-        }
+        // Ensure app and container are visible if they were hidden
+        const app = document.getElementById('app');
+        if (app) app.classList.remove('hidden');
+        container.classList.remove('hidden');
+        container.style.display = 'block';
+        container.style.opacity = '1';
 
         // Show Loading State in View
         container.innerHTML = '<div class="loader-view"><div class="spinner"></div></div>';
@@ -1466,7 +1469,7 @@ class VibeApp {
             </div>
         `;
         
-        const isOwnProfile = true; // For now, always show edit button since we don't have user viewing other profiles yet
+        const isOwnProfile = State.user && user.id === State.user.id;
         
         return `
             <div class="profile-container">
@@ -1492,12 +1495,20 @@ class VibeApp {
                                 ${this.generateBadges(user)}
                             </div>
                         </div>
-                        ${isOwnProfile ? `<button class="btn-secondary" onclick="window.App.showEditProfileModal()" style="margin: 20px auto 0;">Edit Profile</button>` : `<button class="btn-primary" onclick="window.App.showToast('Follow coming soon!')">Follow</button>`}
+                        ${isOwnProfile ? 
+                            `<button class="btn-secondary" onclick="window.App.showEditProfileModal()" style="margin: 20px auto 0;">Edit Profile</button>` : 
+                            `<div style="display:flex; gap:10px; margin-top:20px; justify-content:center;">
+                                <button class="btn-primary" onclick="window.App.boostVibe('${user.id}')">I Like Your Vibe ✨</button>
+                                <button class="btn-secondary" onclick="window.App.showToast('Follow coming soon!')">Follow</button>
+                             </div>`
+                        }
                     </div>
                     <div class="profile-stats glass-panel">
                         <div class="stat-item"><span class="stat-value">${(user.followersCount || 0).toLocaleString()}</span><span class="stat-label">Followers</span></div>
                         <div class="stat-item"><span class="stat-value">${(user.followingCount || 0).toLocaleString()}</span><span class="stat-label">Following</span></div>
                         <div class="stat-item"><span class="stat-value">${(user.postCount || 0).toLocaleString()}</span><span class="stat-label">Posts</span></div>
+                        <div class="stat-item"><span class="stat-value" id="vibe-boost-count">${(user.vibeBoosts || 0).toLocaleString()}</span><span class="stat-label">Vibe Level</span></div>
+                    </div>
                         <div class="stat-item"><span class="stat-value">98%</span><span class="stat-label">Vibe Match</span></div>
                     </div>
                     
@@ -1613,6 +1624,10 @@ class VibeApp {
         if (admireCount >= 500) badges.push({ label: 'Respected', class: 'badge-admired' });
         if (likeCount >= 500) badges.push({ label: 'Vibe King', class: 'badge-gold' });
         
+        const vibeBoosts = user.vibeBoosts || 0;
+        if (vibeBoosts >= 200) badges.push({ label: 'Vibe Master', class: 'badge-wild' });
+        if (vibeBoosts >= 500) badges.push({ label: 'Aura of Light', class: 'badge-heat' });
+        
         if (user.postCount > 20) badges.push({ label: 'Truth Detector', class: 'badge-truth' });
         if (user.followersCount > 1000) badges.push({ label: 'Admired Creator', class: 'badge-admired' });
         
@@ -1646,6 +1661,12 @@ class VibeApp {
                         <input type="email" id="signup-email-input" class="login-input" placeholder="Email Address" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(157, 80, 187, 0.3); background: rgba(0,0,0,0.3); color: white;">
                         <input type="password" id="signup-password-input" class="login-input" placeholder="Password" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(157, 80, 187, 0.3); background: rgba(0,0,0,0.3); color: white;">
                         <button class="signup-submit-btn" onclick="window.App.handleCustomSignUp()" style="width: 100%; padding: 12px; border-radius: 8px; border: none; background: linear-gradient(135deg, #9d50bb, #6e48aa); color: white; font-weight: 600; cursor: pointer;">Create Account</button>
+                    </div>
+                    <div class="login-options" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; color:#aaa; font-size:0.85rem;">
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                            <input type="checkbox" id="remember-me" checked style="accent-color:var(--primary-orange);"> Stay Signed In
+                        </label>
+                        <a href="https://clerk.com" target="_blank" style="color:var(--primary-orange); text-decoration:none;">Need help?</a>
                     </div>
 
                     <button id="toggle-auth-btn" onclick="window.App.toggleAuthMode()" style="
@@ -2066,7 +2087,86 @@ class VibeApp {
     }
 
     async viewUserProfile(userId, username) {
-        this.showToast(`Viewing ${username}'s profile...`);
+        if (!userId) {
+            this.showToast('User not found', 'error');
+            return;
+        }
+        
+        this.showToast(`Loading ${username}'s vibe...`);
+        
+        try {
+            // Fetch user data from Supabase
+            const { data: user, error } = await window.supabaseClient
+                .from('users')
+                .select('*')
+                .eq('id', userId)
+                .single();
+            
+            if (error || !user) throw new Error('Could not find user');
+            
+            // Map Supabase user to app user object
+            const profileUser = {
+                id: user.id,
+                username: user.username,
+                displayName: user.name,
+                profilePhoto: user.avatar_url,
+                bannerImage: user.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
+                bio: user.bio,
+                vibeBoosts: user.vibe_likes?.length || 0,
+                followersCount: user.followers?.length || 0,
+                followingCount: user.following?.length || 0,
+                postCount: user.post_count || 0,
+                reactionScore: user.vibe_score || 0,
+                songLink: user.song_link
+            };
+            
+            // Fetch user's posts
+            const userPosts = await this.services.data.getUserPosts(userId);
+            
+            // Render profile view
+            const container = document.getElementById('view-container');
+            if (container) {
+                container.innerHTML = await this.getProfileHTML(profileUser, userPosts);
+                this.attachViewEvents();
+                window.scrollTo(0, 0);
+            }
+        } catch (err) {
+            console.error('Error viewing profile:', err);
+            this.showToast('Failed to load profile', 'error');
+        }
+    }
+
+    async boostVibe(targetUserId) {
+        if (!State.user) {
+            this.showToast('Please login to boost vibes!', 'error');
+            return;
+        }
+        
+        if (targetUserId === State.user.id) {
+            this.showToast('You cannot boost your own vibe!', 'error');
+            return;
+        }
+        
+        this.showToast('Boosting vibe... ✨');
+        
+        const result = await this.services.data.boostUserVibe(targetUserId, State.user.id);
+        
+        if (result.success) {
+            this.showToast(result.action === 'added' ? 'Vibe Boosted! ⚡' : 'Boost Removed', 'success');
+            
+            // Update counter in UI if visible
+            const countEl = document.getElementById('vibe-boost-count');
+            if (countEl) {
+                let count = parseInt(countEl.innerText) || 0;
+                count = result.action === 'added' ? count + 1 : Math.max(0, count - 1);
+                countEl.innerText = count.toLocaleString();
+            }
+            
+            // Reaction effect
+            this.triggerReactionPopup(window.innerWidth / 2, window.innerHeight / 2, '✨');
+        } else {
+            this.showToast('Boost failed: ' + result.error, 'error');
+        }
     }
 
     getGuidelinesHTML() {
