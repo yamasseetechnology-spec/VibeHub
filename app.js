@@ -19,13 +19,24 @@ const State = {
 // --- CORE APP CLASS ---
 class VibeApp {
     constructor() {
-        this.services = {
-            auth: new AuthService(),
-            data: new DataService(),
-            video: new VideoService(),
-            chat: new ChatService(),
-            admin: new AdminService()
-        };
+        try {
+            this.services = {
+                auth: new AuthService(),
+                data: new DataService(),
+                video: new VideoService(),
+                chat: new ChatService(),
+                admin: new AdminService()
+            };
+        } catch (e) {
+            console.error("Service initialization failed:", e);
+            this.services = {
+                auth: null,
+                data: null,
+                video: null,
+                chat: null,
+                admin: null
+            };
+        }
         this.init();
     }
 

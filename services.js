@@ -1974,14 +1974,3 @@ class AdminService {
         }
     }
 }
-                posts: postsCount.count || 0,
-                activeNow: Math.floor(Math.random() * 500) + 100,
-                postsToday: Math.floor(Math.random() * 100) + 10,
-                revenue: '$1,240'
-            };
-        } catch (error) {
-            console.error('Error fetching stats:', error);
-            return this.getStats();
-        }
-    }
-}
