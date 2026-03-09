@@ -1625,6 +1625,27 @@ class VideoService {
             return [];
         }
     }
+
+    async uploadMedia(blob, type) {
+        if (!window.CLOUDINARY_CONFIG) return null;
+        
+        const formData = new FormData();
+        formData.append('file', blob);
+        formData.append('upload_preset', type === 'audio' ? 'vibehub_audio' : 'vibehub_videos');
+        formData.append('cloud_name', window.CLOUDINARY_CONFIG.cloudName);
+        
+        try {
+            const response = await fetch(`https://api.cloudinary.com/v1_1/${window.CLOUDINARY_CONFIG.cloudName}/${type}/upload`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            return data.secure_url;
+        } catch (e) {
+            console.error('Media upload failed:', e);
+            return null;
+        }
+    }
 }
 
 // ============================================

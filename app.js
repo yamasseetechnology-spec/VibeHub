@@ -772,33 +772,96 @@ class VibeApp {
     }
 
     async startAudioComment(postId) {
-        this.showToast("Recording audio... (Simulated)");
-        setTimeout(async () => {
-            await this.services.data.addComment(postId, {
-                userId: State.user ? State.user.username : 'guest',
-                displayName: State.user ? State.user.displayName : 'Guest User',
-                type: 'audio'
-            });
-            this.showCommentModal(postId);
-            this.showToast("Audio comment posted!");
-            const postBtn = document.querySelector(`.post-card[data-id="${postId}"] .action-comment span`);
-            if (postBtn) postBtn.innerText = parseInt(postBtn.innerText) + 1;
-        }, 2000);
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            const chunks = [];
+
+            mediaRecorder.ondataavailable = e => chunks.push(e.data);
+            mediaRecorder.onstop = async () => {
+                const blob = new Blob(chunks, { type: 'audio/webm' });
+                this.showToast("Uploading audio...");
+                
+                // Simulate Cloudinary upload
+                const audioUrl = await this.services.video.uploadMedia(blob, 'audio');
+                
+                await this.services.data.addComment(postId, {
+                    userId: State.user?.username || 'guest',
+                    displayName: State.user?.displayName || 'Guest',
+                    type: 'audio',
+                    audioUrl: audioUrl
+                });
+                
+                this.showCommentModal(postId);
+                this.showToast("Audio comment posted! 🎤");
+            };
+
+            mediaRecorder.start();
+            this.showToast("Recording... (15s max)");
+            setTimeout(() => {
+                if (mediaRecorder.state !== 'inactive') {
+                    mediaRecorder.stop();
+                    stream.getTracks().forEach(track => track.stop());
+                }
+            }, 15000);
+        } catch (err) {
+            this.showToast("Audio recording failed: " + err.message, 'error');
+        }
     }
 
     async startVideoComment(postId) {
-        this.showToast("Uploading video... (Simulated)");
-        setTimeout(async () => {
-            await this.services.data.addComment(postId, {
-                userId: State.user ? State.user.username : 'guest',
-                displayName: State.user ? State.user.displayName : 'Guest User',
-                type: 'video'
-            });
-            this.showCommentModal(postId);
-            this.showToast("Video reply posted!");
-            const postBtn = document.querySelector(`.post-card[data-id="${postId}"] .action-comment span`);
-            if (postBtn) postBtn.innerText = parseInt(postBtn.innerText) + 1;
-        }, 2000);
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            video.autoplay = true;
+            video.muted = true;
+            video.style.width = '100%';
+            
+            // Show preview
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="glass-panel" style="max-width:400px; margin:auto; padding:20px;">
+                    <h3 style="margin-bottom:10px;">Recording Video...</h3>
+                    <div id="video-preview"></div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            document.getElementById('video-preview').appendChild(video);
+
+            const mediaRecorder = new MediaRecorder(stream);
+            const chunks = [];
+            mediaRecorder.ondataavailable = e => chunks.push(e.data);
+            mediaRecorder.onstop = async () => {
+                const blob = new Blob(chunks, { type: 'video/webm' });
+                this.showToast("Uploading video...");
+                
+                // Simulate Cloudinary upload
+                const videoUrl = await this.services.video.uploadMedia(blob, 'video');
+                
+                await this.services.data.addComment(postId, {
+                    userId: State.user?.username || 'guest',
+                    displayName: State.user?.displayName || 'Guest',
+                    type: 'video',
+                    videoUrl: videoUrl
+                });
+                
+                modal.remove();
+                stream.getTracks().forEach(track => track.stop());
+                this.showCommentModal(postId);
+                this.showToast("Video reply posted! 🎥");
+            };
+
+            mediaRecorder.start();
+            setTimeout(() => {
+                if (mediaRecorder.state !== 'inactive') {
+                    mediaRecorder.stop();
+                }
+            }, 15000);
+        } catch (err) {
+            this.showToast("Video recording failed: " + err.message, 'error');
+        }
     }
 
     hideSplash() {
