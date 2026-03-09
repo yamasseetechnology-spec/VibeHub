@@ -906,44 +906,44 @@ class VibeApp {
                     break;
                 case 'profile':
                     const userPosts = State.user ? await this.services.data.getUserPosts(State.user.id) : [];
-                    container.innerHTML = this.getProfileHTML(State.user, userPosts);
+                    container.innerHTML = await this.getProfileHTML(State.user, userPosts);
                     break;
                 case 'login':
                 case 'register':
-                    container.innerHTML = this.getAuthHTML(view);
+                    container.innerHTML = await this.getAuthHTML(view);
                     break;
                 case 'messages':
                     const dms = await this.services.chat.getMessages();
-                    container.innerHTML = this.getMessagesHTML(dms);
+                    container.innerHTML = await this.getMessagesHTML(dms);
                     break;
                 case 'notifications':
-                    container.innerHTML = this.getNotificationsHTML();
+                    container.innerHTML = await this.getNotificationsHTML();
                     break;
                 case 'friends':
                     const friends = await this.services.data.getFriends(State.user?.id);
                     const friendsPosts = await this.services.data.getFriendsPosts(State.user?.id);
-                    container.innerHTML = this.getFriendsHTML(friends, friendsPosts);
+                    container.innerHTML = await this.getFriendsHTML(friends, friendsPosts);
                     break;
                 case 'guidelines':
-                    container.innerHTML = this.getGuidelinesHTML();
+                    container.innerHTML = await this.getGuidelinesHTML();
                     break;
                 case 'settings':
-                    container.innerHTML = this.getSettingsHTML();
+                    container.innerHTML = await this.getSettingsHTML();
                     break;
                 case 'search':
-                    container.innerHTML = this.getSearchHTML();
+                    container.innerHTML = await this.getSearchHTML();
                     break;
                 case 'communities':
                     const communities = await this.services.data.getCommunities();
-                    container.innerHTML = this.getCommunitiesHTML(communities);
+                    container.innerHTML = await this.getCommunitiesHTML(communities);
                     break;
                 case 'marketplace':
                     const items = await this.services.data.getMarketplace();
-                    container.innerHTML = this.getMarketplaceHTML(items);
+                    container.innerHTML = await this.getMarketplaceHTML(items);
                     break;
                 case 'admin':
                     const stats = await this.services.admin.getStats();
-                    container.innerHTML = this.getAdminHTML(stats);
+                    container.innerHTML = await this.getAdminHTML(stats);
                     break;
                 default:
                     container.innerHTML = `<div class="view-header"><h1 class="view-title">${view}</h1><p>Vibe missing. Error 404.</p></div>`;
@@ -1435,105 +1435,33 @@ class VibeApp {
                 </div>
 
                 <div class="login-form">
-                    <!-- Clerk Buttons -->
-                    <button class="clerk-auth-btn clerk-signin-btn" onclick="window.App.handleClerkSignIn()" style="
-                        background: linear-gradient(135deg, #ff9f00 0%, #ff6b00 100%);
-                        border: none;
-                        padding: 14px 20px;
-                        border-radius: 12px;
-                        color: white;
-                        font-weight: 600;
-                        font-size: 15px;
-                        cursor: pointer;
-                        width: 100%;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        gap: 10px;
-                        transition: all 0.3s ease;
-                        box-shadow: 0 4px 15px rgba(255, 159, 0, 0.3);
-                        margin-bottom: 12px;
-                    ">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
-                            <polyline points="10 17 15 12 10 7"></polyline>
-                            <line x1="15" y1="12" x2="3" y2="12"></line>
-                        </svg>
-                        Sign in with Clerk
-                    </button>
+                    <!-- Custom Login Form -->
+                    <div id="login-form-fields" style="display: ${isLogin ? 'block' : 'none'}; margin-bottom: 20px;">
+                        <input type="email" id="login-email-input" class="login-input" placeholder="Email Address" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
+                        <input type="password" id="login-password-input" class="login-input" placeholder="Password" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
+                        <button class="login-submit-btn" onclick="window.App.handleCustomSignIn()" style="width: 100%; padding: 12px; border-radius: 8px; border: none; background: linear-gradient(135deg, #ff9f00, #ff6b00); color: white; font-weight: 600; cursor: pointer;">Sign In</button>
+                    </div>
                     
-                    <button class="clerk-auth-btn clerk-signup-btn" onclick="window.App.handleClerkSignUp()" style="
-                        background: linear-gradient(135deg, #9d50bb 0%, #6e48aa 100%);
-                        border: none;
-                        padding: 14px 20px;
-                        border-radius: 12px;
-                        color: white;
-                        font-weight: 600;
-                        font-size: 15px;
-                        cursor: pointer;
-                        width: 100%;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        gap: 10px;
-                        transition: all 0.3s ease;
-                        box-shadow: 0 4px 15px rgba(157, 80, 187, 0.3);
-                        margin-bottom: 20px;
-                    ">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="8.5" cy="7" r="4"></circle>
-                            <line x1="20" y1="8" x2="20" y2="14"></line>
-                            <line x1="23" y1="11" x2="17" y2="11"></line>
-                        </svg>
-                        Create Account
-                    </button>
-                    
-                    <div class="auth-divider" style="display: flex; align-items: center; margin: 20px 0; color: #666;">
-                        <div style="flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,165,0,0.3), transparent);"></div>
-                        <span style="padding: 0 15px; font-size: 13px;">or continue with</span>
-                        <div style="flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(157,80,187,0.3), transparent);"></div>
+                    <!-- Custom Sign Up Form -->
+                    <div id="signup-form-fields" style="display: ${!isLogin ? 'block' : 'none'}; margin-bottom: 20px;">
+                        <input type="text" id="signup-name-input" class="login-input" placeholder="Full Name" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(157, 80, 187, 0.3); background: rgba(0,0,0,0.3); color: white;">
+                        <input type="email" id="signup-email-input" class="login-input" placeholder="Email Address" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(157, 80, 187, 0.3); background: rgba(0,0,0,0.3); color: white;">
+                        <input type="password" id="signup-password-input" class="login-input" placeholder="Password" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(157, 80, 187, 0.3); background: rgba(0,0,0,0.3); color: white;">
+                        <button class="signup-submit-btn" onclick="window.App.handleCustomSignUp()" style="width: 100%; padding: 12px; border-radius: 8px; border: none; background: linear-gradient(135deg, #9d50bb, #6e48aa); color: white; font-weight: 600; cursor: pointer;">Create Account</button>
                     </div>
 
-                    <!-- Admin fallback -->
-                    <div class="admin-section" style="
-                        background: rgba(255, 165, 0, 0.05);
-                        border: 1px solid rgba(255, 165, 0, 0.2);
-                        border-radius: 12px;
-                        padding: 15px;
-                        margin-bottom: 15px;
+                    <button id="toggle-auth-btn" onclick="window.App.toggleAuthMode()" style="
+                        background: transparent;
+                        border: none;
+                        color: #aaa;
+                        font-size: 14px;
+                        cursor: pointer;
+                        width: 100%;
+                        margin-bottom: 20px;
+                        text-decoration: underline;
                     ">
-                        <p style="color: #ff9f00; font-size: 12px; margin-bottom: 10px; text-align: center;">🔐 Admin Access Only</p>
-                        <input type="email" id="login-email" class="login-input" placeholder="Admin Email" style="
-                            background: rgba(0,0,0,0.3);
-                            border: 1px solid rgba(255, 165, 0, 0.3);
-                            padding: 12px 15px;
-                            border-radius: 8px;
-                            color: white;
-                            width: 100%;
-                            margin-bottom: 10px;
-                        ">
-                        <input type="password" id="login-password" class="login-input" placeholder="Admin Password" style="
-                            background: rgba(0,0,0,0.3);
-                            border: 1px solid rgba(255, 165, 0, 0.3);
-                            padding: 12px 15px;
-                            border-radius: 8px;
-                            color: white;
-                            width: 100%;
-                            margin-bottom: 10px;
-                        ">
-                        <button class="login-submit" onclick="window.App.handleAdminLogin()" style="
-                            background: linear-gradient(135deg, #ff9f00, #ff6b00);
-                            border: none;
-                            padding: 12px;
-                            border-radius: 8px;
-                            color: white;
-                            font-weight: 600;
-                            width: 100%;
-                            cursor: pointer;
-                            transition: all 0.3s;
-                        ">🔑 Enter as Admin</button>
-                    </div>
+                        ${isLogin ? 'Need an account? Sign Up' : 'Already have an account? Sign In'}
+                    </button>
                 </div>
             </div>
         `;
