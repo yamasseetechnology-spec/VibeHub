@@ -1078,6 +1078,43 @@ class DataService {
         return channel;
     }
 
+    async addReaction(postId, userId, reactionType) {
+        if (!window.supabaseClient) return { success: true };
+
+        try {
+            // Check if user already reacted with this type
+            const { data: existing } = await window.supabaseClient
+                .from('post_reactions')
+                .select('*')
+                .eq('post_id', postId)
+                .eq('user_id', userId)
+                .eq('reaction_type', reactionType)
+                .single();
+
+            if (existing) {
+                // Remove reaction (toggle off)
+                await window.supabaseClient
+                    .from('post_reactions')
+                    .delete()
+                    .eq('id', existing.id);
+                return { success: true, action: 'removed' };
+            } else {
+                // Add new reaction
+                await window.supabaseClient
+                    .from('post_reactions')
+                    .insert([{
+                        post_id: postId,
+                        user_id: userId,
+                        reaction_type: reactionType
+                    }]);
+                return { success: true, action: 'added' };
+            }
+        } catch (error) {
+            console.error('Error adding reaction:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
     subscribeToComments(postId, callback) {
         if (!window.supabaseClient) return null;
 

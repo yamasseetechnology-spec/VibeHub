@@ -52,6 +52,63 @@ CREATE TABLE IF NOT EXISTS community_members (
 );
 
 -- ============================================
+-- FRIENDS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS friends (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    friend_id TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(user_id, friend_id)
+);
+
+-- ============================================
+-- POST REACTIONS TABLE (Multiple reactions per user per post)
+-- ============================================
+CREATE TABLE IF NOT EXISTS post_reactions (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    post_id uuid NOT NULL,
+    user_id TEXT NOT NULL,
+    reaction_type TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(post_id, user_id, reaction_type)
+);
+
+-- ============================================
+-- REPORTED POSTS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS reported_posts (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    post_id uuid NOT NULL,
+    reporter_id TEXT NOT NULL,
+    reason TEXT,
+    status TEXT DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ============================================
+-- BANNED USERS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS banned_users (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id TEXT NOT NULL UNIQUE,
+    reason TEXT,
+    banned_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ============================================
+-- ADS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS ads (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    image_url TEXT,
+    target_url TEXT,
+    title TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ============================================
 -- ADD EXPIRES_AT TO POSTS (48hr expiry)
 -- ============================================
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ DEFAULT (now() + interval '48 hours');
@@ -62,6 +119,7 @@ ALTER TABLE posts ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ DEFAULT (now()
 ALTER PUBLICATION supabase_realtime ADD TABLE rooms;
 ALTER PUBLICATION supabase_realtime ADD TABLE room_messages;
 ALTER PUBLICATION supabase_realtime ADD TABLE communities;
+ALTER PUBLICATION supabase_realtime ADD TABLE post_reactions;
 
 -- ============================================
 -- AUTO-DELETE ROOMS AFTER 24 HOURS (Trigger)
@@ -72,24 +130,6 @@ BEGIN
     DELETE FROM rooms WHERE expires_at < now();
 END;
 $$ LANGUAGE plpgsql;
-
--- Create a cron job to run every hour (if pg_cron extension is available)
--- Or use a simple trigger approach with a background worker
-
--- ============================================
--- ROW LEVEL SECURITY (Optional - enable as needed)
--- ============================================
--- ALTER TABLE rooms ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE room_messages ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE communities ENABLE ROW LEVEL SECURITY;
-
--- ============================================
--- INDEXES FOR PERFORMANCE
--- ============================================
-CREATE INDEX IF NOT EXISTS idx_room_messages_room_id ON room_messages(room_id);
-CREATE INDEX IF NOT EXISTS idx_room_messages_created_at ON room_messages(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_posts_expires_at ON posts(expires_at);
-CREATE INDEX IF NOT EXISTS idx_communities_created_at ON communities(created_at DESC);
 
 -- ============================================
 -- HELPER FUNCTIONS
@@ -120,7 +160,7 @@ BEGIN
     END IF;
     
     IF current_count < max_limit THEN
-        UPDATE rooms SET current_user_count = current_count + 1 WHERE id = room_uuid;
+        UPDATE rooms SET current_user_count = current_user_count + 1 WHERE id = room_uuid;
         RETURN true;
     ELSE
         RETURN false;
@@ -137,3 +177,31 @@ BEGIN
     WHERE id = room_uuid;
 END;
 $$ LANGUAGE plpgsql;
+
+-- ============================================
+-- ROW LEVEL SECURITY (Optional - enable as needed)
+-- ============================================
+-- ALTER TABLE rooms ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE room_messages ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE communities ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE friends ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE post_reactions ENABLE ROW LEVEL SECURITY;
+
+-- ============================================
+-- INDEXES FOR PERFORMANCE
+-- ============================================
+CREATE INDEX IF NOT EXISTS idx_room_messages_room_id ON room_messages(room_id);
+CREATE INDEX IF NOT EXISTS idx_room_messages_created_at ON room_messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_expires_at ON posts(expires_at);
+CREATE INDEX IF NOT EXISTS idx_communities_created_at ON communities(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_friends_user_id ON friends(user_id);
+CREATE INDEX IF NOT EXISTS idx_post_reactions_post_id ON post_reactions(post_id);
+CREATE INDEX IF NOT EXISTS idx_reported_posts_status ON reported_posts(status);
+
+-- ============================================
+-- SEED ADS (Placeholder)
+-- ============================================
+INSERT INTO ads (image_url, target_url, title, is_active) VALUES
+('https://images.unsplash.com/photo-1557683316-973673baf926?w=600', '#', 'Your Ad Here', true),
+('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600', '#', 'Promote Your Vibe', true)
+ON CONFLICT DO NOTHING;

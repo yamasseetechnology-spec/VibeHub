@@ -388,15 +388,28 @@ class VibeApp {
         }
 
         // Global Event Delegation for Reactions
-        document.body.addEventListener('click', (e) => {
+        document.body.addEventListener('click', async (e) => {
             const btn = e.target.closest('.reaction-btn');
             if (btn) {
+                const postCard = btn.closest('.post-card');
+                const postId = postCard?.dataset?.id;
+                const reactionType = btn.dataset?.type;
+                
+                if (!postId || !reactionType) return;
+
+                // Toggle UI
                 btn.classList.toggle('active');
                 const countSpan = btn.querySelector('span');
                 if (countSpan) {
-                    let count = parseInt(countSpan.innerText);
-                    count = btn.classList.contains('active') ? count + 1 : count - 1;
+                    let count = parseInt(countSpan.innerText) || 0;
+                    count = btn.classList.contains('active') ? count + 1 : Math.max(0, count - 1);
                     countSpan.innerText = count;
+                }
+
+                // Save to Supabase
+                const user = State.user;
+                if (user) {
+                    await this.services.data.addReaction(postId, user.id, reactionType);
                 }
 
                 // Reaction popup animation
