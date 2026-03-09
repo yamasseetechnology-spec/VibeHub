@@ -1131,6 +1131,58 @@ export class DataService {
         }
     }
 
+    async toggleFollow(targetUserId, currentUserId) {
+        if (!window.supabaseClient || !targetUserId || !currentUserId) return { success: false };
+        if (targetUserId === currentUserId) return { success: false, error: "Cannot follow yourself" };
+
+        try {
+            // Update Target User's Followers
+            const { data: targetUser } = await window.supabaseClient
+                .from('users')
+                .select('followers')
+                .eq('id', targetUserId)
+                .single();
+
+            let followers = targetUser?.followers || [];
+            let isFollowing = followers.includes(currentUserId);
+
+            if (isFollowing) {
+                followers = followers.filter(id => id !== currentUserId);
+            } else {
+                followers.push(currentUserId);
+            }
+
+            await window.supabaseClient
+                .from('users')
+                .update({ followers })
+                .eq('id', targetUserId);
+
+            // Update Current User's Following
+            const { data: currentUser } = await window.supabaseClient
+                .from('users')
+                .select('following')
+                .eq('id', currentUserId)
+                .single();
+
+            let following = currentUser?.following || [];
+            if (isFollowing) {
+                following = following.filter(id => id !== targetUserId);
+            } else {
+                following.push(targetUserId);
+            }
+
+            await window.supabaseClient
+                .from('users')
+                .update({ following })
+                .eq('id', currentUserId);
+
+            return { success: true, isFollowing: !isFollowing };
+        } catch (err) {
+            console.error('Follow toggle error:', err);
+            return { success: false, error: err.message };
+        }
+    }
+
     async boostUserVibe(targetUserId, likerId) {
         if (!window.supabaseClient) return { success: true, action: 'added' };
 

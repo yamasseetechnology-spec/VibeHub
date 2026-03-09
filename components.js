@@ -17,9 +17,15 @@ export const Components = {
                     <img src="${p.avatar || 'https://i.pravatar.cc/150'}" class="user-avatar" alt="${p.displayName || 'User'}" 
                          style="cursor:pointer;" onclick="window.App.viewUserProfile('${p.userId}', '${p.handle}')">
                     <div class="user-info">
-                        <span class="name" style="cursor:pointer;" onclick="window.App.viewUserProfile('${p.userId}', '${p.handle}')">
-                            ${p.displayName || 'User'} <span class="mind-state" title="Current Neural State">${randomState}</span>
-                        </span>
+                        <div class="name-row">
+                            <span class="name" onclick="window.App.viewUserProfile('${p.userId}', '${p.handle}')">
+                                ${p.displayName || 'User'}
+                            </span>
+                            <span class="mind-state">${randomState}</span>
+                            ${p.userId !== window.State?.user?.id ? `
+                                <button class="follow-mini-btn" onclick="window.App.handleFollow('${p.userId}')">Follow</button>
+                            ` : ''}
+                        </div>
                         <span class="handle">@${p.handle || 'username'} • ${p.timestamp || 'Just now'}</span>
                     </div>
                     <button class="more-options" onclick="window.App.showPostMenu('${p.id || ''}')">•••</button>
@@ -27,19 +33,21 @@ export const Components = {
                 <div class="post-content">
                     ${p.content || ''}
                 </div>
-                ${(p.mediaType === 'video' || (!p.mediaType && p.media?.includes('video'))) && p.media ? `<video src="${p.media}" class="post-media" controls loading="lazy"></video>` : ''}
-                ${(p.mediaType === 'image' || (!p.mediaType && p.media && !p.media?.includes('video'))) && p.media ? `<img src="${p.media}" class="post-media" loading="lazy">` : ''}
+                
+                <div class="media-container" ondblclick="window.App.handleDoubleTapReaction('${p.id || ''}', event)">
+                    ${(p.mediaType === 'video' || (!p.mediaType && p.media?.includes('video'))) && p.media ? `<video src="${p.media}" class="post-media" controls loading="lazy"></video>` : ''}
+                    ${(p.mediaType === 'image' || (!p.mediaType && p.media && !p.media?.includes('video'))) && p.media ? `<img src="${p.media}" class="post-media" loading="lazy">` : ''}
+                    <div class="double-tap-heart">🔥</div>
+                </div>
+
                 ${p.vibeScore !== undefined ? `<div class="vibe-score-badge"><span>🧠</span><span class="score-value">${p.vibeScore}</span></div>` : ''}
+                
                 <div class="post-actions">
-                    <button class="reaction-btn" data-type="like">👍 <span>${reactions.like}</span></button>
-                    <button class="reaction-btn" data-type="dislike">👎 <span>${reactions.dislike}</span></button>
-                    <button class="reaction-btn" data-type="heat">🔥 <span>${reactions.heat}</span></button>
-                    <button class="reaction-btn" data-type="admire">✨ <span>${reactions.admire}</span></button>
-                    <button class="reaction-btn" data-type="cap">🧢 <span>${reactions.cap}</span></button>
-                    <button class="reaction-btn" data-type="wild">🦁 <span>${reactions.wild}</span></button>
+                    <button class="reaction-btn main-react" data-type="heat" onclick="window.App.handleReaction('${p.id}', 'heat')">🔥 <span>${reactions.heat}</span></button>
                     <button class="action-btn action-comment" onclick="window.App.showCommentModal('${p.id || ''}')">💬 <span>${p.commentCount || 0}</span></button>
-                    <button class="reaction-btn advanced-reactions">🤯 <span>Neural Spark</span></button>
-                    <button class="reaction-btn advanced-reactions">🙏 <span>Deep Respect</span></button>
+                    <button class="action-btn" onclick="window.App.sharePost('${p.id}')">⤴️</button>
+                    <div class="reaction-divider"></div>
+                    <button class="reaction-btn more-vibes" onclick="window.App.toggleReactionPicker('${p.id}', event)">✨ <span>Vibe...</span></button>
                 </div>
             </div>
         `;

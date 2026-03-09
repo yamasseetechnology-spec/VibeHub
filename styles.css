@@ -2210,28 +2210,28 @@ body {
 }
 
 
- / *   - - -   V i b e   R e s p o n s e   A n i m a t i o n s   - - -   * / 
- @ k e y f r a m e s   v i b e - p u l s e   { 
-         0 %   {   b o x - s h a d o w :   0   0   0   0   v a r ( - - p r i m a r y - o r a n g e - g l o w ) ;   t r a n s f o r m :   s c a l e ( 1 ) ;   } 
-         5 0 %   {   b o x - s h a d o w :   0   0   2 0 p x   5 p x   v a r ( - - p r i m a r y - o r a n g e - g l o w ) ;   t r a n s f o r m :   s c a l e ( 1 . 0 2 ) ;   } 
-         1 0 0 %   {   b o x - s h a d o w :   0   0   0   0   v a r ( - - p r i m a r y - o r a n g e - g l o w ) ;   t r a n s f o r m :   s c a l e ( 1 ) ;   } 
- } 
- 
- . v i b e - p u l s i n g   { 
-         a n i m a t i o n :   v i b e - p u l s e   1 . 5 s   i n f i n i t e   e a s e - i n - o u t ; 
-         b o r d e r - c o l o r :   v a r ( - - p r i m a r y - o r a n g e )   ! i m p o r t a n t ; 
- } 
- 
- . v i b e - t h r e a d - i t e m   { 
-         b o r d e r - l e f t :   3 p x   s o l i d   v a r ( - - p r i m a r y - o r a n g e )   ! i m p o r t a n t ; 
-         p a d d i n g - l e f t :   1 5 p x   ! i m p o r t a n t ; 
-         b a c k g r o u n d :   r g b a ( 2 5 5 ,   1 5 7 ,   0 ,   0 . 0 3 )   ! i m p o r t a n t ; 
- } 
- 
- . v i b e - m e d i a - t h u m b ,   . v i b e - a u d i o - t h u m b   { 
-         t r a n s i t i o n :   a l l   0 . 3 s   c u b i c - b e z i e r ( 0 . 1 7 5 ,   0 . 8 8 5 ,   0 . 3 2 ,   1 . 2 7 5 ) ; 
-         c u r s o r :   p o i n t e r ; 
- } 
+/* --- Vibe Response Animations --- */
+@keyframes vibe-pulse {
+    0% { box-shadow: 0 0 0 0 var(--primary-orange-glow); transform: scale(1); }
+    50% { box-shadow: 0 0 20px 5px var(--primary-orange-glow); transform: scale(1.02); }
+    100% { box-shadow: 0 0 0 0 var(--primary-orange-glow); transform: scale(1); }
+}
+
+.vibe-pulsing {
+    animation: vibe-pulse 1.5s infinite ease-in-out;
+    border-color: var(--primary-orange) !important;
+}
+
+.vibe-thread-item {
+    border-left: 3px solid var(--primary-orange) !important;
+    padding-left: 15px !important;
+    background: rgba(255, 157, 0, 0.03) !important;
+}
+
+.vibe-media-thumb, .vibe-audio-thumb {
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    cursor: pointer;
+}
  
 
 /* --- VibeStream & Live Styling --- */

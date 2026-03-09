@@ -41,3 +41,11 @@
   - Refactor `handleClerkSession` to `syncUserSession` which accepts an optional user object.
   - Ensure `clerk_id` is handled as optional in the `users` table upsert.
   - Ensure `user-logged-in` event is always dispatched regardless of the auth provider.
+
+## 8. Social UX Polish & Premium Enhancements
+- **Goal**: Achieve Instagram/Facebook level polish while retaining VibeHub's unique futuristic glow.
+- **Enhancements**:
+  - **Gestures**: Implement `dblclick` (double-tap) on post media to trigger a "Heat" reaction with a center-screen animation.
+  - **Reaction System**: Group secondary reactions into a "+" or "Vibe" picker to declutter the post actions.
+  - **Navigation**: Update bottom nav to show 5 icons (Home, Stream, Center-Post, Notifs, Profile) for easier access to core loops.
+  - **Visual Polish**: Add skeleton shimmer effects for loading states to provide immediate visual feedback.

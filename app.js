@@ -1120,8 +1120,8 @@ class VibeApp {
         container.style.display = 'block';
         container.style.opacity = '1';
 
-        // Show Loading State in View
-        container.innerHTML = '<div class="loader-view"><div class="spinner"></div></div>';
+        // Show Skeleton Loading State
+        this.showSkeletons(view);
 
         // Clean up any stale overlays / modals from previous views
         document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
@@ -1208,6 +1208,37 @@ class VibeApp {
         }
         
         container.scrollTop = 0;
+    }
+
+    showSkeletons(view) {
+        const container = document.getElementById('view-container');
+        if (!container) return;
+
+        let skeletonHTML = '';
+        const count = view === 'home' || view === 'friends' ? 5 : 3;
+
+        for (let i = 0; i < count; i++) {
+            skeletonHTML += `
+                <div class="post-card glass-panel skeleton-loader" style="height: 300px; margin-bottom: 20px;">
+                    <div class="skeleton-shimmer"></div>
+                    <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                        <div style="width: 45px; height: 45px; border-radius: 50%; background: rgba(255,255,255,0.05);"></div>
+                        <div style="flex: 1;">
+                            <div style="width: 40%; height: 12px; background: rgba(255,255,255,0.05); margin-bottom: 8px;"></div>
+                            <div style="width: 25%; height: 10px; background: rgba(255,255,255,0.03);"></div>
+                        </div>
+                    </div>
+                    <div style="width: 90%; height: 15px; background: rgba(255,255,255,0.05); margin-bottom: 10px;"></div>
+                    <div style="width: 70%; height: 15px; background: rgba(255,255,255,0.05); margin-bottom: 20px;"></div>
+                    <div style="width: 100%; height: 150px; border-radius: 12px; background: rgba(255,255,255,0.03);"></div>
+                </div>
+            `;
+        }
+
+        container.innerHTML = `
+            <div class="view-header"><div class="skeleton-shimmer" style="width: 200px; height: 30px; background: rgba(255,255,255,0.05);"></div></div>
+            ${skeletonHTML}
+        `;
     }
 
     attachViewEvents() {
@@ -2661,6 +2692,91 @@ class VibeApp {
         this.showToast(`Banning ${username} (Simulation)`);
         await this.services.admin.banUser(username);
         this.renderAdminModeration();
+    }
+
+    async handleReaction(postId, type) {
+        if (!State.user) {
+            this.showToast('Login to vibe!', 'info');
+            return;
+        }
+        const result = await this.services.data.addReaction(postId, State.user.id, type);
+        if (result.success) {
+            // Real-time update will happen via subscription, but we can optimistically update
+            this.showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} vibe sent! ✨`);
+        }
+    }
+
+    async handleDoubleTapReaction(postId, event) {
+        if (!State.user) return;
+        
+        // Show animation
+        const container = event.currentTarget;
+        const heart = container.querySelector('.double-tap-heart');
+        if (heart) {
+            heart.classList.remove('animate');
+            void heart.offsetWidth; // Trigger reflow
+            heart.classList.add('animate');
+        }
+
+        // Trigger Heat vibe
+        await this.handleReaction(postId, 'heat');
+    }
+
+    async handleFollow(targetUserId) {
+        if (!State.user) {
+            this.showToast('Login to follow!', 'info');
+            return;
+        }
+        
+        const result = await this.services.data.toggleFollow(targetUserId, State.user.id);
+        if (result.success) {
+            this.showToast(result.isFollowing ? 'Following!' : 'Unfollowed');
+            // Refresh current view to update buttons
+            this.renderView(State.currentView);
+        } else {
+            this.showToast(result.error || 'Failed to follow', 'error');
+        }
+    }
+
+    toggleReactionPicker(postId, event) {
+        event.stopPropagation();
+        // Simple implementation: show a small overlay with more options
+        const pickerHtml = `
+            <div class="glass-panel reaction-picker animate-fade" style="position:fixed; top:${event.clientY - 60}px; left:${event.clientX - 50}px; display:flex; gap:10px; padding:10px; z-index:1000;">
+                <button onclick="window.App.handleReaction('${postId}', 'admire'); this.parentElement.remove()">✨</button>
+                <button onclick="window.App.handleReaction('${postId}', 'wild'); this.parentElement.remove()">🦁</button>
+                <button onclick="window.App.handleReaction('${postId}', 'cap'); this.parentElement.remove()">🧢</button>
+                <button onclick="window.App.handleReaction('${postId}', 'relate'); this.parentElement.remove()">🙏</button>
+            </div>
+        `;
+        const picker = document.createElement('div');
+        picker.innerHTML = pickerHtml;
+        document.body.appendChild(picker.firstElementChild);
+        
+        // Close on click anywhere else
+        const closePicker = () => {
+            const p = document.querySelector('.reaction-picker');
+            if (p) p.remove();
+            document.removeEventListener('click', closePicker);
+        };
+        setTimeout(() => document.addEventListener('click', closePicker), 10);
+    }
+
+    async sharePost(postId) {
+        const url = `${window.location.origin}/#post/${postId}`;
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Check out this Vibe on VibeHub',
+                    url: url
+                });
+            } catch (err) {
+                console.log('Share failed:', err);
+            }
+        } else {
+            await navigator.clipboard.writeText(url);
+            this.showToast('Vibe link copied to clipboard! ⤴️');
+        }
     }
 
     showToast(msg, type = 'info') {
