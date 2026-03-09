@@ -506,38 +506,33 @@ class VibeApp {
     }
 
     reportPost(postId) {
-        // Stub for reporting
+        console.log(`Reporting post ${postId}`);
         this.showToast('Post reported for review');
         const menu = document.getElementById('post-menu');
         if (menu) menu.remove();
     }
 
     removeUser(postId) {
-        // Stub for admin user removal
+        console.log(`Removing user for post ${postId}`);
         const post = document.querySelector(`[data-id="${postId}"]`);
-        if (post) post.remove(); // hide their post visually
-        this.showToast('User has been removed.');
+        if (post) post.remove();
+        this.showToast('User reported to moderation.');
     }
 
     deletePost(postId) {
+        console.log(`Deleting post ${postId}`);
         const post = document.querySelector(`[data-id="${postId}"]`);
         if (post) post.remove();
         this.showToast('Post deleted');
+        
+        // Optionally call backend to delete
+        if (window.supabaseClient) {
+            window.supabaseClient.from('posts').delete().eq('id', postId).catch(e => console.error('Delete error:', e));
+        }
     }
 
-    handlePostImage(input) {
-        const file = input.files[0];
-        if (!file) return;
-        
-        const preview = document.getElementById('media-preview');
-        if (preview) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                preview.innerHTML = `<img src="${e.target.result}" style="max-height:200px;border-radius:8px;margin-top:8px;">`;
-                preview.dataset.file = JSON.stringify({ type: 'image', data: file });
-            };
-            reader.readAsDataURL(file);
-        }
+    handleDonation() {
+        this.showToast('Donation feature coming soon!');
     }
 
     handlePostVideo(input) {
@@ -862,7 +857,7 @@ class VibeApp {
                     container.innerHTML = this.getMarketplaceHTML(items);
                     break;
                 case 'admin':
-                    const stats = this.services.admin.getStats();
+                    const stats = await this.services.admin.getStats();
                     container.innerHTML = this.getAdminHTML(stats);
                     break;
                 default:
@@ -989,7 +984,7 @@ class VibeApp {
                 ${tabs.map(t => `<button class="tab ${activeTab === t.id ? 'active' : ''}" onclick="window.App.switchHomeTab('${t.id}')">${t.label}</button>`).join('')}
             </div>
             <div id="post-feed">
-                ${posts.map(p => Components.post(p)).join('')}
+                ${posts && posts.length > 0 ? posts.map(p => Components.post(p)).join('') : '<p class="text-dim" style="padding:30px; text-align:center;">No vibes yet. Be the first to post!</p>'}
             </div>
         `;
     }
@@ -1010,7 +1005,7 @@ class VibeApp {
                 <button class="btn-primary" onclick="window.App.goLive()">Go Live</button>
             </div>
             <div class="vibestream-container">
-                ${videos.map(v => Components.video(v)).join('')}
+                ${videos && videos.length > 0 ? videos.map(v => Components.video(v)).join('') : '<p class="text-dim" style="padding:30px; text-align:center;">No videos yet. Go live!</p>'}
             </div>
         `;
     }
@@ -1022,13 +1017,13 @@ class VibeApp {
                 <p>Live psychological sync with 125 minds max.</p>
             </div>
             <div class="rooms-grid" id="rooms-grid">
-                ${rooms.map(r => `
+                ${rooms && rooms.length > 0 ? rooms.map(r => `
                     <div class="room-card glass-panel">
-                        <h3>${r.name}</h3>
-                        <p>${r.users} Vibing Now</p>
+                        <h3>${r.name || 'Unnamed Room'}</h3>
+                        <p>${r.users || 0} Vibing Now</p>
                         <button class="btn-primary" onclick="window.App.joinSyncRoom('${r.id}', '${r.name}')">Sync In</button>
                     </div>
-                `).join('')}
+                `).join('') : '<p class="text-dim" style="padding:20px; text-align:center;">No active rooms. Start one!</p>'}
             </div>
             <div id="active-chat-container" class="hidden">
                 <div class="view-header"><button class="btn-secondary" onclick="window.App.leaveSyncRoom()">← Back to Rooms</button><h1 class="view-title" id="active-room-name"></h1></div>
@@ -1095,20 +1090,20 @@ class VibeApp {
                 </div>
                 <div class="profile-content">
                     <div class="profile-header">
-                        <img src="${user.profilePhoto}" class="profile-avatar" alt="${user.displayName}">
+                        <img src="${user.profilePhoto || 'https://i.pravatar.cc/150'}" class="profile-avatar" alt="${user.displayName || 'User'}">
                         <div class="profile-info">
-                            <h1 class="view-title">${user.displayName}</h1>
-                            <p class="handle">@${user.username}</p>
-                            <p class="bio">${user.bio}</p>
+                            <h1 class="view-title">${user.displayName || 'User'}</h1>
+                            <p class="handle">@${user.username || 'username'}</p>
+                            <p class="bio">${user.bio || ''}</p>
                             <div class="profile-badges">
                                 ${this.generateBadges(user)}
                             </div>
                         </div>
                     </div>
                     <div class="profile-stats glass-panel">
-                        <div class="stat-item"><span class="stat-value">${user.followersCount.toLocaleString()}</span><span class="stat-label">Followers</span></div>
-                        <div class="stat-item"><span class="stat-value">${user.followingCount.toLocaleString()}</span><span class="stat-label">Following</span></div>
-                        <div class="stat-item"><span class="stat-value">${user.postCount.toLocaleString()}</span><span class="stat-label">Posts</span></div>
+                        <div class="stat-item"><span class="stat-value">${(user.followersCount || 0).toLocaleString()}</span><span class="stat-label">Followers</span></div>
+                        <div class="stat-item"><span class="stat-value">${(user.followingCount || 0).toLocaleString()}</span><span class="stat-label">Following</span></div>
+                        <div class="stat-item"><span class="stat-value">${(user.postCount || 0).toLocaleString()}</span><span class="stat-label">Posts</span></div>
                         <div class="stat-item"><span class="stat-value">98%</span><span class="stat-label">Vibe Match</span></div>
                     </div>
                     
@@ -1271,6 +1266,22 @@ class VibeApp {
         title.innerText = isLogin ? 'Join Vibehub' : 'Welcome Back';
     }
 
+    handleClerkSignIn() {
+        // Use custom sign in form instead of Clerk modal
+        const loginFields = document.getElementById('login-form-fields');
+        const signupFields = document.getElementById('signup-form-fields');
+        if (loginFields) loginFields.style.display = 'block';
+        if (signupFields) signupFields.style.display = 'none';
+    }
+
+    handleClerkSignUp() {
+        // Use custom sign up form instead of Clerk modal
+        const loginFields = document.getElementById('login-form-fields');
+        const signupFields = document.getElementById('signup-form-fields');
+        if (loginFields) loginFields.style.display = 'none';
+        if (signupFields) signupFields.style.display = 'block';
+    }
+
     async handleCustomSignIn() {
         const emailInput = document.getElementById('login-email-input');
         const passwordInput = document.getElementById('login-password-input');
@@ -1366,21 +1377,50 @@ class VibeApp {
             </div>
             
             <div class="communities-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-top:20px;">
-                ${communities.map(c => `
+                ${communities && communities.length > 0 ? communities.map(c => `
                     <div class="community-card glass-panel" style="overflow:hidden; cursor:pointer;" onclick="window.App.viewCommunity('${c.id}', '${c.name}')">
-                        <img src="${c.banner}" style="width:100%; height:120px; object-fit:cover;" alt="Banner">
+                        <img src="${c.banner || 'https://images.unsplash.com/photo-1614850523296-d8c1af93d400?w=400'}" style="width:100%; height:120px; object-fit:cover;" alt="Banner">
                         <div style="padding:15px;">
-                            <h3 style="font-family:var(--font-display); font-size:1.3rem;">${c.name}</h3>
-                            <p class="text-dim" style="font-size:0.9rem; margin-top:5px; margin-bottom:15px;">${c.desc}</p>
+                            <h3 style="font-family:var(--font-display); font-size:1.3rem;">${c.name || 'Unnamed'}</h3>
+                            <p class="text-dim" style="font-size:0.9rem; margin-top:5px; margin-bottom:15px;">${c.desc || ''}</p>
                             <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <span class="badge-admired user-badge" style="margin:0;">${c.members} Members</span>
+                                <span class="badge-admired user-badge" style="margin:0;">${c.members || 0} Members</span>
                                 <button class="btn-secondary btn-sm" onclick="event.stopPropagation(); window.App.showToast('Joined ${c.name}!')">Join</button>
                             </div>
                         </div>
                     </div>
-                `).join('')}
+                `).join('') : '<p class="text-dim" style="padding:30px; text-align:center;">No communities yet. Create one!</p>'}
             </div>
         `;
+    }
+
+    getMarketplaceHTML(items) {
+        return `
+            <div class="view-header">
+                <h1 class="view-title">Vibe Market</h1>
+                <p class="text-dim">Trade vibes, digital goods, and more.</p>
+            </div>
+            <div class="marketplace-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; margin-top:20px;">
+                ${items && items.length > 0 ? items.map(item => `
+                    <div class="marketplace-item glass-panel" style="overflow:hidden;">
+                        <img src="${item.image || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400'}" style="width:100%; height:150px; object-fit:cover;" alt="${item.title || 'Item'}">
+                        <div style="padding:15px;">
+                            <h3 style="font-size:1rem;">${item.title || 'Untitled'}</h3>
+                            <p class="text-dim" style="font-size:0.85rem; margin:5px 0;">${item.description || ''}</p>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+                                <span style="color:var(--primary-orange); font-weight:bold;">${item.price || '0 VIBE'}</span>
+                                <button class="btn-primary btn-sm" onclick="window.App.buyItem('${item.id}')">Buy</button>
+                            </div>
+                            <p class="text-dim" style="font-size:0.75rem; margin-top:8px;">Seller: @${item.seller || 'unknown'}</p>
+                        </div>
+                    </div>
+                `).join('') : '<p class="text-dim" style="padding:30px; text-align:center;">No items listed yet. Check back later!</p>'}
+            </div>
+        `;
+    }
+
+    buyItem(itemId) {
+        this.showToast('Purchase feature coming soon!');
     }
 
     async viewCommunity(communityId, communityName) {
@@ -1412,19 +1452,19 @@ class VibeApp {
         return `
             <div class="view-header"><h1 class="view-title">Messages</h1></div>
             <div class="messages-list">
-                ${dms.map(d => `
+                ${dms && dms.length > 0 ? dms.map(d => `
                     <div class="dm-card glass-panel" style="padding:15px; margin-bottom:10px; display:flex; align-items:center; gap:15px; cursor:pointer;">
                         <img src="https://i.pravatar.cc/100?u=${d.id}" class="user-avatar" style="width:50px; height:50px;">
                         <div style="flex:1;">
                             <div style="display:flex;">
-                                <strong>${d.user}</strong>
-                                <span class="text-dim" style="font-size:0.8rem; margin-left:auto;">${d.time}</span>
+                                <strong>${d.user || 'Unknown'}</strong>
+                                <span class="text-dim" style="font-size:0.8rem; margin-left:auto;">${d.time || ''}</span>
                             </div>
-                            <p class="${d.unread ? 'text-main' : 'text-dim'}" style="font-size:0.9rem;">${d.lastMsg}</p>
+                            <p class="${d.unread ? 'text-main' : 'text-dim'}" style="font-size:0.9rem;">${d.lastMsg || ''}</p>
                         </div>
                         ${d.unread ? '<div style="width:8px; height:8px; border-radius:50%; background:var(--primary-orange);"></div>' : ''}
                     </div>
-                `).join('')}
+                `).join('') : '<p class="text-dim" style="padding:20px; text-align:center;">No messages yet. Start a conversation!</p>'}
             </div>
         `;
     }
@@ -1528,15 +1568,15 @@ class VibeApp {
             <div id="admin-stats" class="admin-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px;">
                 <div class="stat-card glass-panel" style="padding: 24px;">
                     <h3 class="text-dim">Total Users</h3>
-                    <p style="font-size: 2.5rem; font-weight:800; color: var(--primary-purple);">${stats.users}</p>
+                    <p style="font-size: 2.5rem; font-weight:800; color: var(--primary-purple);">${stats?.users || 0}</p>
                 </div>
                 <div class="stat-card glass-panel" style="padding: 24px;">
                     <h3 class="text-dim">Active Now</h3>
-                    <p style="font-size: 2.5rem; font-weight:800; color: var(--primary-orange);">${stats.activeNow}</p>
+                    <p style="font-size: 2.5rem; font-weight:800; color: var(--primary-orange);">${stats?.activeNow || 0}</p>
                 </div>
                 <div class="stat-card glass-panel" style="padding: 24px;">
                     <h3 class="text-dim">Posts Today</h3>
-                    <p style="font-size: 2.5rem; font-weight:800; color: var(--accent-cyan);">${stats.postsToday}</p>
+                    <p style="font-size: 2.5rem; font-weight:800; color: var(--accent-cyan);">${stats?.postsToday || 0}</p>
                 </div>
                 <div class="stat-card glass-panel" style="padding: 24px;">
                     <h3 class="text-dim">Revenue</h3>
@@ -1553,10 +1593,20 @@ class VibeApp {
         `;
     }
 
-    showToast(msg) {
+    showToast(msg, type = 'info') {
         const toast = document.createElement('div');
         toast.className = 'glass-panel animate-fade';
-        toast.style.cssText = `position:fixed; bottom:20px; right:20px; padding:15px 25px; border-color:var(--primary-orange); z-index:2000;`;
+        
+        let borderColor = 'var(--primary-orange)';
+        if (type === 'error') {
+            borderColor = 'var(--accent-pink)';
+            toast.style.background = 'rgba(255, 50, 100, 0.2)';
+        } else if (type === 'success') {
+            borderColor = 'var(--accent-cyan)';
+            toast.style.background = 'rgba(0, 242, 255, 0.1)';
+        }
+        
+        toast.style.cssText = `position:fixed; bottom:20px; right:20px; padding:15px 25px; border:1px solid ${borderColor}; z-index:2000;`;
         toast.innerText = msg;
         document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 3000);

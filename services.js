@@ -10,6 +10,32 @@ class MediaService {
     constructor() {
         this.cloudinaryConfig = window.CLOUDINARY_CONFIG || null;
         this.imagekitConfig = window.IMAGEKIT_CONFIG || null;
+        this.cloudinaryReady = false;
+        this.imagekitReady = false;
+        this.init();
+    }
+
+    init() {
+        // Check if Cloudinary widget is loaded
+        if (window.cloudinary) {
+            this.cloudinaryReady = true;
+        }
+        
+        // Check if ImageKit is loaded
+        if (window.imagekit) {
+            this.imagekitReady = true;
+        }
+        
+        // Poll for Cloudinary if not ready
+        if (!this.cloudinaryReady) {
+            const checkCloudinary = setInterval(() => {
+                if (window.cloudinary) {
+                    this.cloudinaryReady = true;
+                    clearInterval(checkCloudinary);
+                }
+            }, 500);
+            setTimeout(() => clearInterval(checkCloudinary), 10000);
+        }
     }
 
     async uploadImage(file) {
@@ -259,20 +285,40 @@ class NotificationService {
     constructor() {
         this.token = null;
         this.enabled = !!(window.firebaseApp);
+        this.messaging = null;
+    }
+
+    async initMessaging() {
+        if (!this.enabled || this.messaging) return;
+        
+        try {
+            // Firebase is loaded as ES module in index.html
+            if (window.messaging) {
+                this.messaging = window.messaging;
+            } else if (window.firebaseApp) {
+                // Dynamically import if not available
+                const { getMessaging } = await import('https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging.js');
+                this.messaging = getMessaging(window.firebaseApp);
+            }
+        } catch (error) {
+            console.warn('Firebase messaging init failed:', error);
+        }
     }
 
     async requestPermission() {
+        // Initialize messaging first
+        await this.initMessaging();
+        
         if (!this.enabled) {
             console.log('Firebase not available, using browser notifications');
             return await this.requestBrowserPermission();
         }
 
         try {
-            const messaging = window.messaging || (await import('https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging.js')).getMessaging(window.firebaseApp);
-            
             const permission = await Notification.requestPermission();
-            if (permission === 'granted') {
-                this.token = await getToken(messaging, {
+            if (permission === 'granted' && this.messaging) {
+                const { getToken } = await import('https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging.js');
+                this.token = await getToken(this.messaging, {
                     vapidKey: 'BHS3p1acoPbQ_Rt6x-Rjbrv4jiJgFiYhrXLU46xxJ080kjKWzwzTDE0IP_92QEJ2ySB3A2kg5t9tjJdaqjBgIig'
                 });
                 console.log('Firebase notification token:', this.token);
@@ -489,7 +535,22 @@ class AuthService {
     }
 
     async customSignIn(email, password) {
-        if (!this.clerk) return { error: 'Clerk not initialized' };
+        if (!this.clerk) {
+            // Fallback: try Supabase auth if Clerk not available
+            if (window.supabaseClient) {
+                try {
+                    const { data, error } = await window.supabaseClient.auth.signInWithPassword({
+                        email: email,
+                        password: password
+                    });
+                    if (error) return { error: error.message };
+                    return { success: true, user: data.user };
+                } catch (e) {
+                    return { error: 'Authentication failed' };
+                }
+            }
+            return { error: 'Clerk not initialized. Please refresh the page.' };
+        }
         
         try {
             const signIn = await this.clerk.client.signIn.create({
@@ -501,27 +562,47 @@ class AuthService {
             return { success: true };
         } catch (error) {
             console.error('Custom sign in error:', error);
-            return { error: error.message || 'Sign in failed' };
+            // Handle Clerk API error object structure
+            const errorMessage = (error.errors && error.errors[0]?.message) || error.message || 'Sign in failed';
+            return { error: errorMessage };
         }
     }
 
     async customSignUp(email, password, name) {
-        if (!this.clerk) return { error: 'Clerk not initialized' };
+        if (!this.clerk) {
+            // Fallback: try Supabase auth if Clerk not available
+            if (window.supabaseClient) {
+                try {
+                    const { data, error } = await window.supabaseClient.auth.signUp({
+                        email: email,
+                        password: password,
+                        options: {
+                            data: { full_name: name }
+                        }
+                    });
+                    if (error) return { error: error.message };
+                    return { success: true, user: data.user };
+                } catch (e) {
+                    return { error: 'Registration failed' };
+                }
+            }
+            return { error: 'Clerk not initialized. Please refresh the page.' };
+        }
         
         try {
             const signUp = await this.clerk.client.signUp.create({
                 emailAddress: email,
                 password: password,
+                firstName: name
             });
-            
-            // Further update user with name if needed, or handle post-signup logic
-            // ...
             
             await this.clerk.setActive({ session: signUp.createdSessionId });
             return { success: true };
         } catch (error) {
             console.error('Custom sign up error:', error);
-            return { error: error.message || 'Sign up failed' };
+            // Clerk errors are often objects with an 'errors' array
+            const errorMessage = (error.errors && error.errors[0]?.message) || error.message || 'Sign up failed';
+            return { error: errorMessage };
         }
     }
 
@@ -599,14 +680,17 @@ class AuthService {
 // ============================================
 // DATA SERVICE - Supabase Posts, Comments, etc
 // ============================================
-// DATA SERVICE - Supabase Posts, Comments, etc
-// ============================================
 class DataService {
     constructor() {
         this.media = new MediaService();
         this.cache = new CacheService();
         this.notifications = new NotificationService();
+        this.supabase = window.supabaseClient;
         this.loadSampleDataIfEmpty();
+    }
+
+    isSupabaseReady() {
+        return !!this.supabase;
     }
 
     async loadSampleDataIfEmpty() {
@@ -1311,8 +1395,51 @@ class ChatService {
         }
     }
 
-    async getMessages() {
-        return [];
+    async getMessages(conversationId) {
+        if (!window.supabaseClient) return [];
+
+        try {
+            // If conversationId provided, get messages for that conversation
+            if (conversationId) {
+                const { data, error } = await window.supabaseClient
+                    .from('messages')
+                    .select('*')
+                    .eq('conversation_id', conversationId)
+                    .order('created_at', { ascending: true });
+                
+                if (error) throw error;
+                return (data || []).map(m => ({
+                    id: m.id,
+                    senderId: m.sender_id,
+                    sender: m.sender_username,
+                    text: m.text,
+                    time: this.formatTimestamp(m.created_at),
+                    unread: !m.read
+                }));
+            }
+            
+            // Otherwise, get all recent messages for the current user
+            const { data, error } = await window.supabaseClient
+                .from('messages')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(50);
+            
+            if (error) throw error;
+
+            return (data || []).map(m => ({
+                id: m.id,
+                userId: m.sender_id,
+                id: m.id,
+                user: m.sender_username || 'Unknown',
+                lastMsg: m.text || '',
+                time: this.formatTimestamp(m.created_at),
+                unread: !m.read
+            }));
+        } catch (error) {
+            console.error('Error fetching messages:', error);
+            return [];
+        }
     }
 
     async sendMessage(receiverId, text, sender) {
@@ -1343,13 +1470,8 @@ class ChatService {
 // ADMIN SERVICE
 // ============================================
 class AdminService {
-    getStats() {
-        return {
-            users: 12482,
-            activeNow: 1205,
-            postsToday: 458,
-            revenue: '$1,240'
-        };
+    async getStats() {
+        return await this.getDetailedStats();
     }
 
     async getDetailedStats() {
