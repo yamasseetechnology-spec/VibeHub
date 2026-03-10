@@ -61,8 +61,8 @@
         <div class="login-form">
             <!-- Custom Login Form -->
             <div id="login-form-fields" style="display: block; margin-bottom: 20px;">
-                <input type="email" id="login-email-input" class="login-input" placeholder="Email Address" inputmode="email" autocomplete="email" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
-                <input type="password" id="login-password-input" class="login-input" placeholder="Password" inputmode="text" autocomplete="current-password" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
+                <input type="email" id="login-email-input" class="login-input" placeholder="Email Address" inputmode="email" autocomplete="email" onclick="this.focus()" onfocus="this.select()" tabindex="0" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
+                <input type="password" id="login-password-input" class="login-input" placeholder="Password" inputmode="text" autocomplete="current-password" onclick="this.focus()" onfocus="this.select()" tabindex="0" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
                 <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; cursor: pointer; color: #aaa; font-size: 13px;">
                     <input type="checkbox" id="remember-me" checked style="accent-color: #ff9f00; width: 16px; height: 16px; cursor: pointer;">
                     Stay signed in
@@ -100,7 +100,7 @@
 
             <!-- Admin Login Dropdown -->
             <div class="admin-dropdown-container" style="margin-top: 20px;">
-                <button type="button" class="admin-dropdown-trigger" onclick="document.getElementById('admin-dropdown').classList.toggle('active'); event.stopPropagation();" style="
+                <button type="button" class="admin-dropdown-trigger" onclick="const d=document.getElementById('admin-dropdown'); d.classList.toggle('active'); if(d.classList.contains('active')) { setTimeout(() => document.getElementById('admin-login-email').focus(), 100); } event.stopPropagation();" style="
                     background: transparent;
                     border: 1px solid rgba(255, 165, 0, 0.3);
                     border-radius: 8px;
@@ -125,8 +125,8 @@
                     border-radius: 0 0 12px 12px;
                     padding: 15px;
                 ">
-                    <input type="email" id="admin-login-email" class="login-input" placeholder="Admin Email" inputmode="email" autocomplete="email" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
-                    <input type="password" id="admin-login-password" class="login-input" placeholder="Admin Password" inputmode="text" autocomplete="current-password" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
+                    <input type="email" id="admin-login-email" class="login-input" placeholder="Admin Email" inputmode="email" autocomplete="email" onclick="this.focus()" onfocus="this.select()" tabindex="0" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
+                    <input type="password" id="admin-login-password" class="login-input" placeholder="Admin Password" inputmode="text" autocomplete="current-password" onclick="this.focus()" onfocus="this.select()" tabindex="0" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
                     <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; cursor: pointer; color: #aaa; font-size: 13px;">
                         <input type="checkbox" id="admin-remember-me" checked style="accent-color: #ff9f00; width: 16px; height: 16px; cursor: pointer;">
                         Stay signed in

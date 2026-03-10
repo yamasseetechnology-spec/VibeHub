@@ -48,7 +48,6 @@ body {
     font-family: var(--font-body);
     overflow-x: hidden;
     min-height: 100vh;
-    overscroll-behavior-y: none; /* Prevent native PTR interference */
 }
 
 /* --- Particle Background --- */
@@ -321,14 +320,19 @@ body {
 
 /* --- Login Screen --- */
 #login-screen {
-    position: fixed;
-    inset: 0;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    min-height: 100dvh;
     background: var(--bg-deep);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 2000;
     transition: opacity 0.8s ease-out, visibility 0.8s;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 #login-particles {
@@ -524,12 +528,13 @@ body {
 input, textarea {
     -webkit-user-select: text !important;
     user-select: text !important;
-    touch-action: auto !important;
-    -webkit-touch-callout: none;
+    touch-action: manipulation !important;
+    -webkit-touch-callout: default;
     cursor: text;
 }
 
 input:focus, textarea:focus {
+    outline: none;
     -webkit-user-select: text !important;
     user-select: text !important;
 }

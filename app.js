@@ -589,159 +589,61 @@ class VibeApp {
     }
 
     // --- Mobile Keyboard Adjustment System ---
+    // IMPORTANT: Do NOT intercept touch/click events on inputs.
+    // Android WebView needs the native event chain to open the keyboard.
+    // We only OBSERVE and REACT — never interfere.
     setupKeyboardHandler() {
-        // Track initial viewport height for keyboard detection
         const initialHeight = window.innerHeight;
         let keyboardOpen = false;
 
         const setKeyboardState = (isOpen) => {
             if (keyboardOpen === isOpen) return;
             keyboardOpen = isOpen;
-
             if (isOpen) {
                 document.body.classList.add('keyboard-open');
-                // Scroll the focused input into view
-                requestAnimationFrame(() => {
-                    const focused = document.activeElement;
-                    if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA' || focused.isContentEditable)) {
-                        focused.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                });
             } else {
                 document.body.classList.remove('keyboard-open');
             }
         };
 
-        // ============================================
-        // ANDROID WEBVIEW KEYBOARD FIX
-        // Force keyboard to open on input tap
-        // ============================================
-        
-        // Force focus on touch for Android WebView (keyboard often won't open without this)
-        document.addEventListener('touchend', (e) => {
-            const target = e.target;
-            if (!target) return;
-            
-            // Check if the tapped element is an input or textarea
-            const isInput = target.tagName === 'INPUT' && 
-                            target.type !== 'checkbox' && 
-                            target.type !== 'radio' && 
-                            target.type !== 'file' &&
-                            target.type !== 'button' &&
-                            target.type !== 'submit';
-            const isTextarea = target.tagName === 'TEXTAREA';
-            
-            if (isInput || isTextarea) {
-                e.stopPropagation();
-                
-                // Android WebView readOnly trick: briefly set readOnly to force keyboard
-                target.readOnly = true;
-                
-                setTimeout(() => {
-                    target.readOnly = false;
-                    target.focus();
-                    target.click();
-                    
-                    // Ensure the input is scrolled into view
-                    setTimeout(() => {
-                        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }, 100);
-                }, 50);
-            }
-        }, { passive: false });
-
-        // Also handle click events for inputs (some WebViews respond to click, not touch)
-        document.addEventListener('click', (e) => {
-            const target = e.target;
-            if (!target) return;
-            
-            const isInput = target.tagName === 'INPUT' && 
-                            target.type !== 'checkbox' && 
-                            target.type !== 'radio' && 
-                            target.type !== 'file' &&
-                            target.type !== 'button' &&
-                            target.type !== 'submit';
-            const isTextarea = target.tagName === 'TEXTAREA';
-            
-            if (isInput || isTextarea) {
-                // Double-ensure focus in WebView
-                setTimeout(() => {
-                    if (document.activeElement !== target) {
-                        target.focus();
-                    }
-                }, 10);
-            }
-        }, true);
-
-        // Prevent any parent containers from stealing focus
-        document.querySelectorAll('.login-input, #post-input, #comment-input, textarea, input[type="text"], input[type="email"], input[type="password"]').forEach(input => {
-            input.style.webkitUserSelect = 'text';
-            input.style.userSelect = 'text';
-            input.setAttribute('tabindex', '0');
-            
-            // Prevent touch events from being swallowed by parent containers
-            input.addEventListener('touchstart', (e) => {
-                e.stopPropagation();
-            }, { passive: true });
-        });
-
-        // ============================================
-        // KEYBOARD STATE DETECTION
-        // ============================================
-
-        // Primary: visualViewport API (best for modern mobile browsers & WebViews)
+        // Detect keyboard via visualViewport (passive observation only)
         if (window.visualViewport) {
             window.visualViewport.addEventListener('resize', () => {
                 const vpHeight = window.visualViewport.height;
-                const threshold = initialHeight * 0.75;
-
-                if (vpHeight < threshold) {
+                if (vpHeight < initialHeight * 0.75) {
                     setKeyboardState(true);
                 } else {
                     setKeyboardState(false);
                 }
-
                 document.documentElement.style.setProperty('--vh', `${vpHeight * 0.01}px`);
-            });
-
-            window.visualViewport.addEventListener('scroll', () => {
-                const offsetTop = window.visualViewport.offsetTop;
-                document.documentElement.style.setProperty('--vp-offset', `${offsetTop}px`);
             });
         }
 
-        // Fallback: focusin/focusout for older devices
+        // Gently scroll focused input into view AFTER keyboard opens (passive, no interference)
         document.addEventListener('focusin', (e) => {
-            const tag = e.target.tagName;
-            if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) {
+            const el = e.target;
+            if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+                // Wait for keyboard to fully animate open before scrolling
                 setTimeout(() => {
-                    if (!window.visualViewport || window.visualViewport.height < initialHeight * 0.75) {
-                        setKeyboardState(true);
-                    }
-                    e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 300);
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setKeyboardState(true);
+                }, 400);
             }
         });
 
-        document.addEventListener('focusout', (e) => {
-            const tag = e.target.tagName;
-            if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) {
-                setTimeout(() => {
-                    const active = document.activeElement;
-                    const activeTag = active?.tagName;
-                    if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && !active?.isContentEditable) {
-                        setKeyboardState(false);
-                    }
-                }, 150);
-            }
+        document.addEventListener('focusout', () => {
+            setTimeout(() => {
+                const active = document.activeElement;
+                if (active?.tagName !== 'INPUT' && active?.tagName !== 'TEXTAREA') {
+                    setKeyboardState(false);
+                }
+            }, 200);
         });
 
-        // Window resize handler
+        // Track viewport height changes
         window.addEventListener('resize', () => {
             document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
         });
-
-        // Set initial --vh value
         document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
     }
 
