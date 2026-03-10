@@ -107,11 +107,36 @@ class VibeApp {
             console.error("Initialization error:", err);
             this.showToast("Loading failed, trying login anyway...", "error");
         } finally {
-            // 5. After 0.5 seconds, execute transition
-            console.log("Executing transitionToLogin...");
-            setTimeout(() => {
-                this.transitionToLogin();
-            }, 500);
+            // 5. Check if user is already logged in (persisted)
+            const persistedUser = this.services.auth.checkSession();
+            if (persistedUser) {
+                console.log("Persisted session found, skipping login screen.");
+                State.user = persistedUser;
+                
+                // Hide loading
+                const loading = document.getElementById('loading-screen');
+                if (loading) {
+                    loading.style.opacity = '0';
+                    setTimeout(() => loading.style.visibility = 'hidden', 500);
+                }
+                
+                // Show app and navigate
+                const appElem = document.getElementById('app');
+                if (appElem) {
+                    appElem.classList.remove('hidden');
+                    appElem.style.opacity = '1';
+                }
+                
+                this.enableRealTimeSubscriptions();
+                this.initializeLiveSub();
+                this.navigate('home', true);
+            } else {
+                // After 0.5 seconds, execute transition to login
+                console.log("No session found, executing transitionToLogin...");
+                setTimeout(() => {
+                    this.transitionToLogin();
+                }, 500);
+            }
         }
     }
 
@@ -349,6 +374,13 @@ class VibeApp {
 
     transitionToLogin() {
         console.log("transitionToLogin called");
+        
+        // Guard: If user somehow got logged in during clerk/supabase init, don't show login
+        if (State.user) {
+            console.log("User detected, skipping login transition.");
+            return;
+        }
+
         const loading = document.getElementById('loading-screen');
         const login = document.getElementById('login-screen');
         const app = document.getElementById('app');
@@ -362,7 +394,7 @@ class VibeApp {
             setTimeout(() => {
                 loading.style.visibility = 'hidden';
                 
-                if (login) {
+                if (login && !State.user) {
                     login.style.opacity = '1';
                     login.style.visibility = 'visible';
                     this.initLoginParticles(); // Initialize login particles now that DOM is fully ready
