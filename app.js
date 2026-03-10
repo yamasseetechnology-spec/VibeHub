@@ -989,19 +989,15 @@ class VibeApp {
             <div id="media-preview" style="margin-bottom:15px; min-height:50px;"></div>
             
             <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
-                <form method="post" enctype="multipart/form-data" class="upload-wrapper" style="margin:0;">
-                    <button type="button" class="btn-secondary" style="display:inline-flex; align-items:center; gap:5px;" onclick="this.nextElementSibling.click()">
-                        📷 Photo
-                    </button>
-                    <input type="file" id="image-upload-input" accept="image/*" onchange="window.App.handlePostImage(this)" style="display:none;">
-                </form>
+                <button type="button" class="btn-secondary" style="display:inline-flex; align-items:center; gap:5px;" onclick="document.getElementById('image-upload-input').click()">
+                    📷 Photo
+                </button>
+                <input type="file" id="image-upload-input" accept="image/*" capture="environment" onchange="window.App.handlePostImage(this)" style="display:none;">
                 
-                <form method="post" enctype="multipart/form-data" class="upload-wrapper" style="margin:0;">
-                    <button type="button" class="btn-secondary" style="display:inline-flex; align-items:center; gap:5px;" onclick="this.nextElementSibling.click()">
-                        🎥 Video
-                    </button>
-                    <input type="file" id="video-upload-input" accept="video/*" onchange="window.App.handlePostVideo(this)" style="display:none;">
-                </form>
+                <button type="button" class="btn-secondary" style="display:inline-flex; align-items:center; gap:5px;" onclick="document.getElementById('video-upload-input').click()">
+                    🎥 Video
+                </button>
+                <input type="file" id="video-upload-input" accept="video/*" capture="environment" onchange="window.App.handlePostVideo(this)" style="display:none;">
                 <button class="btn-secondary" onclick="window.App.clearMediaPreview()" style="display:none;" id="clear-media-btn">✕ Clear</button>
                 <button class="btn-secondary">📍 Location</button>
             </div>

@@ -762,11 +762,22 @@ export class DataService {
     }
 
     isSupabaseReady() {
-        return !!this.supabase;
+        return !!window.supabaseClient;
+    }
+
+    async waitForSupabase(timeoutMs = 3000) {
+        if (window.supabaseClient) return true;
+        let waited = 0;
+        while (!window.supabaseClient && waited < timeoutMs) {
+            await new Promise(r => setTimeout(r, 100));
+            waited += 100;
+        }
+        return !!window.supabaseClient;
     }
 
     async loadSampleDataIfEmpty() {
-        if (!window.supabaseClient) return;
+        const ready = await this.waitForSupabase();
+        if (!ready) return;
         
         try {
             const { count } = await window.supabaseClient
@@ -945,8 +956,9 @@ export class DataService {
             return { error: 'rate_limit', message: 'You can only post 2 times per minute' };
         }
 
-        if (!window.supabaseClient) {
-            console.warn('Supabase not available');
+        const ready = await this.waitForSupabase();
+        if (!ready) {
+            console.warn('Supabase not available for saving post');
             return null;
         }
 
@@ -1007,7 +1019,12 @@ export class DataService {
     }
 
     async getPosts(tab = 'all', communityId = null) {
-        if (!window.supabaseClient) return [];
+        // Wait for Supabase client to be ready (CDN loads async)
+        const ready = await this.waitForSupabase();
+        if (!ready) {
+            console.error('Supabase client not available after 3s');
+            return [];
+        }
 
         const cacheKey = `posts_${tab}_${communityId || 'all'}`;
         const cached = await this.cache.getCachedPosts(cacheKey);
