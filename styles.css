@@ -1415,6 +1415,10 @@ input:focus, textarea:focus {
         border-radius: 0;
     }
     
+    #create-post-btn {
+        display: none !important;
+    }
+    
     .header-logo {
         width: 80px; /* Mobile scaled size (larger but reasonable) */
         height: 80px;
