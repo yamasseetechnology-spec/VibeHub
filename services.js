@@ -1019,7 +1019,7 @@ export class DataService {
         try {
             let query = window.supabaseClient
                 .from('posts')
-                .select('*, users!inner(*)')
+                .select('*, users(*)')
                 .order('created_at', { ascending: false });
 
             if (communityId) {

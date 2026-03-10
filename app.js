@@ -1429,61 +1429,74 @@ class VibeApp {
     }
 
     showStreamSetupModal() {
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay';
-        modal.id = 'stream-setup-modal';
-        modal.innerHTML = `
+        if (!State.user) {
+            this.showToast('Please login to go live.');
+            return;
+        }
+
+        const modal = document.getElementById('stream-setup-modal');
+        if (modal) modal.remove();
+
+        const newModal = document.createElement('div');
+        newModal.className = 'modal-overlay animate-fade';
+        newModal.id = 'stream-setup-modal';
+        newModal.innerHTML = `
             <div class="modal-content glass-panel" style="max-width:400px; margin:auto; padding:30px;">
-                <h2 style="margin-bottom:10px; font-family:var(--font-display);">Go Live</h2>
-                <p class="text-dim" style="margin-bottom:20px;">What's the vibe of your stream today?</p>
-                <input type="text" id="stream-topic" class="login-input" placeholder="Enter stream topic..." style="width:100%; margin-bottom:20px;">
-                <div style="display:flex; gap:10px;">
+                <h2 style="margin-bottom:15px; font-family:var(--font-display);">Go Live</h2>
+                <p class="text-dim" style="margin-bottom:20px;">neural link ready. what's your vibe?</p>
+                <input type="text" id="stream-topic" class="login-input" placeholder="Topic: e.g. Just Vibing" style="width:100%; margin-bottom:25px;">
+                <div style="display:flex; gap:12px;">
                     <button class="btn-secondary" onclick="document.getElementById('stream-setup-modal').remove()" style="flex:1;">Cancel</button>
-                    <button class="btn-primary" onclick="window.App.startLiveBroadcast()" style="flex:1;">Go Live →</button>
+                    <button class="btn-primary" onclick="window.App.goLive(document.getElementById('stream-topic').value)" style="flex:1;">Go Live✨</button>
                 </div>
             </div>
         `;
-        document.body.appendChild(modal);
+        document.body.appendChild(newModal);
+        
+        newModal.onclick = (e) => {
+            if (e.target === newModal) newModal.remove();
+        };
     }
 
-    async startLiveBroadcast() {
-        const topicInput = document.getElementById('stream-topic');
-        const topic = topicInput?.value.trim() || "Vibing";
-        
+    async goLive(topic = "Just Vibing") {
         document.getElementById('stream-setup-modal')?.remove();
         this.showToast("Initializing broadcast... 📡");
         
-        const user = State.user || { id: 'guest_' + Date.now(), username: 'Guest' };
-        
-        // Setup WebRTC Host
-        this.rtcPeers = new Map(); // Store peer connections for multiple viewers
-        
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            State.liveStream = stream;
+            // Setup WebRTC Host and Media
+            this.rtcPeers = new Map();
+            this.localStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "user" }, 
+                audio: true 
+            });
             
-            const success = await this.services.video.startLive(user.id, user.username, topic);
-            if (success) {
-                this.showToast("You are LIVE! 🎥");
-                this.renderBroadcastMode(topic);
-                
-                // Signaling for host
-                this.hostSignaling = this.services.video.subscribeToSignaling(user.id, async (data) => {
-                    if (data.type === 'join-request') {
-                        this.handleViewerJoin(user.id, data.viewerId, stream);
-                    } else if (data.type === 'answer') {
-                        const pc = this.rtcPeers.get(data.viewerId);
-                        if (pc) await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                    } else if (data.type === 'candidate') {
-                        const pc = this.rtcPeers.get(data.viewerId);
-                        if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-                    }
-                });
-            } else {
-                this.showToast("Failed to start broadcast.", "error");
+            const userId = State.user?.id || 'guest_' + Date.now();
+            const username = State.user?.username || 'Guest';
+
+            const success = await this.services.video.startLive(userId, username, topic || "Vibing");
+            if (!success) {
+                this.showToast('Failed to start live stream.', 'error');
+                return;
             }
-        } catch (err) {
-            console.error("Camera access failed:", err);
+
+            // Show broadcast view
+            const container = document.getElementById('view-container');
+            if (container) {
+                container.innerHTML = this.getBroadcastModeHTML(topic || "Vibing");
+                const preview = document.getElementById('broadcast-preview');
+                if (preview) {
+                    preview.srcObject = this.localStream;
+                    preview.muted = true;
+                    preview.setAttribute('playsinline', '');
+                    preview.play().catch(e => console.error("Preview fail:", e));
+                }
+            }
+
+            this.services.video.subscribeToSignaling(userId, (signal) => this.handleHostSignal(signal));
+            this.showToast("You are LIVE! 📺", 'success');
+
+        } catch (error) {
+            console.error("VibeStream initiation failed:", error);
             this.showToast("Could not access camera/mic.", "error");
         }
     }
@@ -2938,12 +2951,12 @@ class VibeApp {
 
     getCommunitiesHTML(communities) {
         return `
-            <div class="view-header" style="display:flex; justify-content:space-between; align-items:center;">
-                <div>
+            <div class="view-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap: 15px;">
+                <div style="flex: 1; min-width: 200px;">
                     <h1 class="view-title">Communities</h1>
                     <p class="text-dim">Find your tribe. Link your mind.</p>
                 </div>
-                <button class="btn-primary" onclick="window.App.showCreateCommunityModal()">+ New Group</button>
+                <button class="btn-primary" onclick="window.App.showCreateCommunityModal()" style="white-space: nowrap;">+ New Group</button>
             </div>
             
             <div class="communities-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-top:20px;">
@@ -3398,73 +3411,6 @@ class VibeApp {
                 <p style="margin-top:15px;"><strong>Third Parties:</strong> We use Supabase and Clerk for identity and data integrity. Your data is never sold to outside advertising entities.</p>
             </div>
         `;
-    }
-
-    showStreamSetupModal() {
-        if (!State.user) {
-            this.showToast('Please login to go live.');
-            return;
-        }
-
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay animate-fade';
-        modal.id = 'stream-setup-modal';
-        modal.innerHTML = `
-            <div class="modal-content glass-panel" style="max-width:400px; margin:auto; padding:30px;">
-                <h2 style="margin-bottom:20px; font-family:var(--font-display);">Stream Setup</h2>
-                <p class="text-dim" style="margin-bottom:15px;">What are you vibing about today?</p>
-                <input type="text" id="stream-topic" class="login-input" placeholder="Enter stream topic..." style="width:100%; margin-bottom:25px;">
-                <div style="display:flex; gap:12px;">
-                    <button class="btn-secondary" onclick="document.getElementById('stream-setup-modal').remove()" style="flex:1;">Cancel</button>
-                    <button class="btn-primary" onclick="window.App.goLive(document.getElementById('stream-topic').value)" style="flex:1;">Go Live ✨</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-        
-        modal.onclick = (e) => {
-            if (e.target === modal) modal.remove();
-        };
-    }
-
-    async goLive(topic = "Just Vibing") {
-        document.getElementById('stream-setup-modal')?.remove();
-        this.showToast('Preparing neural link... 📡');
-
-        try {
-            this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            const userId = State.user?.id;
-            const username = State.user?.username || 'user';
-
-            const success = await this.services.video.startLive(userId, username, topic);
-            if (!success) {
-                this.showToast('Failed to start live stream.', 'error');
-                return;
-            }
-
-            // Hide normal view and show broadcast mode
-            const container = document.getElementById('view-container');
-            if (container) {
-                container.innerHTML = this.getBroadcastModeHTML(topic);
-                const videoPreview = document.getElementById('broadcast-preview');
-                if (videoPreview) videoPreview.srcObject = this.localStream;
-                this.togglePostButton(false);
-                
-                // Simulate viewer count
-                let viewers = Math.floor(Math.random() * 50) + 10;
-                this._viewerInterval = setInterval(() => {
-                    viewers += Math.floor(Math.random() * 5) - 2;
-                    if (viewers < 1) viewers = 1;
-                    const countEl = document.getElementById('viewer-count');
-                    if (countEl) countEl.innerText = viewers;
-                }, 5000);
-            }
-
-            this.showToast('You are now BROADCASTING! 🔥');
-        } catch (err) {
-            console.error('Broadcast error:', err);
-            this.showToast('Camera/Mic access denied.', 'error');
-        }
     }
 
     getBroadcastModeHTML(topic) {
