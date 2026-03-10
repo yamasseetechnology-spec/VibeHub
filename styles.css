@@ -1586,6 +1586,55 @@ body {
     }
 }
 
+/* ============================================
+   MOBILE KEYBOARD OPEN ADJUSTMENTS
+   ============================================ */
+body.keyboard-open #main-nav {
+    transform: translateY(200%);
+    transition: transform 0.25s ease-out;
+    pointer-events: none;
+}
+
+body.keyboard-open .fab-post,
+body.keyboard-open .fab-friends {
+    display: none !important;
+}
+
+body.keyboard-open #content-area {
+    margin-bottom: 0 !important;
+    padding-bottom: 10px !important;
+}
+
+body.keyboard-open #modal-container {
+    align-items: flex-start;
+}
+
+body.keyboard-open #modal-content,
+body.keyboard-open .modal-content {
+    margin-top: 10px;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+body.keyboard-open #login-screen {
+    align-items: flex-start;
+    padding-top: 20px;
+    overflow-y: auto;
+}
+
+body.keyboard-open .login-content {
+    margin-top: 10px;
+}
+
+body.keyboard-open #app-footer {
+    display: none !important;
+}
+
+/* Ensure smooth transition back when keyboard closes */
+#main-nav {
+    transition: transform 0.25s ease-out;
+}
+
 /* --- Loader --- */
 .loader-view {
     display: flex;

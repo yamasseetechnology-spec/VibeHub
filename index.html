@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
     <title>Vibehub | Link Your Mind</title>
     <meta name="description" content="Futuristic social media platform for linking like-minded vibes.">
     <link rel="icon" href="https://i.ibb.co/Fqnj3JKp/1000001392.png">
@@ -248,7 +248,10 @@
         <!-- Floating Post Button (Mobile) -->
         <button class="fab-post brain-post-btn mobile-only" onclick="window.App.showCreatePostModal()" title="Vibe Out">
             <span class="brain-icon">🧠</span>
-            <span class="vibe-out-text">Vibe Out</span>
+            <div class="vibe-out-text">
+                <span class="vibe-text">Vibe</span>
+                <span class="out-text">Out</span>
+            </div>
         </button>
 
         <!-- Main Content Area -->
@@ -274,7 +277,10 @@
                 <div class="top-actions">
                     <button id="create-post-btn" class="nav-link brain-post-btn" onclick="window.App.showCreatePostModal()" title="Vibe Out">
                         <span class="brain-icon">🧠</span>
-                        <span class="vibe-out-text">Vibe Out</span>
+                        <div class="vibe-out-text">
+                            <span class="vibe-text">Vibe</span>
+                            <span class="out-text">Out</span>
+                        </div>
                     </button>
                     <!-- Notification icon for mobile header -->
                     <button class="nav-link mobile-only" data-view="notifications" onclick="window.App.navigate('notifications')" style="padding: 10px; min-width: auto; border: none; background: none;">

@@ -48,4 +48,13 @@
   - **Gestures**: Implement `dblclick` (double-tap) on post media to trigger a "Heat" reaction with a center-screen animation.
   - **Reaction System**: Group secondary reactions into a "+" or "Vibe" picker to declutter the post actions.
   - **Navigation**: Update bottom nav to show 5 icons (Home, Stream, Center-Post, Notifs, Profile) for easier access to core loops.
-  - **Visual Polish**: Add skeleton shimmer effects for loading states to provide immediate visual feedback.
+## 9. Pull-to-Refresh (PTR) & Reaction Fixes
+- **Reaction Double-Count**:
+  - **Problem**: Conflict between inline `onclick` and delegated global click listener in `app.js`.
+  - **Fix**: Remove the delegated listener in `setupEventListeners` and consolidate animation/Supabase logic within `handleReaction`.
+- **PTR Trigger Sensitivity**:
+  - **Problem**: Drag effect activates too easily while scrolling up towards the top.
+  - **Fix**: 
+    - Enforce a strict `scrollY === 0` check.
+    - Simplified trigger: only allow `isPulling` if the user is already at the top and the touch movement is clearly downward (+deltaY).
+    - Add `overscroll-behavior-y: none` to `body` in `styles.css`.

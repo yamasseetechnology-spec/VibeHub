@@ -583,6 +583,98 @@ class VibeApp {
                 this.renderView(e.state.view, false);
             }
         });
+
+        // Mobile Keyboard Adjustment
+        this.setupKeyboardHandler();
+    }
+
+    // --- Mobile Keyboard Adjustment System ---
+    setupKeyboardHandler() {
+        // Track initial viewport height for keyboard detection
+        const initialHeight = window.innerHeight;
+        let keyboardOpen = false;
+
+        const setKeyboardState = (isOpen) => {
+            if (keyboardOpen === isOpen) return;
+            keyboardOpen = isOpen;
+
+            if (isOpen) {
+                document.body.classList.add('keyboard-open');
+                // Scroll the focused input into view
+                requestAnimationFrame(() => {
+                    const focused = document.activeElement;
+                    if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA' || focused.isContentEditable)) {
+                        focused.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                });
+            } else {
+                document.body.classList.remove('keyboard-open');
+            }
+        };
+
+        // Primary: visualViewport API (best for modern mobile browsers & WebViews)
+        if (window.visualViewport) {
+            let lastVPHeight = window.visualViewport.height;
+
+            window.visualViewport.addEventListener('resize', () => {
+                const vpHeight = window.visualViewport.height;
+                const threshold = initialHeight * 0.75; // Keyboard typically takes 25%+ of screen
+
+                if (vpHeight < threshold) {
+                    setKeyboardState(true);
+                } else {
+                    setKeyboardState(false);
+                }
+
+                // Update CSS custom property for layouts that need real viewport height
+                document.documentElement.style.setProperty('--vh', `${vpHeight * 0.01}px`);
+                lastVPHeight = vpHeight;
+            });
+
+            window.visualViewport.addEventListener('scroll', () => {
+                // Keep fixed elements stable when viewport scrolls due to keyboard
+                const offsetTop = window.visualViewport.offsetTop;
+                document.documentElement.style.setProperty('--vp-offset', `${offsetTop}px`);
+            });
+        }
+
+        // Fallback: focusin/focusout for older devices without visualViewport
+        document.addEventListener('focusin', (e) => {
+            const tag = e.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) {
+                // Give keyboard time to animate open
+                setTimeout(() => {
+                    if (!window.visualViewport || window.visualViewport.height < initialHeight * 0.75) {
+                        setKeyboardState(true);
+                    }
+                    // Always ensure the focused element is visible
+                    e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 300);
+            }
+        });
+
+        document.addEventListener('focusout', (e) => {
+            const tag = e.target.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) {
+                // Delay to avoid flicker when switching between inputs
+                setTimeout(() => {
+                    const active = document.activeElement;
+                    const activeTag = active?.tagName;
+                    if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && !active?.isContentEditable) {
+                        setKeyboardState(false);
+                    }
+                }, 150);
+            }
+        });
+
+        // Also handle window resize as additional signal
+        window.addEventListener('resize', () => {
+            const currentHeight = window.innerHeight;
+            document.documentElement.style.setProperty('--vh', `${currentHeight * 0.01}px`);
+        });
+
+        // Set initial --vh value
+        document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
     }
 
     // Mobile Hamburger Menu
