@@ -2436,6 +2436,13 @@ class VibeApp {
             </div>
         `;
         
+        // Ensure user defaults for safe rendering
+        const displayName = user.displayName || user.name || 'User';
+        const username = user.username || user.handle || 'username';
+        const avatar = user.profilePhoto || user.avatar_url || 'https://i.pravatar.cc/150';
+        const banner = user.bannerImage || user.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200';
+        const bio = user.bio || 'Welcome to my Vibe.';
+        
         const isOwnProfile = State.user && user.id === State.user.id;
         
         let friendButtonHTML = '';
@@ -2466,15 +2473,15 @@ class VibeApp {
         return `
             <div class="profile-container">
                 <div class="profile-banner">
-                    <img src="${user.bannerImage || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200'}" alt="Banner">
+                    <img src="${banner}" alt="Banner">
                 </div>
                 <div class="profile-content">
                     <div class="profile-header">
-                        <img src="${user.profilePhoto || 'https://i.pravatar.cc/150'}" class="profile-avatar" alt="${user.displayName || 'User'}">
+                        <img src="${avatar}" class="profile-avatar" alt="${displayName}">
                         <div class="profile-info" style="text-align:center;">
-                            <h1 class="view-title" style="margin-bottom:0;">${user.displayName || 'User'}</h1>
-                            <p class="handle" style="margin-top:2px;">@${user.username || 'username'}</p>
-                            <p class="bio" style="margin-top:10px;">${user.bio || 'Welcome to my Vibe.'}</p>
+                            <h1 class="view-title" style="margin-bottom:0;">${displayName}</h1>
+                            <p class="handle" style="margin-top:2px;">@${username}</p>
+                            <p class="bio" style="margin-top:10px;">${bio}</p>
                             
                             ${user.songLink ? `
                             <div style="margin-top:10px; display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,0.05); padding:6px 15px; border-radius:30px; border:1px solid var(--border-light);">
@@ -3230,29 +3237,39 @@ class VibeApp {
         this.showToast(`Loading ${username}'s vibe...`);
         
         try {
-            // Fetch user data
-            const { data: user, error } = await window.supabaseClient
-                .from('users')
-                .select('*')
-                .eq('id', userId)
-                .single();
+            // Fetch user data and post count
+            const [userResponse, countResponse] = await Promise.all([
+                window.supabaseClient
+                    .from('users')
+                    .select('*')
+                    .eq('id', userId)
+                    .single(),
+                window.supabaseClient
+                    .from('posts')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', userId)
+            ]);
             
-            if (error || !user) throw new Error('Could not find user');
+            const user = userResponse.data;
+            if (!user) throw new Error('Could not find user');
+
+            const actualPostCount = countResponse.count || 0;
             
             const profileUser = {
                 id: user.id,
                 username: user.username,
                 displayName: user.name,
                 profilePhoto: user.avatar_url,
-                bannerImage: user.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
+                bannerImage: user.banner_url,
                 bio: user.bio,
                 vibeBoosts: user.vibe_likes?.length || 0,
                 followersCount: user.followers?.length || 0,
                 followingCount: user.following?.length || 0,
-                postCount: user.post_count || 0,
+                postCount: actualPostCount,
                 reactionScore: user.vibe_score || 0,
                 songLink: user.song_link,
                 top8Friends: user.top_8_friends || [],
+                reaction_stats: user.reaction_stats || { given: {}, received: {} },
                 verified: user.verified,
                 role: user.role
             };

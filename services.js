@@ -467,6 +467,16 @@ export class AuthService {
                 }
             }
 
+            // 1.5 Fetch actual post count if Supabase is available
+            let actualPostCount = userData?.post_count || 0;
+            if (window.supabaseClient && (userData?.id || fallbackUser?.id)) {
+                const { count } = await window.supabaseClient
+                    .from('posts')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', userData?.id || fallbackUser.id);
+                actualPostCount = count || 0;
+            }
+
             // 2. Prepare App User Object
             const finalUser = {
                 id: userData?.id || fallbackUser?.id || clerkId || 'guest',
@@ -479,7 +489,7 @@ export class AuthService {
                 bio: userData?.bio || 'New to VibeHub!',
                 followersCount: userData?.followers?.length || 0,
                 followingCount: userData?.following?.length || 0,
-                postCount: userData?.post_count || 0,
+                postCount: actualPostCount,
                 reactionScore: userData?.vibe_score || 0,
                 vibeLikesCount: userData?.vibe_likes?.length || 0,
                 badgeList: userData ? calculateUserBadges(userData) : [],
@@ -1043,17 +1053,19 @@ export class DataService {
             // Algorithmic Sorting Function
             const calculateAlgorithmicScore = (post) => {
                 let score = 0;
-                // Base Engagement
-                const reactionsCnt = Object.values(post.reactions || {}).reduce((s, a) => s + a, 0);
-                score += (reactionsCnt * 2);
+                // Base Engagement (Vibe Score + Comment weight)
+                score += (post.vibeScore || 0);
+                score += (post.commentCount || 0) * 5;
+                
                 // Time Decay
                 const hoursOld = (new Date() - new Date(post.created_at || Date.now())) / (1000 * 60 * 60);
-                score -= (hoursOld * 1.5); // Depreciate score by hours
+                score -= (hoursOld * 2.0); // Slightly more aggressive decay
+                
                 // Social Graph Boost
-                if (userTop8.includes(post.userId)) score += 50; // Massively boost Top 8
-                else if (userFriends.includes(post.userId)) score += 15; // Boost friends
-                // Minimum score floor
-                return Math.max(0, score + (post.reactionScore || 0));
+                if (userTop8.includes(post.userId)) score += 100; // Massively boost Top 8
+                else if (userFriends.includes(post.userId)) score += 30; // Boost friends
+                
+                return score;
             };
 
             if (tab === 'trending') {
@@ -1100,32 +1112,34 @@ export class DataService {
     }
 
     mapPosts(data) {
-        return (data || []).map(post => ({
-            id: post.id,
-            userId: post.user_id,
-            displayName: post.users?.name || post.username,
-            handle: post.users?.username || post.username,
-            avatar: post.users?.avatar_url || post.user_avatar || `https://i.pravatar.cc/150?u=${post.user_id}`,
-            content: post.text,
-            media: post.media_url,
-            mediaType: post.media_type,
-            type: post.media_type === 'none' ? 'text' : post.media_type,
-            reactions: {
-                like: post.likes?.length || 0,
-                heat: post.reactions?.heat?.length || 0,
-                wild: post.reactions?.wild?.length || 0,
-                cap: post.reactions?.cap?.length || 0,
-                admire: post.reactions?.relate?.length || 0,
-                dislike: post.dislikes?.length || 0
-            },
-            reactionScore: post.vibe_score || 0,
-            vibeScore: post.vibe_score || 0,
-            commentCount: post.comment_count || 0,
-            badgeList: calculateUserBadges(post.users),
-            isSponsored: post.is_sponsored,
-            timestamp: post.created_at ? this.formatTimestamp(post.created_at) : 'Just now',
-            created_at: post.created_at || new Date().toISOString()
-        }));
+        return (data || []).map(post => {
+            const user = post.users || {};
+            return {
+                id: post.id,
+                userId: post.user_id,
+                displayName: user.name || post.username,
+                handle: user.username || post.username,
+                avatar: user.avatar_url || post.user_avatar || `https://i.pravatar.cc/150?u=${post.user_id}`,
+                content: post.text,
+                media: post.media_url,
+                mediaType: post.media_type,
+                type: post.media_type === 'none' ? 'text' : post.media_type,
+                reactions: {
+                    like: post.likes?.length || 0,
+                    heat: post.reactions?.heat?.length || 0,
+                    wild: post.reactions?.wild?.length || 0,
+                    cap: post.reactions?.cap?.length || 0,
+                    admire: post.reactions?.relate?.length || 0,
+                    dislike: post.dislikes?.length || 0
+                },
+                vibeScore: user.vibe_score || 0,
+                commentCount: post.comment_count || 0,
+                badgeList: calculateUserBadges(user),
+                isSponsored: post.is_sponsored,
+                timestamp: post.created_at ? this.formatTimestamp(post.created_at) : 'Just now',
+                created_at: post.created_at || new Date().toISOString()
+            };
+        });
     }
 
     subscribeToPosts(callback) {
@@ -1882,34 +1896,16 @@ export class DataService {
 
             const friendIds = friends.map(f => f.friend_id);
 
-            // Get friends' posts
+            // Get friends' posts with user details
             const { data } = await window.supabaseClient
                 .from('posts')
-                .select('*')
+                .select('*, users!inner(*)')
                 .in('user_id', friendIds)
                 .gt('expires_at', new Date().toISOString())
                 .order('created_at', { ascending: false })
                 .limit(50);
 
-            return (data || []).map(post => ({
-                id: post.id,
-                userId: post.user_id,
-                displayName: post.username,
-                handle: post.username,
-                avatar: post.user_avatar,
-                content: post.text,
-                media: post.media_url,
-                mediaType: post.media_type,
-                timestamp: this.formatTimestamp(post.created_at),
-                reactions: {
-                    like: post.likes?.length || 0,
-                    heat: post.reactions?.heat?.length || 0,
-                    wild: post.reactions?.wild?.length || 0,
-                    cap: post.reactions?.cap?.length || 0,
-                    admire: post.reactions?.relate?.length || 0,
-                    dislike: post.dislikes?.length || 0
-                }
-            }));
+            return this.mapPosts(data);
         } catch (error) {
             console.error('Error fetching friends posts:', error);
             return [];
@@ -2387,7 +2383,6 @@ export class ChatService {
             return (data || []).map(m => ({
                 id: m.id,
                 userId: m.sender_id,
-                id: m.id,
                 user: m.sender_username || 'Unknown',
                 lastMsg: m.text || '',
                 time: this.formatTimestamp(m.created_at),
