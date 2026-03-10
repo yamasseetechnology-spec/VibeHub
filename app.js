@@ -2398,7 +2398,7 @@ class VibeApp {
                     <img id="preview-banner" src="${user.bannerImage || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200'}" style="width:100%; height:100%; object-fit:cover; opacity:0.6;">
                     <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);">
                         <form method="post" enctype="multipart/form-data" class="upload-wrapper" style="margin:0;">
-                            <button type="button" class="btn-secondary" style="padding:5px 10px; font-size:0.7rem; display:inline-block;" onclick="this.nextElementSibling.click()">
+                            <button type="button" class="btn-secondary" style="padding:5px 10px; font-size:0.7rem; display:inline-block;" onclick="document.getElementById('banner-upload-input').click()">
                                 📸 Change Banner
                             </button>
                             <input type="file" id="banner-upload-input" accept="image/*" onchange="window.App.handleProfileUpload(this, 'banner')" style="display:none;">
@@ -2410,14 +2410,11 @@ class VibeApp {
                     <div style="position:relative; width:80px; height:80px; margin-bottom:20px;">
                         <img id="preview-avatar" src="${user.profilePhoto || 'https://i.pravatar.cc/150'}" style="width:80px; height:80px; border-radius:50%; border:3px solid var(--primary-purple); object-fit:cover; background:var(--bg-deep);">
                         <form method="post" enctype="multipart/form-data" class="upload-wrapper" style="position:absolute; bottom:0; right:0; width:28px; height:28px; border-radius:50%; margin:0;">
-                            <button type="button" style="background:var(--primary-purple); width:100%; height:100%; border-radius:50%; border:none; display:flex; align-items:center; justify-content:center; font-size:0.8rem; box-shadow:0 0 10px rgba(0,0,0,0.5); color:white;" onclick="this.nextElementSibling.click()">
+                            <button type="button" style="background:var(--primary-purple); width:100%; height:100%; border-radius:50%; border:none; display:flex; align-items:center; justify-content:center; font-size:0.8rem; box-shadow:0 0 10px rgba(0,0,0,0.5); color:white;" onclick="document.getElementById('avatar-upload-input').click()">
                                 📷
                             </button>
                             <input type="file" id="avatar-upload-input" accept="image/*" onchange="window.App.handleProfileUpload(this, 'avatar')" style="display:none;">
                         </form>
-                    </div>
-nge="window.App.handleProfileUpload(this, 'avatar')">
-                        </div>
                     </div>
 
                     <div style="display:flex; flex-direction:column; gap:15px;">
