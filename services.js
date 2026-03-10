@@ -1365,7 +1365,7 @@ export class DataService {
         try {
             const { data, error } = await window.supabaseClient
                 .from('posts')
-                .select('*, users!inner(*)')
+                .select('*, users(*)')
                 .eq('user_id', userId)
                 .order('created_at', { ascending: false })
                 .limit(50);
@@ -1916,7 +1916,7 @@ export class DataService {
             // Get friends' posts with user details
             const { data } = await window.supabaseClient
                 .from('posts')
-                .select('*, users!inner(*)')
+                .select('*, users(*)')
                 .in('user_id', friendIds)
                 .gt('expires_at', new Date().toISOString())
                 .order('created_at', { ascending: false })

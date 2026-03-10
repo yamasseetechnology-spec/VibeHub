@@ -645,7 +645,8 @@ class VibeApp {
         };
 
         // Global Force Focus Helper
-        window.App.forceFocus = (id) => {
+        const self = this;
+        window.forceFocus = (id) => {
             const el = document.getElementById(id);
             if (el) {
                 setTimeout(() => {
@@ -3852,6 +3853,7 @@ class VibeApp {
     }
 
     showToast(msg, type = 'info') {
+        const toast = document.createElement('div');
         toast.className = 'glass-panel animate-fade';
         
         let borderColor = 'var(--primary-orange)';
