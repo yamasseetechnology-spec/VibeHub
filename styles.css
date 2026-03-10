@@ -1453,13 +1453,13 @@ input:focus, textarea:focus {
     }
     
     /* Floating Post Button - Bottom Right, above friends button */
-    /* Floating Post Button - Centered above bottom nav */
+    /* Floating Post Button - Bottom Left */
     .fab-post.brain-post-btn {
         display: flex !important;
         position: fixed;
         bottom: 95px; /* Positioned just above the glass bottom nav */
-        left: 50%;
-        transform: translateX(-50%);
+        left: 20px;
+        transform: none;
         width: 85px;
         height: 100px;
         background: rgba(10, 10, 15, 0.95) !important;
