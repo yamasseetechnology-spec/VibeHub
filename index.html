@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, interactive-widget=resizes-content">
     <title>Vibehub | Link Your Mind</title>
     <meta name="description" content="Futuristic social media platform for linking like-minded vibes.">
     <link rel="icon" href="https://i.ibb.co/Fqnj3JKp/1000001392.png">
@@ -61,8 +61,8 @@
         <div class="login-form">
             <!-- Custom Login Form -->
             <div id="login-form-fields" style="display: block; margin-bottom: 20px;">
-                <input type="email" id="login-email-input" class="login-input" placeholder="Email Address" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
-                <input type="password" id="login-password-input" class="login-input" placeholder="Password" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
+                <input type="email" id="login-email-input" class="login-input" placeholder="Email Address" inputmode="email" autocomplete="email" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
+                <input type="password" id="login-password-input" class="login-input" placeholder="Password" inputmode="text" autocomplete="current-password" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
                 <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; cursor: pointer; color: #aaa; font-size: 13px;">
                     <input type="checkbox" id="remember-me" checked style="accent-color: #ff9f00; width: 16px; height: 16px; cursor: pointer;">
                     Stay signed in
@@ -100,7 +100,7 @@
 
             <!-- Admin Login Dropdown -->
             <div class="admin-dropdown-container" style="margin-top: 20px;">
-                <button class="admin-dropdown-trigger" onclick="document.getElementById('admin-dropdown').classList.toggle('active')" style="
+                <button type="button" class="admin-dropdown-trigger" onclick="document.getElementById('admin-dropdown').classList.toggle('active'); event.stopPropagation();" style="
                     background: transparent;
                     border: 1px solid rgba(255, 165, 0, 0.3);
                     border-radius: 8px;
@@ -125,8 +125,8 @@
                     border-radius: 0 0 12px 12px;
                     padding: 15px;
                 ">
-                    <input type="email" id="admin-login-email" class="login-input" placeholder="Admin Email" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
-                    <input type="password" id="admin-login-password" class="login-input" placeholder="Admin Password" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
+                    <input type="email" id="admin-login-email" class="login-input" placeholder="Admin Email" inputmode="email" autocomplete="email" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
+                    <input type="password" id="admin-login-password" class="login-input" placeholder="Admin Password" inputmode="text" autocomplete="current-password" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
                     <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; cursor: pointer; color: #aaa; font-size: 13px;">
                         <input type="checkbox" id="admin-remember-me" checked style="accent-color: #ff9f00; width: 16px; height: 16px; cursor: pointer;">
                         Stay signed in

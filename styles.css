@@ -520,6 +520,20 @@ body {
     color: rgba(176, 176, 204, 0.5);
 }
 
+/* --- WebView Input Fix --- */
+input, textarea {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+    touch-action: auto !important;
+    -webkit-touch-callout: none;
+    cursor: text;
+}
+
+input:focus, textarea:focus {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+}
+
 .login-toggle {
     display: flex;
     align-items: center;

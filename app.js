@@ -612,13 +612,88 @@ class VibeApp {
             }
         };
 
+        // ============================================
+        // ANDROID WEBVIEW KEYBOARD FIX
+        // Force keyboard to open on input tap
+        // ============================================
+        
+        // Force focus on touch for Android WebView (keyboard often won't open without this)
+        document.addEventListener('touchend', (e) => {
+            const target = e.target;
+            if (!target) return;
+            
+            // Check if the tapped element is an input or textarea
+            const isInput = target.tagName === 'INPUT' && 
+                            target.type !== 'checkbox' && 
+                            target.type !== 'radio' && 
+                            target.type !== 'file' &&
+                            target.type !== 'button' &&
+                            target.type !== 'submit';
+            const isTextarea = target.tagName === 'TEXTAREA';
+            
+            if (isInput || isTextarea) {
+                e.stopPropagation();
+                
+                // Android WebView readOnly trick: briefly set readOnly to force keyboard
+                target.readOnly = true;
+                
+                setTimeout(() => {
+                    target.readOnly = false;
+                    target.focus();
+                    target.click();
+                    
+                    // Ensure the input is scrolled into view
+                    setTimeout(() => {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 100);
+                }, 50);
+            }
+        }, { passive: false });
+
+        // Also handle click events for inputs (some WebViews respond to click, not touch)
+        document.addEventListener('click', (e) => {
+            const target = e.target;
+            if (!target) return;
+            
+            const isInput = target.tagName === 'INPUT' && 
+                            target.type !== 'checkbox' && 
+                            target.type !== 'radio' && 
+                            target.type !== 'file' &&
+                            target.type !== 'button' &&
+                            target.type !== 'submit';
+            const isTextarea = target.tagName === 'TEXTAREA';
+            
+            if (isInput || isTextarea) {
+                // Double-ensure focus in WebView
+                setTimeout(() => {
+                    if (document.activeElement !== target) {
+                        target.focus();
+                    }
+                }, 10);
+            }
+        }, true);
+
+        // Prevent any parent containers from stealing focus
+        document.querySelectorAll('.login-input, #post-input, #comment-input, textarea, input[type="text"], input[type="email"], input[type="password"]').forEach(input => {
+            input.style.webkitUserSelect = 'text';
+            input.style.userSelect = 'text';
+            input.setAttribute('tabindex', '0');
+            
+            // Prevent touch events from being swallowed by parent containers
+            input.addEventListener('touchstart', (e) => {
+                e.stopPropagation();
+            }, { passive: true });
+        });
+
+        // ============================================
+        // KEYBOARD STATE DETECTION
+        // ============================================
+
         // Primary: visualViewport API (best for modern mobile browsers & WebViews)
         if (window.visualViewport) {
-            let lastVPHeight = window.visualViewport.height;
-
             window.visualViewport.addEventListener('resize', () => {
                 const vpHeight = window.visualViewport.height;
-                const threshold = initialHeight * 0.75; // Keyboard typically takes 25%+ of screen
+                const threshold = initialHeight * 0.75;
 
                 if (vpHeight < threshold) {
                     setKeyboardState(true);
@@ -626,28 +701,23 @@ class VibeApp {
                     setKeyboardState(false);
                 }
 
-                // Update CSS custom property for layouts that need real viewport height
                 document.documentElement.style.setProperty('--vh', `${vpHeight * 0.01}px`);
-                lastVPHeight = vpHeight;
             });
 
             window.visualViewport.addEventListener('scroll', () => {
-                // Keep fixed elements stable when viewport scrolls due to keyboard
                 const offsetTop = window.visualViewport.offsetTop;
                 document.documentElement.style.setProperty('--vp-offset', `${offsetTop}px`);
             });
         }
 
-        // Fallback: focusin/focusout for older devices without visualViewport
+        // Fallback: focusin/focusout for older devices
         document.addEventListener('focusin', (e) => {
             const tag = e.target.tagName;
             if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) {
-                // Give keyboard time to animate open
                 setTimeout(() => {
                     if (!window.visualViewport || window.visualViewport.height < initialHeight * 0.75) {
                         setKeyboardState(true);
                     }
-                    // Always ensure the focused element is visible
                     e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }, 300);
             }
@@ -656,7 +726,6 @@ class VibeApp {
         document.addEventListener('focusout', (e) => {
             const tag = e.target.tagName;
             if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) {
-                // Delay to avoid flicker when switching between inputs
                 setTimeout(() => {
                     const active = document.activeElement;
                     const activeTag = active?.tagName;
@@ -667,10 +736,9 @@ class VibeApp {
             }
         });
 
-        // Also handle window resize as additional signal
+        // Window resize handler
         window.addEventListener('resize', () => {
-            const currentHeight = window.innerHeight;
-            document.documentElement.style.setProperty('--vh', `${currentHeight * 0.01}px`);
+            document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
         });
 
         // Set initial --vh value
