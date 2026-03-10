@@ -601,8 +601,25 @@ class VibeApp {
             keyboardOpen = isOpen;
             if (isOpen) {
                 document.body.classList.add('keyboard-open');
+                // Use Virtual Keyboard API if available to prevent auto-hiding
+                if ("virtualKeyboard" in navigator) {
+                    navigator.virtualKeyboard.overlaysContent = true;
+                    navigator.virtualKeyboard.show();
+                }
             } else {
                 document.body.classList.remove('keyboard-open');
+            }
+        };
+
+        // Global Force Focus Helper
+        window.App.forceFocus = (id) => {
+            const el = document.getElementById(id);
+            if (el) {
+                setTimeout(() => {
+                    el.focus();
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    if ("virtualKeyboard" in navigator) navigator.virtualKeyboard.show();
+                }, 50);
             }
         };
 
@@ -1077,7 +1094,9 @@ class VibeApp {
             
             <div class="comment-input-area" style="display:flex; flex-direction:column; gap:10px;">
                 <div id="reply-indicator" style="display:none; font-size:0.8rem; color:var(--text-dim); padding:4px 8px; background:var(--bg-glass); border-radius:8px;"></div>
-                <textarea id="comment-input" class="glass-panel" placeholder="Add a comment..." style="width:100%; min-height:80px; background:rgba(0,0,0,0.5); border:1px solid var(--border-light); color:white; padding:10px;"></textarea>
+                <textarea id="comment-input" class="login-input" placeholder="Add a comment..." 
+                          ontouchend="event.preventDefault(); this.focus();"
+                          style="width:100%; min-height:80px; background:rgba(0,0,0,0.5); border:1px solid var(--border-light); color:white; padding:10px;"></textarea>
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div style="display:flex; gap:10px;">
                         <button class="btn-secondary" title="Audio Comment" onclick="window.App.startAudioComment('${postId}')">🎤</button>

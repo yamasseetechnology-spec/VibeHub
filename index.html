@@ -125,8 +125,8 @@
                     border-radius: 0 0 12px 12px;
                     padding: 15px;
                 ">
-                    <input type="email" id="admin-login-email" class="login-input" placeholder="Admin Email" inputmode="email" autocomplete="email" onclick="this.focus()" onfocus="this.select()" tabindex="0" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
-                    <input type="password" id="admin-login-password" class="login-input" placeholder="Admin Password" inputmode="text" autocomplete="current-password" onclick="this.focus()" onfocus="this.select()" tabindex="0" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
+                    <input type="email" id="admin-login-email" class="login-input" placeholder="Admin Email" inputmode="email" autocomplete="email" ontouchend="event.preventDefault(); this.focus()" onclick="this.focus()" onfocus="this.select()" tabindex="0" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
+                    <input type="password" id="admin-login-password" class="login-input" placeholder="Admin Password" inputmode="text" autocomplete="current-password" ontouchend="event.preventDefault(); this.focus()" onclick="this.focus()" onfocus="this.select()" tabindex="0" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
                     <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; cursor: pointer; color: #aaa; font-size: 13px;">
                         <input type="checkbox" id="admin-remember-me" checked style="accent-color: #ff9f00; width: 16px; height: 16px; cursor: pointer;">
                         Stay signed in
