@@ -9,6 +9,9 @@ export default defineConfig({
       input: './index.html'
     }
   },
+  esbuild: {
+    pure: ['console.log'], // Strip console.log in production build
+  },
   server: {
     open: true
   }

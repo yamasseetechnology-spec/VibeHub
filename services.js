@@ -39,7 +39,7 @@ function calculateUserBadges(userData) {
 // ============================================
 export class MediaService {
     constructor() {
-        this.cloudinaryConfig = window.CLOUDINARY_CONFIG || { cloudName: 'dg35zlppj' };
+        this.cloudinaryConfig = { cloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'dg35zlppj' };
         this.cloudinaryReady = !!window.cloudinary;
         this.init();
     }
@@ -162,8 +162,9 @@ export class MediaService {
 // ============================================
 export class CacheService {
     constructor() {
-        this.redisUrl = window.UPSTASH_CONFIG?.url;
-        this.redisToken = window.UPSTASH_CONFIG?.token;
+        this.cache = new Map();
+        this.redisUrl = import.meta.env.VITE_UPSTASH_REDIS_URL;
+        this.redisToken = import.meta.env.VITE_UPSTASH_REDIS_TOKEN;
         this.enabled = !!(this.redisUrl && this.redisToken);
     }
 
@@ -2054,15 +2055,16 @@ export class VideoService {
     }
 
     async uploadMedia(blob, type) {
-        if (!window.CLOUDINARY_CONFIG) return null;
+        const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'dg35zlppj';
+        if (!cloudName) return null;
         
         const formData = new FormData();
         formData.append('file', blob);
         formData.append('upload_preset', type === 'audio' ? 'vibehub_audio' : 'vibehub_videos');
-        formData.append('cloud_name', window.CLOUDINARY_CONFIG.cloudName);
+        formData.append('cloud_name', cloudName);
         
         try {
-            const response = await fetch(`https://api.cloudinary.com/v1_1/${window.CLOUDINARY_CONFIG.cloudName}/${type}/upload`, {
+            const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${type}/upload`, {
                 method: 'POST',
                 body: formData
             });
@@ -2129,6 +2131,31 @@ export class VideoService {
                 callback(payload);
             })
             .subscribe();
+    }
+
+    // --- WebRTC Signaling ---
+    subscribeToSignaling(streamId, callback) {
+        if (!window.supabaseClient) return null;
+        return window.supabaseClient
+            .channel(`signaling:${streamId}`)
+            .on('broadcast', { event: 'signal' }, ({ payload }) => {
+                callback(payload);
+            })
+            .subscribe();
+    }
+
+    async sendSignal(streamId, signalData) {
+        if (!window.supabaseClient) return;
+        const channel = window.supabaseClient.channel(`signaling:${streamId}`);
+        await channel.subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+                await channel.send({
+                    type: 'broadcast',
+                    event: 'signal',
+                    payload: signalData
+                });
+            }
+        });
     }
 }
 

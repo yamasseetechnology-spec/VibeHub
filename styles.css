@@ -1831,11 +1831,34 @@ body.keyboard-open #app-footer {
 
 /* --- VibeStream --- */
 .vibestream-container {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    max-width: 500px;
-    margin: 0 auto;
+    padding: 0 5px;
+}
+
+.vibestream-animated-caption {
+    width: 100%;
+    text-align: center;
+    padding: 10px 0;
+    margin-bottom: 20px;
+    font-weight: 800;
+    font-size: 1.2rem;
+    background: linear-gradient(90deg, #ff9f00, #9d50bb, #00f2ff, #ff9f00);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: vibe-shimmer 4s ease infinite, vibe-float 3s ease-in-out infinite;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+@keyframes vibe-shimmer {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 300% 50%; }
+}
+
+@keyframes vibe-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
 }
 
 .vibe-video-card {

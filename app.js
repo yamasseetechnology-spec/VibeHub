@@ -1453,16 +1453,68 @@ class VibeApp {
         document.getElementById('stream-setup-modal')?.remove();
         this.showToast("Initializing broadcast... 📡");
         
-        // Use VideoService to start live
         const user = State.user || { id: 'guest_' + Date.now(), username: 'Guest' };
-        const success = await this.services.video.startLive(user.id, user.username, topic);
         
-        if (success) {
-            this.showToast("You are LIVE! 🎥");
-            this.renderBroadcastMode(topic);
-        } else {
-            this.showToast("Failed to start broadcast.", "error");
+        // Setup WebRTC Host
+        this.rtcPeers = new Map(); // Store peer connections for multiple viewers
+        
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            State.liveStream = stream;
+            
+            const success = await this.services.video.startLive(user.id, user.username, topic);
+            if (success) {
+                this.showToast("You are LIVE! 🎥");
+                this.renderBroadcastMode(topic);
+                
+                // Signaling for host
+                this.hostSignaling = this.services.video.subscribeToSignaling(user.id, async (data) => {
+                    if (data.type === 'join-request') {
+                        this.handleViewerJoin(user.id, data.viewerId, stream);
+                    } else if (data.type === 'answer') {
+                        const pc = this.rtcPeers.get(data.viewerId);
+                        if (pc) await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                    } else if (data.type === 'candidate') {
+                        const pc = this.rtcPeers.get(data.viewerId);
+                        if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    }
+                });
+            } else {
+                this.showToast("Failed to start broadcast.", "error");
+            }
+        } catch (err) {
+            console.error("Camera access failed:", err);
+            this.showToast("Could not access camera/mic.", "error");
         }
+    }
+
+    async handleViewerJoin(hostId, viewerId, stream) {
+        const pc = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+        
+        this.rtcPeers.set(viewerId, pc);
+        
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+        
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                this.services.video.sendSignal(viewerId, {
+                    type: 'candidate',
+                    candidate: event.candidate,
+                    hostId: hostId
+                });
+            }
+        };
+        
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        
+        this.services.video.sendSignal(viewerId, {
+            type: 'offer',
+            sdp: offer,
+            hostId: hostId
+        });
     }
 
     renderBroadcastMode(topic) {
@@ -1524,6 +1576,16 @@ class VibeApp {
             if (State.liveStream) {
                 State.liveStream.getTracks().forEach(t => t.stop());
                 State.liveStream = null;
+            }
+
+            // Cleanup WebRTC Peers
+            if (this.rtcPeers) {
+                this.rtcPeers.forEach(pc => pc.close());
+                this.rtcPeers.clear();
+            }
+            if (this.hostSignaling) {
+                this.hostSignaling.unsubscribe();
+                this.hostSignaling = null;
             }
             
             this.showToast("Stream ended! 🎬");
@@ -1846,8 +1908,78 @@ class VibeApp {
         this.attachViewEvents();
     }
 
+    async joinLiveStream(hostId, username) {
+        this.showToast(`Linking to ${username}'s vibe...`);
+        
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="broadcast-view" style="width:100%; height:100%; display: flex; flex-direction: column; background: black;">
+                <div class="broadcast-header glass-panel" style="padding: 15px; display: flex; justify-content: space-between; align-items: center; border-radius: 0;">
+                    <div>
+                        <span class="live-tag" style="background: var(--primary-orange); color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.7rem; margin-right: 10px;">LIVE</span>
+                        <span style="font-weight: bold;">${username}'s Stream</span>
+                    </div>
+                    <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()" style="padding: 5px 15px; font-size: 0.8rem;">CLOSE</button>
+                </div>
+                <div class="video-preview-container" style="flex: 1; position: relative;">
+                    <video id="remote-live-video" autoplay playsinline style="width: 100%; height: 100%; object-fit: contain;"></video>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const viewerId = 'viewer_' + Math.random().toString(36).substr(2, 9);
+        const pc = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+        
+        pc.ontrack = (event) => {
+            const videoEl = document.getElementById('remote-live-video');
+            if (videoEl) videoEl.srcObject = event.streams[0];
+        };
+        
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                this.services.video.sendSignal(hostId, {
+                    type: 'candidate',
+                    candidate: event.candidate,
+                    viewerId: viewerId
+                });
+            }
+        };
+        
+        // Signaling for viewer
+        const sub = this.services.video.subscribeToSignaling(viewerId, async (data) => {
+            if (data.type === 'offer') {
+                await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                this.services.video.sendSignal(hostId, {
+                    type: 'answer',
+                    sdp: answer,
+                    viewerId: viewerId
+                });
+            } else if (data.type === 'candidate') {
+                await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+        });
+        
+        // Send join request
+        this.services.video.sendSignal(hostId, {
+            type: 'join-request',
+            viewerId: viewerId
+        });
+        
+        modal.addEventListener('remove', () => {
+            sub.unsubscribe();
+            pc.close();
+        });
+    }
+
     getVibeStreamHTML(videos, liveStreams = []) {
         return `
+            <div class="vibestream-animated-caption">Vibe for the moment.</div>
             <div class="view-header vibestream-header" style="display:flex; justify-content:space-between; align-items:center; gap: 15px; flex-wrap: wrap; margin-bottom: 20px;">
                 <div style="flex: 1; min-width: 150px;">
                     <h1 class="view-title">VibeStream</h1>
@@ -1862,7 +1994,7 @@ class VibeApp {
                 </h3>
                 <div class="live-scroll-container" style="display: flex; gap: 15px; overflow-x: auto; padding-bottom: 10px;">
                     ${liveStreams.length > 0 ? liveStreams.map(l => `
-                        <div class="live-card glass-panel" onclick="window.App.showToast('Joining ${l.username}\\'s stream...')">
+                        <div class="live-card glass-panel" onclick="window.App.joinLiveStream('${l.user_id}', '${l.username}')">
                             <div class="live-avatar">
                                 <img src="https://i.pravatar.cc/150?u=${l.user_id}" alt="${l.username}">
                                 <span class="live-tag">LIVE</span>
