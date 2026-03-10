@@ -15,7 +15,8 @@ const State = {
     syncRooms: [],
     messages: [],
     theme: 'dark',
-    viewData: {}
+    viewData: {},
+    liveStream: null
 };
 
 // --- CORE APP CLASS ---
@@ -696,6 +697,20 @@ class VibeApp {
         document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
     }
 
+    // Toggle Visibility of Post Buttons (FAB and Mobile Header)
+    togglePostButton(show) {
+        const fab = document.querySelector('.fab-post.brain-post-btn');
+        const headerBtn = document.getElementById('create-post-btn-mobile');
+        
+        if (show) {
+            if (fab) fab.classList.remove('hidden-vibe-btn');
+            if (headerBtn) headerBtn.classList.remove('hidden-vibe-btn');
+        } else {
+            if (fab) fab.classList.add('hidden-vibe-btn');
+            if (headerBtn) headerBtn.classList.add('hidden-vibe-btn');
+        }
+    }
+
     // Mobile Hamburger Menu
     toggleMobileMenu() {
         const hamburger = document.getElementById('hamburger-btn');
@@ -711,11 +726,13 @@ class VibeApp {
             drawer.classList.remove('open');
             if (overlay) overlay.classList.remove('open');
             document.body.style.overflow = '';
+            this.togglePostButton(true); // Re-show vibe button
         } else {
             hamburger.classList.add('active');
             drawer.classList.add('open');
             if (overlay) overlay.classList.add('open');
             document.body.style.overflow = 'hidden';
+            this.togglePostButton(false); // Hide vibe button
         }
     }
 
@@ -728,6 +745,7 @@ class VibeApp {
         if (drawer) drawer.classList.remove('open');
         if (overlay) overlay.classList.remove('open');
         document.body.style.overflow = '';
+        this.togglePostButton(true); // Re-show vibe button
     }
 
     toggleSearch() {
@@ -962,6 +980,7 @@ class VibeApp {
         const content = document.getElementById('modal-content');
         if (!modal || !content) return;
         
+        this.togglePostButton(false);
         modal.classList.remove('hidden');
         content.innerHTML = `
             <h2 class="view-header">Post Your Vibe</h2>
@@ -988,7 +1007,7 @@ class VibeApp {
             </div>
             
             <div style="display:flex; justify-content:flex-end; gap:10px;">
-                <button class="btn-secondary" onclick="document.getElementById('modal-container').classList.add('hidden')">Cancel</button>
+                <button class="btn-secondary" onclick="window.App.closeCreatePostModal()">Cancel</button>
                 <button class="btn-primary" id="final-post-btn" onclick="window.App.handleCreatePost()">Post Vibe</button>
             </div>
             <div id="upload-progress" style="display:none; margin-top:15px;">
@@ -998,6 +1017,14 @@ class VibeApp {
                 <p style="text-align:center; font-size:12px; color:#aaa; margin-top:5px;" id="progress-text">Uploading...</p>
             </div>
         `;
+    }
+
+    closeCreatePostModal() {
+        const modal = document.getElementById('modal-container');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+        this.togglePostButton(State.currentView === 'home');
     }
 
     async handleCreatePost() {
@@ -1051,7 +1078,7 @@ class VibeApp {
             return;
         }
         
-        document.getElementById('modal-container').classList.add('hidden');
+        this.closeCreatePostModal();
         
         if (progressDiv) progressDiv.style.display = 'none';
         
@@ -1401,6 +1428,133 @@ class VibeApp {
         }
     }
 
+    showStreamSetupModal() {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.id = 'stream-setup-modal';
+        modal.innerHTML = `
+            <div class="modal-content glass-panel" style="max-width:400px; margin:auto; padding:30px;">
+                <h2 style="margin-bottom:10px; font-family:var(--font-display);">Go Live</h2>
+                <p class="text-dim" style="margin-bottom:20px;">What's the vibe of your stream today?</p>
+                <input type="text" id="stream-topic" class="login-input" placeholder="Enter stream topic..." style="width:100%; margin-bottom:20px;">
+                <div style="display:flex; gap:10px;">
+                    <button class="btn-secondary" onclick="document.getElementById('stream-setup-modal').remove()" style="flex:1;">Cancel</button>
+                    <button class="btn-primary" onclick="window.App.startLiveBroadcast()" style="flex:1;">Go Live →</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    async startLiveBroadcast() {
+        const topicInput = document.getElementById('stream-topic');
+        const topic = topicInput?.value.trim() || "Vibing";
+        
+        document.getElementById('stream-setup-modal')?.remove();
+        this.showToast("Initializing broadcast... 📡");
+        
+        // Use VideoService to start live
+        const user = State.user || { id: 'guest_' + Date.now(), username: 'Guest' };
+        const success = await this.services.video.startLive(user.id, user.username, topic);
+        
+        if (success) {
+            this.showToast("You are LIVE! 🎥");
+            this.renderBroadcastMode(topic);
+        } else {
+            this.showToast("Failed to start broadcast.", "error");
+        }
+    }
+
+    renderBroadcastMode(topic) {
+        const container = document.getElementById('view-container');
+        if (!container) return;
+        
+        container.innerHTML = `
+            <div class="broadcast-view" style="height: calc(100vh - 120px); display: flex; flex-direction: column; gap: 20px;">
+                <div class="broadcast-header glass-panel" style="padding: 15px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span class="live-tag" style="background: var(--primary-orange); color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.7rem; margin-right: 10px;">LIVE</span>
+                        <span style="font-weight: bold;">${topic}</span>
+                    </div>
+                    <button class="btn-secondary" onclick="window.App.endLiveBroadcast()" style="padding: 5px 15px; font-size: 0.8rem; background: rgba(255, 0, 0, 0.2); border-color: rgba(255, 0, 0, 0.4);">END STREAM</button>
+                </div>
+                
+                <div class="video-preview-container glass-panel" style="flex: 1; position: relative; overflow: hidden; border-radius: 12px; background: black;">
+                    <video id="live-local-video" autoplay muted playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+                    
+                    <div class="viewer-count" style="position: absolute; bottom: 20px; left: 20px; background: rgba(0, 0, 0, 0.6); padding: 5px 12px; border-radius: 20px; display: flex; align-items: center; gap: 6px; font-size: 0.8rem;">
+                        <span class="pulse-dot" style="width: 8px; height: 8px; background: var(--accent-cyan);"></span>
+                        <span id="live-viewers">1 viewer</span>
+                    </div>
+
+                    <div class="broadcast-controls" style="position: absolute; bottom: 20px; right: 20px; display: flex; gap: 10px;">
+                        <button class="video-action" onclick="window.App.toggleLiveMic()" id="mic-btn">🎧</button>
+                        <button class="video-action" onclick="window.App.toggleLiveCam()" id="cam-btn">🎥</button>
+                    </div>
+                </div>
+
+                <div class="broadcast-chat glass-panel" style="height: 150px; padding: 15px; overflow-y: auto;">
+                    <p class="text-dim" style="font-size: 0.8rem; text-align: center;">Waiting for reactions...</p>
+                    <div id="broadcast-messages" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                </div>
+            </div>
+        `;
+
+        // Start local camera
+        this.startLiveCamera();
+    }
+
+    async startLiveCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            const videoEl = document.getElementById('live-local-video');
+            if (videoEl) videoEl.srcObject = stream;
+            State.liveStream = stream;
+        } catch (err) {
+            console.error("Camera access failed:", err);
+            this.showToast("Could not access camera/mic.", "error");
+        }
+    }
+
+    async endLiveBroadcast() {
+        if (confirm("End your live stream?")) {
+            const user = State.user;
+            if (user) await this.services.video.endLive(user.id);
+            
+            if (State.liveStream) {
+                State.liveStream.getTracks().forEach(t => t.stop());
+                State.liveStream = null;
+            }
+            
+            this.showToast("Stream ended! 🎬");
+            this.navigate('vibestream');
+        }
+    }
+
+    toggleLiveMic() {
+        if (State.liveStream) {
+            const audioTrack = State.liveStream.getAudioTracks()[0];
+            if (audioTrack) {
+                audioTrack.enabled = !audioTrack.enabled;
+                const btn = document.getElementById('mic-btn');
+                if (btn) btn.innerText = audioTrack.enabled ? '🎧' : '🔇';
+                this.showToast(audioTrack.enabled ? "Mic On" : "Mic Muted");
+            }
+        }
+    }
+
+    toggleLiveCam() {
+        if (State.liveStream) {
+            const videoTrack = State.liveStream.getVideoTracks()[0];
+            if (videoTrack) {
+                videoTrack.enabled = !videoTrack.enabled;
+                const btn = document.getElementById('cam-btn');
+                if (btn) btn.innerText = videoTrack.enabled ? '🎥' : '📵';
+                this.showToast(videoTrack.enabled ? "Camera On" : "Camera Off");
+            }
+        }
+    }
+
     hideSplash() {
         // No longer needed - login screen is the entry point
     }
@@ -1438,6 +1592,9 @@ class VibeApp {
         document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
         const modalContainer = document.getElementById('modal-container');
         if (modalContainer) modalContainer.classList.add('hidden');
+
+        // Toggle Vibe Out button visibility ensuring it's only shown on the home page tab
+        this.togglePostButton(view === 'home');
 
         try {
             switch(view) {
@@ -1548,7 +1705,15 @@ class VibeApp {
 
         container.innerHTML = `
             <div class="view-header"><div class="skeleton-shimmer" style="width: 200px; height: 30px; background: rgba(255,255,255,0.05);"></div></div>
-            ${skeletonHTML}
+            ${view === 'syncrooms' ? `
+                <div class="rooms-grid">
+                    ${Array(6).fill(0).map(() => `
+                        <div class="room-card glass-panel skeleton-loader" style="height: 180px;">
+                            <div class="skeleton-shimmer"></div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : skeletonHTML}
         `;
     }
 
@@ -1689,7 +1854,7 @@ class VibeApp {
                     <h1 class="view-title">VibeStream</h1>
                     <p class="text-dim">Vertical vibes for the linked mind.</p>
                 </div>
-                <button class="btn-primary go-live-btn" onclick="window.App.goLive()" style="white-space: nowrap; padding: 12px 25px;">Go Live</button>
+                <button class="btn-primary go-live-btn" onclick="window.App.showStreamSetupModal()" style="white-space: nowrap; padding: 12px 25px;">Go Live</button>
             </div>
             
             <div class="live-now-section animate-fade" style="margin-bottom: 30px;">
@@ -1716,16 +1881,11 @@ class VibeApp {
     }
 
     getSyncRoomsHTML(rooms) {
-        const getRoomGlow = (expiresAt) => {
-            if (!expiresAt) return '';
-            const now = new Date();
-            const expires = new Date(expiresAt);
-            const hoursLeft = (expires - now) / (1000 * 60 * 60);
-            
-            if (hoursLeft > 20) return 'box-shadow: 0 0 30px rgba(255, 159, 0, 0.8); border-color: rgba(255, 159, 0, 0.6);';
-            if (hoursLeft > 12) return 'box-shadow: 0 0 20px rgba(255, 159, 0, 0.5); border-color: rgba(255, 159, 0, 0.4);';
-            if (hoursLeft > 6) return 'box-shadow: 0 0 15px rgba(255, 159, 0, 0.3); border-color: rgba(255, 159, 0, 0.3);';
-            return 'box-shadow: 0 0 8px rgba(255, 159, 0, 0.2); border-color: rgba(255, 159, 0, 0.2);';
+        const getRoomGlow = (userCount = 0) => {
+            const intensity = Math.min(userCount / 125, 1); // Normalize to 125 users
+            const opacity = 0.2 + (intensity * 0.6);
+            const blur = 10 + (intensity * 30);
+            return `box-shadow: 0 0 ${blur}px rgba(255, 159, 0, ${opacity}); border-color: rgba(255, 159, 0, ${0.2 + intensity * 0.4});`;
         };
 
         const getTimeRemaining = (expiresAt) => {
@@ -1748,21 +1908,45 @@ class VibeApp {
             </div>
             <div class="rooms-grid" id="rooms-grid">
                 ${rooms && rooms.length > 0 ? rooms.map(r => `
-                    <div class="room-card glass-panel" style="${getRoomGlow(r.expiresAt)}">
-                        ${getTimeRemaining(r.expiresAt) ? `<span class="room-timer" style="font-size:0.7rem; color:var(--primary-orange);">${getTimeRemaining(r.expiresAt)}</span>` : ''}
-                        <h3>${r.name || 'Unnamed Room'}</h3>
-                        <p>${r.users || 0} / ${r.maxUsers || 125} Vibing Now</p>
-                        <button class="btn-primary" onclick="window.App.joinSyncRoom('${r.id}', '${r.name}')" ${r.users >= (r.maxUsers || 125) ? 'disabled style="opacity:0.5"' : ''}>${r.users >= (r.maxUsers || 125) ? 'Full' : 'Sync In'}</button>
+                    <div class="room-card glass-panel" style="${getRoomGlow(r.users)}">
+                        ${getTimeRemaining(r.expiresAt) ? `<span class="room-timer" style="font-size:0.65rem; color:var(--primary-orange); position:absolute; top:12px; left:12px; text-transform:uppercase; letter-spacing:1px; font-weight:800;">[ ${getTimeRemaining(r.expiresAt)} ]</span>` : ''}
+                        <h3 style="margin-top:10px; font-family:var(--font-display);">${r.name || 'Unnamed Room'}</h3>
+                        <div style="margin:15px 0; font-size:0.9rem; color:rgba(255,255,255,0.7);">
+                            <span style="color:var(--accent-cyan); font-weight:bold;">${r.users || 0}</span> / ${r.maxUsers || 125} Connected
+                        </div>
+                        <button class="btn-primary" onclick="window.App.joinSyncRoom('${r.id}', '${r.name}')" ${r.users >= (r.maxUsers || 125) ? 'disabled style="opacity:0.5"' : ''} style="width:100%;">
+                            ${r.users >= (r.maxUsers || 125) ? 'CAPACITY REACHED' : 'SYNC IN →'}
+                        </button>
                     </div>
                 `).join('') : '<p class="text-dim" style="padding:20px; text-align:center;">No active rooms. Create one!</p>'}
             </div>
-            <div id="active-chat-container" class="hidden">
-                <div class="view-header"><button class="btn-secondary" onclick="window.App.leaveSyncRoom()">← Back to Rooms</button><h1 class="view-title" id="active-room-name"></h1></div>
-                <div class="chat-container">
-                    <div class="chat-messages" id="chat-messages"></div>
-                    <div class="chat-input">
-                        <input type="text" id="chat-message-input" placeholder="Type a message..." onkeypress="if(event.key==='Enter')window.App.sendChatMessage()">
-                        <button class="btn-primary" onclick="window.App.sendChatMessage()">Send</button>
+            <div id="active-chat-container" class="hidden" style="height: calc(100vh - 120px); display: flex; flex-direction: column;">
+                <div class="view-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding:0 10px;">
+                    <button class="btn-secondary" onclick="window.App.leaveSyncRoom()" style="padding: 8px 15px; font-size:0.85rem;">← EXIT SYNC</button>
+                    <div style="text-align:center;">
+                        <h1 class="view-title" id="active-room-name" style="font-size:1.1rem; margin:0;"></h1>
+                        <span id="typing-status" class="text-dim" style="font-size:0.7rem; height:12px; display:block;"></span>
+                    </div>
+                    <button class="btn-secondary" onclick="window.App.toggleChatSidebar()" style="padding: 8px 15px; font-size:0.85rem;">USERS 👥</button>
+                </div>
+                
+                <div style="flex: 1; display: flex; gap: 15px; overflow: hidden; position: relative;">
+                    <!-- Chat Area -->
+                    <div class="chat-main-area" style="flex: 1; display: flex; flex-direction: column; glass-panel; overflow: hidden;">
+                        <div class="chat-messages" id="chat-messages" style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap:12px;"></div>
+                        
+                        <div class="chat-input-area glass-panel" style="padding: 15px; display: flex; gap: 10px; border-top: 1px solid rgba(255,255,255,0.05); margin-top:10px;">
+                            <input type="text" id="chat-message-input" class="login-input" placeholder="Broadcast to neural link..." style="flex: 1; background: rgba(0,0,0,0.3);" onkeypress="if(event.key==='Enter')window.App.sendChatMessage()" oninput="window.App.handleTyping()">
+                            <button class="btn-primary" onclick="window.App.sendChatMessage()" style="padding: 0 25px;">SEND</button>
+                        </div>
+                    </div>
+
+                    <!-- Collapsible Sidebar -->
+                    <div id="chat-sidebar" class="glass-panel" style="width: 250px; display: none; flex-direction: column; padding: 20px; border-left: 1px solid rgba(0, 242, 255, 0.2); position: absolute; right: 0; top: 0; bottom: 0; z-index: 10;">
+                        <h3 style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 20px; color: var(--accent-cyan);">Sync Participants</h3>
+                        <div id="user-list" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
+                            <!-- Users will be populated here -->
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1835,6 +2019,8 @@ class VibeApp {
         this.services.chat.subscribeToRoomMessages(roomId, (message) => {
             if (message.type === 'reaction') {
                 this.appendChatReaction(message.message_id, message.content);
+            } else if (message.type === 'typing') {
+                this.setTypingStatus(message.username, true);
             } else {
                 this.appendChatMessage({
                     user: message.username,
@@ -1844,11 +2030,21 @@ class VibeApp {
             }
         });
 
-        // Also support BroadcastChannel for local multi-tab testing
-        this.chatChannel = new BroadcastChannel(`vibehub_chat_${roomId}`);
-        this.chatChannel.onmessage = (event) => {
-            this.appendChatMessage(event.data);
-        };
+        // Update User List Sidebar
+        this.updateUserList(roomId);
+    }
+
+    async updateUserList(roomId) {
+        const userListEl = document.getElementById('user-list');
+        if (!userListEl) return;
+
+        const users = await this.services.chat.getRoomUsers(roomId);
+        userListEl.innerHTML = users.map(u => `
+            <div class="glass-panel" style="padding: 10px; display: flex; align-items: center; gap: 10px; font-size: 0.85rem; border: none; background: rgba(255,255,255,0.03);">
+                <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-neon-green); box-shadow: 0 0 5px var(--accent-neon-green);"></div>
+                <span style="color: rgba(255,255,255,0.8);">${u.username}</span>
+            </div>
+        `).join('');
     }
 
     async sendChatMessage() {
@@ -1897,61 +2093,205 @@ class VibeApp {
         }
     }
 
-    leaveSyncRoom() {
-        document.getElementById('rooms-grid').classList.remove('hidden');
-        document.getElementById('active-chat-container').classList.add('hidden');
-        
-        const user = State.user || { id: 'guest' };
-        this.services.chat.leaveRoom(this.activeRoomId, user.id);
-        
-        if (this.chatChannel) this.chatChannel.close();
-        this.activeRoomId = null;
+    toggleChatSidebar() {
+        const sidebar = document.getElementById('chat-sidebar');
+        if (sidebar) {
+            sidebar.style.display = sidebar.style.display === 'none' ? 'flex' : 'none';
+        }
     }
 
     appendChatMessage(message) {
         const chat = document.getElementById('chat-messages');
+        if (!chat) return;
+        
         const msgId = 'msg_' + Date.now();
-        chat.innerHTML += `
-            <div id="${msgId}" style="margin-bottom:10px; position:relative;">
-                <strong>${message.user}:</strong> ${message.text} 
-                <span class="text-dim" style="font-size:0.7rem;">${message.time}</span>
-                <div class="msg-reactions" style="display:flex; gap:5px; margin-top:4px;"></div>
-                <button onclick="window.App.showChatReactionPicker('${msgId}')" style="background:none; border:none; cursor:pointer; font-size:0.8rem; opacity:0.5;">+</button>
-            </div>`;
+        const isOwn = State.user && message.user === State.user.username;
+        
+        const msgHTML = `
+            <div id="${msgId}" class="chat-msg-bubble animate-fade" style="
+                max-width: 85%;
+                margin-bottom: 8px;
+                padding: 12px 16px;
+                border-radius: 18px;
+                align-self: ${isOwn ? 'flex-end' : 'flex-start'};
+                background: ${isOwn ? 'rgba(157, 80, 187, 0.2)' : 'rgba(255,255,255,0.05)'};
+                border: 1px solid ${isOwn ? 'rgba(157, 80, 187, 0.4)' : 'rgba(255,255,255,0.1)'};
+                position: relative;
+                cursor: context-menu;
+            " oncontextmenu="window.App.showChatContextMenu('${msgId}', event); return false;">
+                <div style="font-size: 0.75rem; font-weight: 800; color: ${isOwn ? 'var(--primary-purple)' : 'var(--accent-cyan)'}; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">
+                    ${message.user}
+                </div>
+                <div style="color: rgba(255,255,255,0.9); line-height: 1.4; word-break: break-word;">${message.text}</div>
+                <div class="msg-reactions" style="display:flex; flex-wrap: wrap; gap:5px; margin-top:6px;"></div>
+                <button onclick="window.App.showChatReactionPicker('${msgId}')" style="position: absolute; ${isOwn ? 'left: -30px' : 'right: -30px'}; top: 50%; transform: translateY(-50%); background:none; border:none; cursor:pointer; font-size:1rem; opacity:0.3; transition: opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.3'">➕</button>
+            </div>
+        `;
+        
+        chat.innerHTML += msgHTML;
         chat.scrollTop = chat.scrollHeight;
     }
 
+    showChatContextMenu(msgId, event) {
+        event.preventDefault();
+        const existing = document.getElementById('chat-context-menu');
+        if (existing) existing.remove();
+
+        const menu = document.createElement('div');
+        menu.id = 'chat-context-menu';
+        menu.className = 'glass-panel hud-border animate-fade';
+        menu.style.cssText = `
+            position: fixed;
+            top: ${event.clientY}px;
+            left: ${event.clientX}px;
+            z-index: 10000;
+            padding: 8px;
+            min-width: 140px;
+            background: rgba(10, 10, 15, 0.95);
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        `;
+
+        menu.innerHTML = `
+            <div class="menu-item" style="padding: 10px; cursor: pointer; border-radius: 6px; hover:background:rgba(255,255,255,0.1);" onclick="window.App.showToast('Profile view coming soon...')">👤 View Profile</div>
+            <div class="menu-item" style="padding: 10px; cursor: pointer; border-radius: 6px; hover:background:rgba(255,255,255,0.1);" onclick="window.App.showChatReactionPicker('${msgId}')">😀 React</div>
+            <div class="menu-item" style="padding: 10px; cursor: pointer; border-radius: 6px; hover:background:rgba(255,255,255,0.1); color: #ef4444;" onclick="window.App.showToast('Message reported.')">🚩 Report</div>
+        `;
+
+        document.body.appendChild(menu);
+
+        const closeMenu = (e) => {
+            if (!menu.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', closeMenu), 10);
+    }
+
+    handleTyping() {
+        if (!this.activeRoomId || !State.user) return;
+        
+        const now = Date.now();
+        if (now - (this._lastTypingTime || 0) > 3000) {
+            this._lastTypingTime = now;
+            this.services.chat.sendRoomMessage(this.activeRoomId, State.user.id, State.user.username, '', 'typing');
+        }
+    }
+
+    setTypingStatus(user, isTyping) {
+        const statusEl = document.getElementById('typing-status');
+        if (!statusEl) return;
+        
+        if (isTyping) {
+            statusEl.innerText = `${user} is linking thoughts... ⚡`;
+            if (this._typingTimeout) clearTimeout(this._typingTimeout);
+            this._typingTimeout = setTimeout(() => statusEl.innerText = '', 4000);
+        } else {
+            statusEl.innerText = '';
+        }
+    }
+
+
+
     showChatReactionPicker(msgId) {
-        const emojis = ['🔥', '😮', '💯', '🧢', '🙏', '😂'];
+        const emojis = ['🔥', '🧠', '🖤', '🌌', '🧬', '💀'];
         const picker = document.createElement('div');
-        picker.className = 'glass-panel reaction-picker';
-        picker.style.cssText = `position:fixed; padding:10px; display:flex; gap:10px; z-index:10000; top:50%; left:50%; transform:translate(-50%, -50%);`;
-        picker.innerHTML = emojis.map(e => `<span style="cursor:pointer; font-size:1.5rem;" onclick="window.App.sendChatReaction('${msgId}', '${e}')">${e}</span>`).join('');
-        document.body.appendChild(picker);
-        picker.onclick = (e) => { if(e.target === picker) picker.remove(); };
-        setTimeout(() => { document.addEventListener('click', function handler(event) { if(!picker.contains(event.target)) { picker.remove(); document.removeEventListener('click', handler); } }, true); }, 10);
+        picker.className = 'glass-panel animate-fade';
+        picker.style.cssText = `
+            position: absolute;
+            bottom: 40px;
+            right: 0;
+            display: flex;
+            gap: 8px;
+            padding: 10px;
+            z-index: 1000;
+            border: 1px solid var(--accent-cyan);
+        `;
+        
+        emojis.forEach(e => {
+            const btn = document.createElement('button');
+            btn.innerText = e;
+            btn.style.cssText = 'background:none; border:none; cursor:pointer; font-size:1.2rem; transition: transform 0.2s;';
+            btn.onmouseover = () => btn.style.transform = 'scale(1.3)';
+            btn.onmouseout = () => btn.style.transform = 'scale(1)';
+            btn.onclick = () => {
+                this.sendChatReaction(msgId, e);
+                picker.remove();
+            };
+            picker.appendChild(btn);
+        });
+        
+        const msg = document.getElementById(msgId);
+        if (msg) msg.appendChild(picker);
+        
+        // Auto-close picker on outside click
+        setTimeout(() => {
+            const closer = (e) => {
+                if (!picker.contains(e.target)) {
+                    picker.remove();
+                    document.removeEventListener('click', closer);
+                }
+            };
+            document.addEventListener('click', closer);
+        }, 100);
     }
 
     async sendChatReaction(msgId, emoji) {
-        document.querySelector('.reaction-picker')?.remove();
-        await this.services.chat.sendRoomMessage(this.activeRoomId, State.user?.id, State.user?.username, emoji, 'reaction', msgId);
+        // Optimistic UI update
+        this.appendChatReaction(msgId, emoji);
+        
+        // Broadcast via Realtime
+        if (this.activeRoomId) {
+            await this.services.chat.sendRoomMessage(this.activeRoomId, State.user?.id, State.user?.username, emoji, 'reaction', msgId);
+        }
     }
 
     appendChatReaction(msgId, emoji) {
         const msg = document.getElementById(msgId);
         if (!msg) return;
         const container = msg.querySelector('.msg-reactions');
+        if (!container) return;
+
         const existing = Array.from(container.children).find(c => c.dataset.emoji === emoji);
+        
+        // Animated Popup Effect
+        const popup = document.createElement('div');
+        popup.innerText = emoji;
+        popup.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 2rem;
+            pointer-events: none;
+            animation: reactionPop 0.8s cubic-bezier(0.17, 0.67, 0.83, 0.67) forwards;
+            z-index: 100;
+        `;
+        msg.appendChild(popup);
+        setTimeout(() => popup.remove(), 800);
+
         if (existing) {
             const count = parseInt(existing.dataset.count) + 1;
             existing.dataset.count = count;
             existing.innerText = `${emoji} ${count}`;
+            existing.style.animation = 'none';
+            existing.offsetHeight; // trigger reflow
+            existing.style.animation = 'reactionPulse 0.3s ease';
         } else {
             const el = document.createElement('span');
             el.dataset.emoji = emoji;
             el.dataset.count = 1;
             el.innerText = `${emoji} 1`;
-            el.style.cssText = `background:rgba(255,255,255,0.1); padding:2px 6px; border-radius:10px; font-size:0.7rem;`;
+            el.style.cssText = `
+                background: rgba(255,255,255,0.08);
+                padding: 2px 8px;
+                border-radius: 10px;
+                font-size: 0.8rem;
+                cursor: pointer;
+                border: 1px solid rgba(255,255,255,0.1);
+                animation: reactionPulse 0.3s ease;
+            `;
+            el.onclick = () => window.App.sendChatReaction(msgId, emoji);
             container.appendChild(el);
         }
     }
@@ -2043,7 +2383,7 @@ class VibeApp {
         if (existing) existing.remove();
         
         const modal = document.createElement('div');
-        modal.className = 'modal-overlay animate-fade';
+        modal.className = 'profile-modal animate-fade';
         modal.id = 'edit-profile-modal';
         // Close on clicking outside the content
         modal.onclick = (e) => {
@@ -2051,7 +2391,8 @@ class VibeApp {
         };
         
         modal.innerHTML = `
-            <div class="modal-content glass-panel" style="max-width:500px; width: 90%; margin:auto; max-height:85vh; overflow-y:auto; position:relative; padding:0; overflow-x:hidden; top: 10px;">
+            <div class="profile-modal-content">
+                <span class="profile-close-btn" onclick="document.getElementById('edit-profile-modal').remove()">&times;</span>
                 <!-- Banner Preview Area -->
                 <div class="edit-banner-preview" style="height:120px; position:relative; background:var(--bg-deep);">
                     <img id="preview-banner" src="${user.bannerImage || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200'}" style="width:100%; height:100%; object-fit:cover; opacity:0.6;">
@@ -2856,52 +3197,135 @@ nge="window.App.handleProfileUpload(this, 'avatar')">
         `;
     }
 
-    async goLive() {
+    showStreamSetupModal() {
+        if (!State.user) {
+            this.showToast('Please login to go live.');
+            return;
+        }
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay animate-fade';
+        modal.id = 'stream-setup-modal';
+        modal.innerHTML = `
+            <div class="modal-content glass-panel" style="max-width:400px; margin:auto; padding:30px;">
+                <h2 style="margin-bottom:20px; font-family:var(--font-display);">Stream Setup</h2>
+                <p class="text-dim" style="margin-bottom:15px;">What are you vibing about today?</p>
+                <input type="text" id="stream-topic" class="login-input" placeholder="Enter stream topic..." style="width:100%; margin-bottom:25px;">
+                <div style="display:flex; gap:12px;">
+                    <button class="btn-secondary" onclick="document.getElementById('stream-setup-modal').remove()" style="flex:1;">Cancel</button>
+                    <button class="btn-primary" onclick="window.App.goLive(document.getElementById('stream-topic').value)" style="flex:1;">Go Live ✨</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        modal.onclick = (e) => {
+            if (e.target === modal) modal.remove();
+        };
+    }
+
+    async goLive(topic = "Just Vibing") {
+        document.getElementById('stream-setup-modal')?.remove();
+        this.showToast('Preparing neural link... 📡');
+
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             const userId = State.user?.id;
             const username = State.user?.username || 'user';
 
-            if (!userId) {
-                this.showToast('Please login to go live.');
-                return;
-            }
-
-            const success = await this.services.video.startLive(userId, username);
+            const success = await this.services.video.startLive(userId, username, topic);
             if (!success) {
-                this.showToast('Failed to start live stream.');
+                this.showToast('Failed to start live stream.', 'error');
                 return;
             }
 
-            // Implementation of local preview and "End Live" button
-            const modal = document.createElement('div');
-            modal.className = 'modal-overlay live-preview-modal';
-            modal.innerHTML = `
-                <div class="glass-panel" style="padding: 20px; position: relative; max-width: 500px; width: 90%;">
-                    <h2 style="margin-bottom: 15px;">You are LIVE!</h2>
-                    <video id="local-live-preview" autoplay muted class="vibe-video-card" style="width: 100%; border-radius: var(--radius-md);"></video>
-                    <div style="display: flex; justify-content: center; margin-top: 20px;">
-                        <button class="btn-primary" style="background: var(--accent-pink);" id="end-live-btn">End Live</button>
+            // Hide normal view and show broadcast mode
+            const container = document.getElementById('view-container');
+            if (container) {
+                container.innerHTML = this.getBroadcastModeHTML(topic);
+                const videoPreview = document.getElementById('broadcast-preview');
+                if (videoPreview) videoPreview.srcObject = this.localStream;
+                this.togglePostButton(false);
+                
+                // Simulate viewer count
+                let viewers = Math.floor(Math.random() * 50) + 10;
+                this._viewerInterval = setInterval(() => {
+                    viewers += Math.floor(Math.random() * 5) - 2;
+                    if (viewers < 1) viewers = 1;
+                    const countEl = document.getElementById('viewer-count');
+                    if (countEl) countEl.innerText = viewers;
+                }, 5000);
+            }
+
+            this.showToast('You are now BROADCASTING! 🔥');
+        } catch (err) {
+            console.error('Broadcast error:', err);
+            this.showToast('Camera/Mic access denied.', 'error');
+        }
+    }
+
+    getBroadcastModeHTML(topic) {
+        return `
+            <div class="broadcast-mode animate-fade" style="position:relative; height:calc(100vh - 100px); background:#000; border-radius:24px; overflow:hidden;">
+                <video id="broadcast-preview" autoplay muted style="width:100%; height:100%; object-fit:cover;"></video>
+                
+                <div class="broadcast-overlay" style="position:absolute; top:0; left:0; right:0; bottom:0; padding:20px; display:flex; flex-direction:column; justify-content:space-between; background:linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 20%, transparent 80%, rgba(0,0,0,0.6) 100%); pointer-events:none;">
+                    
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; pointer-events:auto;">
+                        <div class="glass-panel" style="padding:10px 20px; border-radius:30px; border:1px solid rgba(239, 68, 68, 0.5); display:flex; align-items:center; gap:10px;">
+                            <span class="pulse-dot" style="background:#ef4444;"></span>
+                            <span style="font-weight:800; color:#ef4444; letter-spacing:1px;">LIVE</span>
+                            <span style="color:white; opacity:0.8;">| ${topic}</span>
+                        </div>
+                        <button class="btn-secondary" onclick="window.App.stopLiveStream()" style="background:rgba(239, 68, 68, 0.2); border-color:rgba(239, 68, 68, 0.4); color:#fff; border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; padding:0;">✕</button>
+                    </div>
+
+                    <div style="display:flex; justify-content:space-between; align-items:flex-end; pointer-events:auto;">
+                        <div class="glass-panel" style="padding:10px 15px; border-radius:20px; display:flex; align-items:center; gap:8px;">
+                            <span style="font-size:1.2rem;">👥</span>
+                            <span id="viewer-count" style="font-weight:bold; color:white;">24</span>
+                        </div>
+                        
+                        <div style="display:flex; gap:10px;">
+                            <button class="glass-panel" id="toggle-mic" onclick="window.App.toggleBroadcastMedia('audio')" style="width:50px; height:50px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.2rem; cursor:pointer;">🎤</button>
+                            <button class="glass-panel" id="toggle-cam" onclick="window.App.toggleBroadcastMedia('video')" style="width:50px; height:50px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.2rem; cursor:pointer;">📹</button>
+                        </div>
                     </div>
                 </div>
-            `;
-            document.body.appendChild(modal);
 
-            const videoElement = modal.querySelector('#local-live-preview');
-            videoElement.srcObject = stream;
+                <div class="broadcast-interactions glass-panel" style="position:absolute; bottom:80px; left:20px; width:260px; max-height:200px; padding:15px; overflow-y:auto; font-size:0.85rem; background:rgba(0,0,0,0.4); pointer-events:auto;">
+                    <div style="margin-bottom:8px;"><strong style="color:var(--accent-cyan);">system_bot:</strong> Neural link established. Enjoy your stream!</div>
+                    <div id="stream-comments"></div>
+                </div>
+            </div>
+        `;
+    }
 
-            modal.querySelector('#end-live-btn').onclick = async () => {
-                await this.services.video.endLive(userId);
-                stream.getTracks().forEach(track => track.stop());
-                modal.remove();
-                this.showToast('Live stream ended.');
-                this.navigate('vibestream');
-            };
+    toggleBroadcastMedia(type) {
+        if (!this.localStream) return;
+        const tracks = type === 'audio' ? this.localStream.getAudioTracks() : this.localStream.getVideoTracks();
+        tracks.forEach(t => t.enabled = !t.enabled);
+        
+        const btn = document.getElementById(type === 'audio' ? 'toggle-mic' : 'toggle-cam');
+        if (btn) {
+            btn.style.background = tracks[0].enabled ? '' : 'rgba(239, 68, 68, 0.3)';
+            btn.style.borderColor = tracks[0].enabled ? '' : 'rgba(239, 68, 68, 0.6)';
+        }
+        this.showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} ${tracks[0].enabled ? 'ON' : 'OFF'}`);
+    }
 
-            this.showToast('You are live!');
-        } catch (err) {
-            console.error('Camera error:', err);
-            this.showToast('Could not access camera/mic.', 'error');
+    async stopLiveStream() {
+        if (confirm("End your live session?")) {
+            if (this.localStream) {
+                this.localStream.getTracks().forEach(t => t.stop());
+                this.localStream = null;
+            }
+            if (this._viewerInterval) clearInterval(this._viewerInterval);
+            
+            await this.services.video.endLive(State.user?.id);
+            this.showToast('VibeStream Ended.');
+            this.togglePostButton(true);
+            this.navigate('vibestream', true);
         }
     }
 

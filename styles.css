@@ -19,6 +19,10 @@ html {
     --text-muted: #666680;
     
     --accent-cyan: #00f2ff;
+    --accent-magenta: #ff00ff;
+    --accent-neon-green: #39ff14;
+    --hud-glow: 0 0 15px rgba(0, 242, 255, 0.4);
+    --hud-border: 1px solid rgba(255, 255, 255, 0.1);
     --accent-pink: #ff007f;
     --accent-gold: #ffea00;
     
@@ -39,7 +43,23 @@ html {
     --font-mono: 'Space Mono', monospace;
 }
 
+*::-webkit-scrollbar {
+    width: 4px;
+}
+
+*::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.2);
+}
+
+*::-webkit-scrollbar-thumb {
+    background: var(--primary-orange);
+    border-radius: 10px;
+    box-shadow: 0 0 10px var(--primary-orange);
+}
+
 * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-orange) transparent;
     box-sizing: border-box;
     margin: 0;
     padding: 0;
@@ -93,11 +113,13 @@ body {
 
 /* --- Glassmorphism Panels --- */
 .glass-panel {
-    background: var(--bg-card);
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
-    border: 1px solid var(--border-light);
+    background: rgba(10, 10, 15, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: var(--hud-border);
     border-radius: var(--radius-lg);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* --- Loading Screen --- */
@@ -1065,6 +1087,49 @@ input:focus, textarea:focus {
 .top-vibes-section {
     margin-top: 10px;
 }
+.hud-border {
+    border: 1px solid var(--accent-cyan);
+    box-shadow: 0 0 10px rgba(0, 242, 255, 0.3);
+}
+
+.hud-scanline {
+    position: relative;
+    overflow: hidden;
+}
+
+.hud-scanline::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%,
+        rgba(0, 0, 0, 0.25) 50%
+    ), linear-gradient(
+        90deg,
+        rgba(255, 0, 0, 0.06),
+        rgba(0, 255, 0, 0.02),
+        rgba(0, 0, 255, 0.06)
+    );
+    z-index: 2;
+    background-size: 100% 2px, 3px 100%;
+    pointer-events: none;
+    opacity: 0.1;
+}
+
+.animate-fade {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.skeleton-loader {
+    background: rgba(255,255,255,0.05);
+    overflow: hidden;
+    position: relative;
+}
 .section-title {
     font-family: var(--font-display);
     font-size: 1.3rem;
@@ -2010,6 +2075,18 @@ body.keyboard-open #app-footer {
     100% { transform: translateY(-180px) scale(1.2) rotate(0deg); opacity: 0; filter: brightness(1); }
 }
 
+@keyframes reactionPop {
+    0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; }
+    50% { transform: translate(-50%, -50px) scale(1.5); opacity: 1; }
+    100% { transform: translate(-50%, -80px) scale(1); opacity: 0; }
+}
+
+@keyframes reactionPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); border-color: var(--accent-cyan); }
+    100% { transform: scale(1); }
+}
+
 /* --- Sync Stream --- */
 .sync-stream-msg {
     animation: slideInRight 0.3s ease-out;
@@ -2259,7 +2336,7 @@ body.keyboard-open #app-footer {
     background: rgba(10, 10, 15, 0.98);
     backdrop-filter: blur(20px);
     border-right: 1px solid rgba(157, 80, 187, 0.3);
-    z-index: 1002;
+    z-index: 3000;
     padding: 20px;
     transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     overflow-y: auto;
@@ -2354,7 +2431,7 @@ body.keyboard-open #app-footer {
     bottom: 0;
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(5px);
-    z-index: 1001;
+    z-index: 2999;
     opacity: 0;
     visibility: hidden;
     transition: all 0.3s ease;
@@ -2570,4 +2647,58 @@ body.keyboard-open #app-footer {
         width: 100%;
         margin-bottom: 10px;
     }
+}
+
+.hidden-vibe-btn {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transform: scale(0.8) !important;
+    transition: all 0.3s ease !important;
+}
+
+/* --- Profile Edit Modal --- */
+.profile-modal {
+    display: flex;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.6);
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(5px);
+}
+
+.profile-modal-content {
+    background-color: var(--bg-card);
+    padding: 0;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    position: relative;
+    max-height: 85vh;
+    overflow-y: auto;
+    border: 1px solid var(--border-light);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    overflow-x: hidden;
+}
+
+.profile-close-btn {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    cursor: pointer;
+    font-size: 28px;
+    color: #fff;
+    transition: color 0.2s;
+    line-height: 1;
+    z-index: 10;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+}
+
+.profile-close-btn:hover {
+    color: var(--primary-orange);
 }

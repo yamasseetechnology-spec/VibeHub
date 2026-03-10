@@ -1887,7 +1887,7 @@ export class VideoService {
     }
 
     // --- LIVE STREAMING ---
-    async startLive(userId, username) {
+    async startLive(userId, username, topic = "") {
         if (!window.supabaseClient) return true;
         try {
             await window.supabaseClient
@@ -1895,6 +1895,7 @@ export class VideoService {
                 .insert([{
                     user_id: userId,
                     username: username,
+                    topic: topic,
                     status: 'online',
                     started_at: new Date().toISOString()
                 }]);
@@ -2199,6 +2200,29 @@ export class ChatService {
         } catch (error) {
             console.error('Error sending message:', error);
             return null;
+        }
+    }
+
+    async getRoomUsers(roomId) {
+        if (!window.supabaseClient) {
+            return [{ username: 'Echo_Mind' }, { username: 'Cyber_Soul' }, { username: 'Future_Ghost' }];
+        }
+        
+        try {
+            const { data } = await window.supabaseClient
+                .from('rooms')
+                .select('current_user_count')
+                .eq('id', roomId)
+                .single();
+            
+            const users = [];
+            const count = data?.current_user_count || 1;
+            for(let i=0; i<Math.min(count, 125); i++) {
+                users.push({ username: `Viber_${101+i}` });
+            }
+            return users;
+        } catch (e) {
+            return [];
         }
     }
 }
