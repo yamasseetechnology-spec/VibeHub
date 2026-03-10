@@ -1389,19 +1389,36 @@ input:focus, textarea:focus {
         z-index: 1001;
     }
     
-    /* Top bar mobile */
+    /* Top bar mobile - pinned to top, no gap */
     #top-bar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
         padding: 0 15px;
         height: 60px;
         display: flex;
         align-items: center;
         justify-content: center;
+        z-index: 1000;
+        border-radius: 0; /* Flush with top */
     }
     
     #content-area {
-        padding: 10px;
-        padding-top: 10px; /* Removed extra padding causing black bar */
+        padding: 0;
+        padding-top: 60px; /* Exact height of sticky header */
         margin-bottom: 80px;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    #view-container {
+        width: 100%;
+        max-width: 600px; /* Match post-card max-width */
+        margin: 0 auto;
+        padding: 0;
     }
     
     /* Floating Post Button - Bottom Right, above friends button */
@@ -1508,7 +1525,8 @@ input:focus, textarea:focus {
 /* Mobile Specific Adjustments for Brain Button */
 @media (max-width: 1024px) {
     .mobile-bottom-nav.brain-post-btn {
-        margin-top: 5px !important;
+        margin-top: 15px !important; /* Move it down significantly */
+        overflow: visible !important;
     }
     
     .brain-post-btn .vibe-out-text {
@@ -1526,7 +1544,7 @@ input:focus, textarea:focus {
     .brain-post-btn .brain-icon {
         font-size: 32px;
         position: absolute;
-        top: 50%;
+        top: 40%; /* Adjust centering within button */
         left: 50%;
         transform: translate(-50%, -50%);
     }
@@ -1595,19 +1613,19 @@ input:focus, textarea:focus {
     
     .nav-link .label { display: none; }
     
-    /* Post card mobile */
+    /* Post card mobile - force centering */
     .post-card {
-        margin: 10px auto;
+        margin: 15px auto;
         border-radius: var(--radius-lg);
-        width: calc(100% - 20px);
+        width: calc(100% - 30px);
         max-width: 600px;
+        display: block;
     }
 
     #post-feed {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
+        display: block;
         width: 100%;
+        padding: 0;
     }
     
     /* Login screen mobile */
