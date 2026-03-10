@@ -1458,8 +1458,9 @@ input:focus, textarea:focus {
         display: flex !important;
         position: fixed;
         bottom: 95px; /* Positioned just above the glass bottom nav */
-        left: 20px;
-        transform: none;
+        left: 20px !important;
+        right: auto !important;
+        transform: none !important;
         width: 85px;
         height: 100px;
         background: rgba(10, 10, 15, 0.95) !important;
