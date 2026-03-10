@@ -1793,12 +1793,7 @@ class VibeApp {
         // Post Reactions handling moved to global event delegation in init() or setupEventListeners()
         // to handle all reactions uniformly.
 
-        // Sync Room Live Stream Simulation
-        if (State.currentView === 'syncrooms') {
-            this.startSyncStream();
-        } else {
-            if (this.streamInterval) clearInterval(this.streamInterval);
-        }
+
 
         // VibeStream Play/Pause on Scroll
         if (State.currentView === 'vibestream') {
@@ -1856,35 +1851,7 @@ class VibeApp {
         setTimeout(() => popup.remove(), 900);
     }
 
-    startSyncStream() {
-        const streamContainer = document.getElementById('sync-stream-simulation');
-        if (!streamContainer) {
-            // Inject stream container if not present
-            const view = document.getElementById('view-container');
-            const streamDiv = document.createElement('div');
-            streamDiv.id = 'sync-stream-simulation';
-            streamDiv.style.cssText = `position:fixed; bottom:100px; right:20px; width:250px; z-index:50; pointer-events:none;`;
-            view.appendChild(streamDiv);
-        }
-        
-        const streamContainerRef = document.getElementById('sync-stream-simulation');
-        const messages = [
-            "Mind 42 just linked!",
-            "Neural energy rising in Neon Nights.",
-            "Someone just dropped a Heat Magnet vibe.",
-            "Sync rate increasing...",
-            "Deep focus achieved in room #4."
-        ];
-        
-        if (this.streamInterval) clearInterval(this.streamInterval);
-        this.streamInterval = setInterval(() => {
-            const msg = document.createElement('div');
-            msg.className = 'sync-stream-msg glass-panel';
-            msg.innerHTML = `<strong>LINK:</strong> ${messages[Math.floor(Math.random() * messages.length)]}`;
-            streamContainerRef.prepend(msg);
-            if (streamContainerRef.children.length > 5) streamContainerRef.lastChild.remove();
-        }, 3000);
-    }
+
 
     // --- VIEW TEMPLATES ---
     getHomeHTML(posts, activeTab = 'vibeline') {
