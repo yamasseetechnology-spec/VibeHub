@@ -428,33 +428,38 @@ export class AuthService {
                     window.supabaseClient.from('users').select('*').eq('email', email);
                 
                 const { data: existingUser } = await query.single();
-                
-                const payload = {
-                    clerk_id: clerkId,
-                    username: username,
-                    email: email,
-                    name: displayName,
-                    avatar_url: avatar,
-                    updated_at: new Date().toISOString()
-                };
 
                 if (existingUser) {
+                    // Only update session metadata, NEVER overwrite avatar/banner
+                    const updatePayload = {
+                        clerk_id: clerkId,
+                        email: email,
+                        updated_at: new Date().toISOString()
+                    };
                     const { data } = await window.supabaseClient
                         .from('users')
-                        .update(payload)
+                        .update(updatePayload)
                         .eq('id', existingUser.id)
                         .select()
                         .single();
                     userData = data || existingUser;
                 } else {
-                    payload.created_at = new Date().toISOString();
-                    payload.bio = 'New to VibeHub!';
-                    payload.vibe_score = 0;
-                    payload.role = 'user';
+                    // New user — set avatar/name from Clerk/fallback
+                    const newUserPayload = {
+                        clerk_id: clerkId,
+                        username: username,
+                        email: email,
+                        name: displayName,
+                        avatar_url: avatar,
+                        created_at: new Date().toISOString(),
+                        bio: 'New to VibeHub!',
+                        vibe_score: 0,
+                        role: 'user'
+                    };
                     
                     const { data, error } = await window.supabaseClient
                         .from('users')
-                        .insert([payload])
+                        .insert([newUserPayload])
                         .select()
                         .single();
                     if (!error) userData = data;
@@ -704,7 +709,7 @@ export class AuthService {
                 await window.supabaseClient
                     .from('users')
                     .update({
-                        display_name: updates.displayName,
+                        name: updates.displayName,
                         username: updates.username,
                         avatar_url: updates.profilePhoto,
                         bio: updates.bio,

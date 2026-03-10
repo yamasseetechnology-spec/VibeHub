@@ -1824,9 +1824,8 @@ class VibeApp {
             { id: 'friends', label: 'Friends' }
         ];
         return `
-            <div class="view-header animate-fade" style="text-align:center; padding-top: 10px; padding-bottom: 5px;">
-                <h1 class="view-title" style="background: linear-gradient(135deg, #9d50bb, #ff9f00); -webkit-background-clip: text; -webkit-text-fill-color: transparent; display: inline-block; font-size: 2.2rem; filter: drop-shadow(0px 0px 8px rgba(157,80,187,0.5)); margin-bottom: 5px;">The Pulse</h1>
-                <p class="text-dim" style="margin-top:0; font-weight: 600; font-size: 1.05rem; letter-spacing: 0.5px; color: var(--accent-pink);">Connect minds. Share vibes. Elevate consciousness.</p>
+            <div class="view-header animate-fade" style="text-align:center; padding-top: 5px; padding-bottom: 0;">
+                <h1 class="view-title" style="background: linear-gradient(135deg, #9d50bb, #ff9f00); -webkit-background-clip: text; -webkit-text-fill-color: transparent; display: inline-block; font-size: 2.2rem; filter: drop-shadow(0px 0px 8px rgba(157,80,187,0.5)); margin-bottom: 0;">The Pulse</h1>
             </div>
             <div class="tabs">
                 ${tabs.map(t => `<button class="tab ${activeTab === t.id ? 'active' : ''}" onclick="window.App.switchHomeTab('${t.id}')">${t.label}</button>`).join('')}
@@ -2439,27 +2438,23 @@ class VibeApp {
             <div class="profile-modal-content">
                 <span class="profile-close-btn" onclick="document.getElementById('edit-profile-modal').remove()">&times;</span>
                 <!-- Banner Preview Area -->
-                <div class="edit-banner-preview" style="height:120px; position:relative; background:var(--bg-deep);">
-                    <img id="preview-banner" src="${user.bannerImage || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200'}" style="width:100%; height:100%; object-fit:cover; opacity:0.6;">
-                    <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);">
-                        <form method="post" enctype="multipart/form-data" class="upload-wrapper" style="margin:0;">
-                            <button type="button" class="btn-secondary" style="padding:5px 10px; font-size:0.7rem; display:inline-block;" onclick="document.getElementById('banner-upload-input').click()">
-                                📸 Change Banner
-                            </button>
-                            <input type="file" id="banner-upload-input" accept="image/*" onchange="window.App.handleProfileUpload(this, 'banner')" style="display:none;">
-                        </form>
+                <div class="edit-banner-preview" style="height:120px; position:relative; background:var(--bg-deep); overflow:hidden;">
+                    <img id="preview-banner" src="${user.bannerImage || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200'}" style="width:100%; height:100%; object-fit:cover; opacity:0.6; pointer-events:none;">
+                    <div style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; z-index:5;">
+                        <button type="button" class="btn-secondary" style="padding:8px 16px; font-size:0.8rem; cursor:pointer; pointer-events:all; position:relative; z-index:6;" onclick="document.getElementById('banner-upload-input').click()">
+                            📸 Change Banner
+                        </button>
+                        <input type="file" id="banner-upload-input" accept="image/*" onchange="window.App.handleProfileUpload(this, 'banner')" style="display:none;">
                     </div>
                 </div>
                 <div style="padding:20px;">
                     <!-- Avatar Upload Area -->
                     <div style="position:relative; width:80px; height:80px; margin-bottom:20px;">
                         <img id="preview-avatar" src="${user.profilePhoto || 'https://i.pravatar.cc/150'}" style="width:80px; height:80px; border-radius:50%; border:3px solid var(--primary-purple); object-fit:cover; background:var(--bg-deep);">
-                        <form method="post" enctype="multipart/form-data" class="upload-wrapper" style="position:absolute; bottom:0; right:0; width:28px; height:28px; border-radius:50%; margin:0;">
-                            <button type="button" style="background:var(--primary-purple); width:100%; height:100%; border-radius:50%; border:none; display:flex; align-items:center; justify-content:center; font-size:0.8rem; box-shadow:0 0 10px rgba(0,0,0,0.5); color:white;" onclick="document.getElementById('avatar-upload-input').click()">
-                                📷
-                            </button>
-                            <input type="file" id="avatar-upload-input" accept="image/*" onchange="window.App.handleProfileUpload(this, 'avatar')" style="display:none;">
-                        </form>
+                        <button type="button" style="position:absolute; bottom:0; right:0; width:28px; height:28px; border-radius:50%; background:var(--primary-purple); border:none; display:flex; align-items:center; justify-content:center; font-size:0.8rem; box-shadow:0 0 10px rgba(0,0,0,0.5); color:white; cursor:pointer; z-index:5;" onclick="document.getElementById('avatar-upload-input').click()">
+                            📷
+                        </button>
+                        <input type="file" id="avatar-upload-input" accept="image/*" onchange="window.App.handleProfileUpload(this, 'avatar')" style="display:none;">
                     </div>
 
                     <div style="display:flex; flex-direction:column; gap:15px;">
