@@ -830,20 +830,20 @@ input:focus, textarea:focus {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 24px;
+    padding: 12px 24px;
     position: relative;
-    overflow: hidden;
+    overflow: visible;
     z-index: 100;
 }
 
 .brand-center {
     position: absolute;
-    left: 50%;
+    left: 52%;
     top: 50%;
     transform: translate(-50%, -50%);
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 15px;
     cursor: pointer;
     z-index: 10;
     transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -854,9 +854,9 @@ input:focus, textarea:focus {
 }
 
 .header-logo {
-    width: 40px;
-    height: 40px;
-    filter: drop-shadow(0 0 10px var(--primary-purple-glow));
+    width: 65px;
+    height: 65px;
+    filter: drop-shadow(0 0 15px var(--primary-purple-glow));
 }
 
 .brand-text {
@@ -1227,6 +1227,13 @@ input:focus, textarea:focus {
     margin-bottom: 20px;
     padding: 20px;
     animation: slideUp 0.5s ease-out;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4), 0 0 2px var(--border-light);
+    transition: all 0.25s ease;
+}
+
+.post-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 15px 40px rgba(157, 80, 187, 0.25), 0 0 2px var(--primary-purple);
 }
 
 .post-header {
@@ -1313,7 +1320,7 @@ input:focus, textarea:focus {
     display: flex;
     align-items: center;
     gap: 4px;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .reaction-btn:hover, .action-btn:hover {
@@ -1335,18 +1342,23 @@ input:focus, textarea:focus {
 @media (max-width: 1024px) {
     #main-nav {
         position: fixed;
-        bottom: 10px;
-        left: 10px;
-        right: 10px;
-        width: calc(100% - 20px);
-        height: 70px;
+        bottom: 15px;
+        left: 15px;
+        right: 15px;
+        width: calc(100% - 30px);
+        height: 75px;
         margin: 0;
         flex-direction: row;
         justify-content: space-around;
         align-items: center;
         padding: 0 10px;
-        z-index: 500;
-        border-radius: 20px;
+        z-index: 1000;
+        border-radius: 25px;
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        background: rgba(10, 10, 15, 0.7);
+        border: 1px solid var(--border-light);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.5);
     }
     
     .nav-links {
@@ -1395,8 +1407,8 @@ input:focus, textarea:focus {
         top: 0;
         left: 0;
         right: 0;
-        padding: 0 15px;
-        height: 60px;
+        padding: 5px 15px; /* Added vertical padding */
+        height: 70px; /* Slightly taller for larger logo */
         display: flex;
         align-items: center;
         justify-content: center;
@@ -1406,7 +1418,7 @@ input:focus, textarea:focus {
     
     #content-area {
         padding: 0;
-        padding-top: 60px; /* Exact height of sticky header */
+        padding-top: 70px; /* Match new header height */
         margin-bottom: 80px;
         width: 100%;
         display: flex;
@@ -1525,38 +1537,38 @@ input:focus, textarea:focus {
 /* Mobile Specific Adjustments for Brain Button */
 @media (max-width: 1024px) {
     .mobile-bottom-nav.brain-post-btn {
-        margin-top: 15px !important; /* Move it down significantly */
+        margin-top: 25px !important;
         overflow: visible !important;
     }
     
     .brain-post-btn .vibe-out-text {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        line-height: 0.9;
-        font-size: 0.65rem;
+        margin-top: 8px;
     }
     
     .brain-post-btn .vibe-text {
-        margin-bottom: 35px; /* Adjust based on brain size */
+        margin-bottom: 35px;
+    }
+    
+    .brain-post-btn .out-text {
+        margin-top: 2px;
     }
     
     .brain-post-btn .brain-icon {
-        font-size: 32px;
+        font-size: 36px;
         position: absolute;
-        top: 40%; /* Adjust centering within button */
+        top: 35% !important;
         left: 50%;
         transform: translate(-50%, -50%);
     }
 
     .fab-post.brain-post-btn {
-        width: 70px;
-        height: 70px;
-        background: rgba(10, 10, 15, 0.8) !important;
-        backdrop-filter: blur(10px);
-        border: 1px solid var(--border-purple) !important;
+        width: 75px;
+        height: 75px;
+        background: rgba(10, 10, 15, 0.85) !important;
+        backdrop-filter: blur(15px);
+        border: 2px solid var(--primary-purple) !important;
         border-radius: 50%;
-        box-shadow: 0 0 30px rgba(157, 80, 187, 0.4);
+        box-shadow: 0 0 40px rgba(157, 80, 187, 0.6);
     }
 }
 
@@ -1594,10 +1606,13 @@ input:focus, textarea:focus {
     }
     
     #content-area {
-        padding: 15px;
-        padding-top: 15px; 
-        margin-bottom: 100px; /* Increased for safety */
-        padding-bottom: 50px;
+        padding: 0;
+        padding-top: 60px; 
+        margin-bottom: 100px;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
     }
 
     
@@ -1613,13 +1628,14 @@ input:focus, textarea:focus {
     
     .nav-link .label { display: none; }
     
-    /* Post card mobile - force centering */
+    /* Post card mobile - exact centering and width */
     .post-card {
         margin: 15px auto;
         border-radius: var(--radius-lg);
-        width: calc(100% - 30px);
+        width: calc(100% - 20px);
         max-width: 600px;
         display: block;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.4);
     }
 
     #post-feed {

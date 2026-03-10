@@ -2986,8 +2986,37 @@ nge="window.App.handleProfileUpload(this, 'avatar')">
             return;
         }
 
-        // Spawn dramatic floating reaction animation
+        // --- Premium Animation ---
+        const popup = document.createElement('div');
         const emojiMap = { cap: '🧢', wild: '🤯', like: '👍', dislike: '👎', heat: '🔥', admire: '🙏' };
+        popup.innerHTML = emojiMap[type] || '✨';
+        popup.style.cssText = `
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) scale(0.1);
+            font-size: 100px;
+            z-index: 10000;
+            transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.4);
+            opacity: 0;
+            pointer-events: none;
+            filter: drop-shadow(0 0 30px rgba(157, 80, 187, 0.8));
+        `;
+        document.body.appendChild(popup);
+        
+        requestAnimationFrame(() => {
+            popup.style.transform = 'translate(-50%, -50%) scale(5.5)';
+            popup.style.opacity = '1';
+        });
+
+        setTimeout(() => {
+            popup.style.transform = 'translate(-50%, -50%) scale(6.5)';
+            popup.style.opacity = '0';
+            setTimeout(() => popup.remove(), 600);
+        }, 500);
+        // --- End Animation ---
+
+        // Spawn dramatic floating reaction animation
         const labelMap = { cap: 'CAP!', wild: 'WILD!', like: 'LIKED!', dislike: 'NAH!', heat: 'HEAT!', admire: 'RESPECT!' };
         const postCard = document.querySelector(`[data-id="${postId}"]`);
         if (postCard) {
@@ -3009,9 +3038,6 @@ nge="window.App.handleProfileUpload(this, 'avatar')">
                 const btn = postCard.querySelector(`[data-type="${type}"] span`);
                 if (btn) {
                     const currentCount = parseInt(btn.textContent || 0);
-                    // If result says we toggled, the real-time update will eventually correct it, 
-                    // but for immediate feedback we toggle the local count.
-                    // We check if the button has a 'active' class (which it should if already reacted)
                     const isRemoving = btn.parentElement.classList.contains('active');
                     btn.textContent = isRemoving ? Math.max(0, currentCount - 1) : currentCount + 1;
                     btn.parentElement.classList.toggle('active');
