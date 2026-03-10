@@ -837,26 +837,24 @@ input:focus, textarea:focus {
 }
 
 .brand-center {
-    position: absolute;
-    left: 52%;
-    top: 50%;
-    transform: translate(-50%, -50%);
     display: flex;
     align-items: center;
     gap: 15px;
     cursor: pointer;
     z-index: 10;
     transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    margin-left: calc(24px + 5%); /* Initial shift right */
 }
 
 .brand-center:hover {
-    transform: translate(-50%, -52%) scale(1.05);
+    transform: scale(1.05);
 }
 
 .header-logo {
-    width: 65px;
-    height: 65px;
+    width: 130px; /* 2x increase from original 65px */
+    height: 130px;
     filter: drop-shadow(0 0 15px var(--primary-purple-glow));
+    object-fit: contain;
 }
 
 .brand-text {
@@ -1407,30 +1405,32 @@ input:focus, textarea:focus {
         top: 0;
         left: 0;
         right: 0;
-        padding: 5px 15px; /* Added vertical padding */
-        height: 70px; /* Slightly taller for larger logo */
+        padding: 5px 20px;
+        height: 90px; /* Increased height to accommodate 2x logo */
         display: flex;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start; /* Alignment for responsive shift */
         z-index: 1000;
-        border-radius: 0; /* Flush with top */
+        border-radius: 0;
     }
     
     #content-area {
         padding: 0;
-        padding-top: 70px; /* Match new header height */
+        padding-top: 90px; /* Match updated header height */
         margin-bottom: 80px;
         width: 100%;
         display: flex;
         flex-direction: column;
-        align-items: center;
+        align-items: stretch; /* Stretch to fill width */
+        margin-left: 0 !important; /* Explicitly remove any legacy offset */
+        transform: none !important;
     }
 
     #view-container {
         width: 100%;
-        max-width: 600px; /* Match post-card max-width */
-        margin: 0 auto;
-        padding: 0;
+        max-width: 100%; /* Fill viewport */
+        margin: 0;
+        padding: 0 10px; /* Edge-to-edge with safe padding */
     }
     
     /* Floating Post Button - Bottom Right, above friends button */
@@ -1531,7 +1531,10 @@ input:focus, textarea:focus {
     text-transform: uppercase;
     letter-spacing: 1px;
     text-shadow: 0 0 10px rgba(157, 80, 187, 0.5);
-    margin-top: 5px;
+    margin-top: 2px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 /* Mobile Specific Adjustments for Brain Button */
@@ -1542,33 +1545,35 @@ input:focus, textarea:focus {
     }
     
     .brain-post-btn .vibe-out-text {
-        margin-top: 8px;
-    }
-    
-    .brain-post-btn .vibe-text {
-        margin-bottom: 35px;
-    }
-    
-    .brain-post-btn .out-text {
         margin-top: 2px;
     }
     
+    .brain-post-btn .vibe-text {
+        margin-bottom: 0px; /* Fix manual overlap hack */
+        line-height: 1.1;
+    }
+    
+    .brain-post-btn .out-text {
+        margin-top: 0px;
+        line-height: 1.1;
+    }
+    
     .brain-post-btn .brain-icon {
-        font-size: 36px;
-        position: absolute;
-        top: 35% !important;
-        left: 50%;
-        transform: translate(-50%, -50%);
+        font-size: 42px;
+        position: static; /* Switch to flex flow */
+        transform: none;
+        margin-bottom: 4px;
     }
 
     .fab-post.brain-post-btn {
-        width: 75px;
-        height: 75px;
-        background: rgba(10, 10, 15, 0.85) !important;
+        width: 90px; /* Increased height to fit vertical stack */
+        height: 110px;
+        background: rgba(10, 10, 15, 0.9) !important;
         backdrop-filter: blur(15px);
         border: 2px solid var(--primary-purple) !important;
-        border-radius: 50%;
+        border-radius: 20px; /* Less rounded for better vertical fit if needed */
         box-shadow: 0 0 40px rgba(157, 80, 187, 0.6);
+        padding: 10px !important;
     }
 }
 
