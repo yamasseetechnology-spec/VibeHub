@@ -1013,7 +1013,7 @@ export class DataService {
                 .order('created_at', { ascending: false });
 
             if (communityId) {
-                query = query.eq('communityId', communityId);
+                query = query.eq('community_id', communityId);
             }
 
             const { data, error } = await query;
@@ -1119,8 +1119,12 @@ export class DataService {
                 dislike: post.dislikes?.length || 0
             },
             reactionScore: post.vibe_score || 0,
+            vibeScore: post.vibe_score || 0,
+            commentCount: post.comment_count || 0,
             badgeList: calculateUserBadges(post.users),
-            isSponsored: post.is_sponsored
+            isSponsored: post.is_sponsored,
+            timestamp: post.created_at ? this.formatTimestamp(post.created_at) : 'Just now',
+            created_at: post.created_at || new Date().toISOString()
         }));
     }
 

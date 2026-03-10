@@ -3252,7 +3252,9 @@ class VibeApp {
                 postCount: user.post_count || 0,
                 reactionScore: user.vibe_score || 0,
                 songLink: user.song_link,
-                top8Friends: user.top_8_friends || []
+                top8Friends: user.top_8_friends || [],
+                verified: user.verified,
+                role: user.role
             };
             
             const userPosts = await this.services.data.getUserPosts(userId);
