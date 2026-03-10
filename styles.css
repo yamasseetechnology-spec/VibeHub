@@ -839,11 +839,11 @@ input:focus, textarea:focus {
 .brand-center {
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 12px; /* Slightly tighter gap */
     cursor: pointer;
     z-index: 10;
     transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    margin-left: calc(24px + 5%); /* Initial shift right */
+    margin-left: 10px; /* Reset base margin */
 }
 
 .brand-center:hover {
@@ -851,23 +851,24 @@ input:focus, textarea:focus {
 }
 
 .header-logo {
-    width: 130px; /* 2x increase from original 65px */
-    height: 130px;
+    width: 60px; /* Desktop size */
+    height: 60px;
     filter: drop-shadow(0 0 15px var(--primary-purple-glow));
     object-fit: contain;
 }
 
 .brand-text {
     font-family: var(--font-display);
-    font-size: 1.8rem;
+    font-size: 1.5rem; /* Slightly smaller for better fit */
     font-weight: 900;
     background: linear-gradient(to right, var(--primary-purple-bright), var(--primary-orange-bright));
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    letter-spacing: 2px;
+    letter-spacing: 1px;
     text-transform: uppercase;
     position: relative;
+    white-space: nowrap; /* Prevent title wrapping */
 }
 
 .brand-glow {
@@ -1405,24 +1406,38 @@ input:focus, textarea:focus {
         top: 0;
         left: 0;
         right: 0;
-        padding: 5px 20px;
-        height: 90px; /* Increased height to accommodate 2x logo */
+        padding: 5px 15px;
+        height: 70px;
         display: flex;
         align-items: center;
-        justify-content: flex-start; /* Alignment for responsive shift */
+        justify-content: flex-start;
         z-index: 1000;
         border-radius: 0;
     }
     
+    .header-logo {
+        width: 80px; /* Mobile scaled size (larger but reasonable) */
+        height: 80px;
+    }
+    
+    .brand-center {
+        margin-left: 45px; /* Offset for hamburger-btn */
+        gap: 8px;
+    }
+    
+    .brand-text {
+        font-size: 1.2rem; /* Ensure visibility on mobile */
+    }
+    
     #content-area {
         padding: 0;
-        padding-top: 90px; /* Match updated header height */
+        padding-top: 75px; 
         margin-bottom: 80px;
         width: 100%;
         display: flex;
         flex-direction: column;
-        align-items: stretch; /* Stretch to fill width */
-        margin-left: 0 !important; /* Explicitly remove any legacy offset */
+        align-items: stretch;
+        margin-left: 0 !important;
         transform: none !important;
     }
 
@@ -1434,23 +1449,22 @@ input:focus, textarea:focus {
     }
     
     /* Floating Post Button - Bottom Right, above friends button */
-    .fab-post {
+    /* Floating Post Button - Centered above bottom nav */
+    .fab-post.brain-post-btn {
         display: flex !important;
         position: fixed;
-        bottom: 160px;
-        right: 20px;
-        width: 56px;
-        height: 56px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #9d50bb, #6e48aa);
-        border: 2px solid rgba(255, 255, 255, 0.2);
-        box-shadow: 0 0 25px rgba(157, 80, 187, 0.8), 0 4px 15px rgba(0,0,0,0.5);
-        z-index: 500;
-        cursor: pointer;
-        justify-content: center;
-        align-items: center;
-        font-size: 1.8rem;
-        transition: transform 0.3s, box-shadow 0.3s;
+        bottom: 95px; /* Positioned just above the glass bottom nav */
+        left: 50%;
+        transform: translateX(-50%);
+        width: 85px;
+        height: 100px;
+        background: rgba(10, 10, 15, 0.95) !important;
+        backdrop-filter: blur(15px);
+        border: 2px solid var(--primary-purple) !important;
+        border-radius: 18px;
+        box-shadow: 0 0 30px rgba(157, 80, 187, 0.6);
+        z-index: 1100;
+        padding: 8px !important;
     }
     
     /* Floating Friends Button - Bottom Right */
@@ -1565,16 +1579,7 @@ input:focus, textarea:focus {
         margin-bottom: 4px;
     }
 
-    .fab-post.brain-post-btn {
-        width: 90px; /* Increased height to fit vertical stack */
-        height: 110px;
-        background: rgba(10, 10, 15, 0.9) !important;
-        backdrop-filter: blur(15px);
-        border: 2px solid var(--primary-purple) !important;
-        border-radius: 20px; /* Less rounded for better vertical fit if needed */
-        box-shadow: 0 0 40px rgba(157, 80, 187, 0.6);
-        padding: 10px !important;
-    }
+    /* Redundant mobile fab-post style handled above */
 }
 
     .mobile-search-btn { display: flex; }
