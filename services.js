@@ -14,10 +14,17 @@ function calculateUserBadges(userData) {
     const badges = [];
     if (userData.verified) badges.push('Verified');
     
-    // Vibe Boost Badges
+    // Algorithmic Badges based on Reaction Stats JSON
+    const statsStr = userData.reaction_stats || '{"given": {}, "received": {}}';
+    let stats = { given: {}, received: {} };
+    try { stats = typeof statsStr === 'string' ? JSON.parse(statsStr) : statsStr; } catch(e) {}
+    
+    let totalReceived = Object.values(stats.received || {}).reduce((sum, val) => sum + (val || 0), 0);
     const vibeLikesCount = userData.vibe_likes?.length || (userData.vibe_likes_count || 0);
-    if (vibeLikesCount >= 200) badges.push('Vibe Legend');
-    else if (vibeLikesCount >= 100) badges.push('Vibe Master');
+    const totalVibeScore = totalReceived + vibeLikesCount;
+
+    if (totalVibeScore >= 1000) badges.push('Vibe Legend');
+    else if (totalVibeScore >= 500) badges.push('Vibe Master');
     else if (vibeLikesCount >= 50) badges.push('Viber');
     
     // Administrative
@@ -1018,12 +1025,38 @@ export class DataService {
 
             let posts = this.mapPosts(data);
 
-            // Handle Trending Sort
+            // Fetch Current User's Friends for timeline weighting
+            let userFriends = [];
+            let userTop8 = [];
+            if (window.State && window.State.user) {
+                const friendData = await this.getFriends(window.State.user.id);
+                userFriends = friendData.map(f => f.id);
+                userTop8 = window.State.user.top_8_friends || [];
+            }
+
+            // Algorithmic Sorting Function
+            const calculateAlgorithmicScore = (post) => {
+                let score = 0;
+                // Base Engagement
+                const reactionsCnt = Object.values(post.reactions || {}).reduce((s, a) => s + a, 0);
+                score += (reactionsCnt * 2);
+                // Time Decay
+                const hoursOld = (new Date() - new Date(post.created_at || Date.now())) / (1000 * 60 * 60);
+                score -= (hoursOld * 1.5); // Depreciate score by hours
+                // Social Graph Boost
+                if (userTop8.includes(post.userId)) score += 50; // Massively boost Top 8
+                else if (userFriends.includes(post.userId)) score += 15; // Boost friends
+                // Minimum score floor
+                return Math.max(0, score + (post.reactionScore || 0));
+            };
+
             if (tab === 'trending') {
-                posts = posts.map(p => ({
-                    ...p,
-                    vibeScore: this.calculateVibeScore(p)
-                })).sort((a, b) => (b.vibeScore || 0) - (a.vibeScore || 0));
+                posts = posts.map(p => ({ ...p, algorithmicScore: calculateAlgorithmicScore(p) }))
+                             .sort((a, b) => b.algorithmicScore - a.algorithmicScore);
+            } else if (tab === 'vibeline') {
+                // Also sort Vibeline using the algorithm instead of pure recency!
+                posts = posts.map(p => ({ ...p, algorithmicScore: calculateAlgorithmicScore(p) }))
+                             .sort((a, b) => b.algorithmicScore - a.algorithmicScore);
             }
 
             // Inject ads every 20 posts
@@ -1117,17 +1150,20 @@ export class DataService {
         try {
             const { data: post, error: fetchError } = await window.supabaseClient
                 .from('posts')
-                .select('likes, dislikes, reactions')
+                .select('likes, dislikes, reactions, user_id')
                 .eq('id', postId)
                 .single();
 
             if (fetchError) throw fetchError;
+
+            let isRemoving = false;
 
             if (reactionType === 'like' || reactionType === 'dislike') {
                 const field = reactionType === 'like' ? 'likes' : 'dislikes';
                 let list = post[field] || [];
                 if (list.includes(userId)) {
                     list = list.filter(id => id !== userId);
+                    isRemoving = true;
                 } else {
                     list.push(userId);
                 }
@@ -1142,6 +1178,7 @@ export class DataService {
                 
                 if (reactions[reactionType].includes(userId)) {
                     reactions[reactionType] = reactions[reactionType].filter(id => id !== userId);
+                    isRemoving = true;
                 } else {
                     reactions[reactionType].push(userId);
                 }
@@ -1151,6 +1188,20 @@ export class DataService {
                     .update({ reactions })
                     .eq('id', postId);
                 if (updateError) throw updateError;
+            }
+
+            // Stat Tracking via RPC
+            try {
+                await window.supabaseClient.rpc('increment_user_reaction_stat', { 
+                    user_id_param: userId, stat_type: 'given', reaction_name: reactionType, increment: isRemoving ? -1 : 1 
+                });
+                if (post.user_id && post.user_id !== userId) {
+                    await window.supabaseClient.rpc('increment_user_reaction_stat', { 
+                        user_id_param: post.user_id, stat_type: 'received', reaction_name: reactionType, increment: isRemoving ? -1 : 1 
+                    });
+                }
+            } catch (rpcErr) {
+                console.warn('Stat tracking failed, RPC might not exist yet:', rpcErr.message);
             }
 
             return { success: true };
@@ -1632,18 +1683,150 @@ export class DataService {
         }
     }
 
-    async addFriend(userId, friendId) {
-        if (!window.supabaseClient) return true;
+    async getFriendshipStatus(userId, friendId) {
+        if (!window.supabaseClient) return 'none'; // 'none', 'pending', 'friends', 'requested'
+        try {
+            const { data } = await window.supabaseClient
+                .from('friend_requests')
+                .select('*')
+                .or(`and(sender_id.eq.${userId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${userId})`)
+                .maybeSingle();
 
+            if (data) {
+                if (data.status === 'accepted') return 'friends';
+                if (data.sender_id === userId) return 'pending';
+                if (data.receiver_id === userId) return 'requested';
+            }
+            return 'none';
+        } catch (e) {
+            console.error('Error checking friendship status:', e);
+            return 'none';
+        }
+    }
+
+    async sendFriendRequest(userId, friendId) {
+        if (!window.supabaseClient) return true;
         try {
             await window.supabaseClient
-                .from('friends')
-                .insert([{ user_id: userId, friend_id: friendId }]);
+                .from('friend_requests')
+                .insert([{ sender_id: userId, receiver_id: friendId, status: 'pending' }]);
             return true;
         } catch (error) {
-            console.error('Error adding friend:', error);
+            console.error('Error sending friend request:', error);
             return false;
         }
+    }
+
+    async respondToFriendRequest(userId, friendId, accept) {
+        if (!window.supabaseClient) return true;
+        try {
+            if (accept) {
+                await window.supabaseClient
+                    .from('friend_requests')
+                    .update({ status: 'accepted' })
+                    .match({ sender_id: friendId, receiver_id: userId });
+                // Add reciprocal friendship
+                await window.supabaseClient
+                    .from('friends')
+                    .insert([
+                        { user_id: userId, friend_id: friendId },
+                        { user_id: friendId, friend_id: userId }
+                    ]);
+            } else {
+                await window.supabaseClient
+                    .from('friend_requests')
+                    .delete()
+                    .match({ sender_id: friendId, receiver_id: userId });
+            }
+            return true;
+        } catch (error) {
+            console.error('Error responding to friend request:', error);
+            return false;
+        }
+    }
+
+    async removeFriend(userId, friendId) {
+        if (!window.supabaseClient) return true;
+        try {
+            await window.supabaseClient.from('friends').delete().match({ user_id: userId, friend_id: friendId });
+            await window.supabaseClient.from('friends').delete().match({ user_id: friendId, friend_id: userId });
+            await window.supabaseClient.from('friend_requests').delete()
+                .or(`and(sender_id.eq.${userId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${userId})`);
+            return true;
+        } catch (error) {
+            console.error('Error removing friend:', error);
+            return false;
+        }
+    }
+
+    async updateTop8(userId, top8Ids) {
+        if (!window.supabaseClient) return true;
+        try {
+            await window.supabaseClient
+                .from('users')
+                .update({ top_8_friends: top8Ids })
+                .eq('id', userId);
+            
+            // Update local state if it's the current user
+            if (window.State && window.State.user && window.State.user.id === userId) {
+                window.State.user.top_8_friends = top8Ids;
+            }
+            return true;
+        } catch (error) {
+            console.error('Error updating Top 8:', error);
+            return false;
+        }
+    }
+
+    calculateVibeMatch(userA, userB) {
+        if (!userA || !userB) return 50;
+
+        const getStats = (user) => {
+            let stats = user.reaction_stats || { given: {}, received: {} };
+            if (typeof stats === 'string') {
+                try { stats = JSON.parse(stats); } catch(e) { stats = { given: {}, received: {} }; }
+            }
+            return stats;
+        };
+
+        const statsA = getStats(userA);
+        const statsB = getStats(userB);
+
+        // Algorithm: Geometric similarity of preferred gave-received
+        let matchScore = 50; 
+
+        const allKeys = new Set([
+            ...Object.keys(statsA.given || {}), ...Object.keys(statsA.received || {}),
+            ...Object.keys(statsB.given || {}), ...Object.keys(statsB.received || {})
+        ]);
+
+        let overlap = 0;
+        let total = 0;
+        
+        allKeys.forEach(key => {
+            const aVal = (statsA.given?.[key] || 0) + (statsA.received?.[key] || 0);
+            const bVal = (statsB.given?.[key] || 0) + (statsB.received?.[key] || 0);
+            
+            if (aVal > 0 && bVal > 0) overlap += Math.min(aVal, bVal);
+            total += Math.max(aVal, bVal);
+        });
+
+        // Similarity contribution
+        if (total > 0) {
+            matchScore += (overlap / total) * 40; 
+        }
+
+        // Social connections boost
+        const aTop8 = userA.top_8_friends || (userA.top8Friends || []);
+        const bTop8 = userB.top_8_friends || (userB.top8Friends || []);
+        
+        if (aTop8.includes(userB.id)) matchScore += 10;
+        if (bTop8.includes(userA.id)) matchScore += 10;
+
+        // Introduce random slight variance to simulate 'vibe flux' over time
+        const flux = Math.floor(Math.random() * 5) - 2; 
+
+        return Math.min(Math.max(Math.round(matchScore + flux), 10), 99);
     }
 
     async getFriendsPosts(userId) {

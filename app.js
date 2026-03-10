@@ -2296,7 +2296,7 @@ class VibeApp {
         }
     }
 
-    async getProfileHTML(user, userPosts = []) {
+    async getProfileHTML(user, userPosts = [], friendStatus = 'none', top8Data = [], vibeMatchScore = 100) {
         if (!user) return `
             <div class="auth-required glass-panel" style="padding:40px; text-align:center;">
                 <h2>Identify Your Vibe</h2>
@@ -2306,6 +2306,31 @@ class VibeApp {
         `;
         
         const isOwnProfile = State.user && user.id === State.user.id;
+        
+        let friendButtonHTML = '';
+        if (!isOwnProfile && State.user) {
+            if (friendStatus === 'friends') {
+                friendButtonHTML = `<button class="btn-secondary" style="border-color:var(--primary-orange); color:var(--primary-orange);" onclick="window.App.handleRemoveFriend('${user.id}')">✓ Friends</button>`;
+            } else if (friendStatus === 'pending') {
+                friendButtonHTML = `<button class="btn-secondary" style="opacity:0.7;" disabled>Request Sent</button>`;
+            } else if (friendStatus === 'requested') {
+                friendButtonHTML = `
+                    <button class="btn-primary" style="background:var(--accent-neon-green);" onclick="window.App.handleAcceptFriend('${user.id}')">Accept</button>
+                    <button class="btn-secondary" onclick="window.App.handleRejectFriend('${user.id}')">Decline</button>
+                `;
+            } else {
+                friendButtonHTML = `<button class="btn-primary" onclick="window.App.handleAddFriend('${user.id}')">Add Friend</button>`;
+            }
+        }
+
+        let musicPlayerHTML = '';
+        if (user.songLink) {
+            if (user.songLink.includes('spotify.com') || user.songLink.includes('soundcloud.com')) {
+                musicPlayerHTML = `<div style="margin-top:15px; width:100%; max-width:400px; margin-left:auto; margin-right:auto;"><iframe src="${user.songLink}" width="100%" height="80" frameborder="0" allowtransparency="true" allow="encrypted-media; autoplay"></iframe></div>`;
+            } else {
+                musicPlayerHTML = `<audio id="profile-audio-player" src="${user.songLink}" autoplay loop style="display:none;"></audio>`;
+            }
+        }
         
         return `
             <div class="profile-container">
@@ -2326,6 +2351,8 @@ class VibeApp {
                                 <a href="${user.songLink}" target="_blank" style="color:var(--accent-cyan); text-decoration:none; font-size:0.9rem; font-weight:600;">Vibe Track</a>
                             </div>
                             ` : ''}
+                            
+                            ${musicPlayerHTML}
 
                             <div class="profile-badges" style="justify-content:center; margin-top:15px;">
                                 ${this.generateBadges(user)}
@@ -2333,8 +2360,9 @@ class VibeApp {
                         </div>
                         ${isOwnProfile ? 
                             `<button class="btn-secondary" onclick="window.App.showEditProfileModal()" style="margin: 20px auto 0;">Edit Profile</button>` : 
-                            `<div style="display:flex; gap:10px; margin-top:20px; justify-content:center;">
-                                <button class="btn-primary" onclick="window.App.boostVibe('${user.id}')">I Like Your Vibe ✨</button>
+                            `<div style="display:flex; gap:10px; margin-top:20px; justify-content:center; align-items:center;">
+                                ${friendButtonHTML}
+                                <button class="btn-primary" onclick="window.App.boostVibe('${user.id}')" style="background:var(--primary-purple);">Boost ✨</button>
                                 <button class="btn-secondary" onclick="window.App.navigate('messages')">Message</button>
                              </div>`
                         }
@@ -2343,19 +2371,36 @@ class VibeApp {
                         <div class="stat-item"><span class="stat-value">${(user.followersCount || 0).toLocaleString()}</span><span class="stat-label">Followers</span></div>
                         <div class="stat-item"><span class="stat-value">${(user.followingCount || 0).toLocaleString()}</span><span class="stat-label">Following</span></div>
                         <div class="stat-item"><span class="stat-value">${(user.postCount || 0).toLocaleString()}</span><span class="stat-label">Posts</span></div>
+                        ${!isOwnProfile && window.State.user ? `<div class="stat-item"><span class="stat-value" style="color:${vibeMatchScore >= 80 ? 'var(--accent-neon-green)' : vibeMatchScore >= 50 ? 'var(--primary-orange)' : 'var(--accent-pink)'}">${vibeMatchScore}%</span><span class="stat-label">Vibe Match</span></div>` : ''}
                         <div class="stat-item"><span class="stat-value" id="vibe-boost-count">${(user.vibeBoosts || 0).toLocaleString()}</span><span class="stat-label">Vibe Level</span></div>
                     </div>
-                        <div class="stat-item"><span class="stat-value">98%</span><span class="stat-label">Vibe Match</span></div>
-                    </div>
                     
-                    <div class="top-vibes-section">
-                        <h3 class="section-title">Top 8 Vibes</h3>
-                        <div class="top-vibes-grid">
-                            ${Array(8).fill(0).map((_, i) => `<div class="vibe-img-card"><img src="https://picsum.photos/250?random=${i}" loading="lazy"></div>`).join('')}
+                    <div class="top-vibes-section" style="margin-top:30px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <h3 class="section-title">⭐ Top 8 Vibes</h3>
+                            ${isOwnProfile ? `<button class="btn-secondary btn-sm" onclick="window.App.showTop8Modal()">Edit Top 8</button>` : ''}
+                        </div>
+                        <div class="top-vibes-grid" style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:15px;">
+                            ${Array(8).fill(0).map((_, i) => {
+                                const friend = top8Data[i];
+                                if (friend) {
+                                    return `
+                                    <div class="vibe-img-card" style="text-align:center; cursor:pointer;" onclick="window.App.viewUserProfile('${friend.id}', '${friend.username}')">
+                                        <img src="${friend.avatar_url || 'https://i.pravatar.cc/150'}" loading="lazy" style="width:100%; aspect-ratio:1; border-radius:12px; object-fit:cover; border:2px solid var(--accent-cyan);">
+                                        <div style="font-size:0.75rem; margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${friend.name || friend.username}</div>
+                                    </div>`;
+                                } else {
+                                    return `
+                                    <div class="vibe-img-card empty-top8" style="text-align:center; opacity:0.5; ${isOwnProfile ? 'cursor:pointer;' : ''}" ${isOwnProfile ? 'onclick="window.App.showTop8Modal()"' : ''}>
+                                        <div style="width:100%; aspect-ratio:1; border-radius:12px; background:rgba(255,255,255,0.05); border:2px dashed rgba(255,255,255,0.2); display:flex; align-items:center; justify-content:center; font-size:1.5rem; color:rgba(255,255,255,0.3);">+</div>
+                                        <div style="font-size:0.75rem; margin-top:5px; color:var(--text-dim);">Open</div>
+                                    </div>`;
+                                }
+                            }).join('')}
                         </div>
                     </div>
 
-                    <div class="profile-tabs tabs">
+                    <div class="profile-tabs tabs" style="margin-top:30px;">
                         <button class="tab active" style="flex:1;">Posts</button>
                         <button class="tab" style="flex:1;">Videos</button>
                         <button class="tab" style="flex:1;">Saved</button>
@@ -3045,11 +3090,20 @@ class VibeApp {
             this.showToast('User not found', 'error');
             return;
         }
+
+        // If it's the current user, just go to the native profile view
+        if (State.user && State.user.id === userId) {
+            this.navigate('profile');
+            return;
+        }
         
+        State.currentView = `user-${userId}`;
+        const container = document.getElementById('view-container');
+        if (container) container.innerHTML = Components.skeletonLoading();
         this.showToast(`Loading ${username}'s vibe...`);
         
         try {
-            // Fetch user data from Supabase
+            // Fetch user data
             const { data: user, error } = await window.supabaseClient
                 .from('users')
                 .select('*')
@@ -3058,7 +3112,6 @@ class VibeApp {
             
             if (error || !user) throw new Error('Could not find user');
             
-            // Map Supabase user to app user object
             const profileUser = {
                 id: user.id,
                 username: user.username,
@@ -3071,16 +3124,23 @@ class VibeApp {
                 followingCount: user.following?.length || 0,
                 postCount: user.post_count || 0,
                 reactionScore: user.vibe_score || 0,
-                songLink: user.song_link
+                songLink: user.song_link,
+                top8Friends: user.top_8_friends || []
             };
             
-            // Fetch user's posts
             const userPosts = await this.services.data.getUserPosts(userId);
+            const friendStatus = State.user ? await this.services.data.getFriendshipStatus(State.user.id, userId) : 'none';
+            const vibeMatchScore = (State.user && State.user.id !== userId) ? this.services.data.calculateVibeMatch(State.user, profileUser) : 100;
             
-            // Render profile view
-            const container = document.getElementById('view-container');
+            // Resolve top 8 friends details
+            let top8Data = [];
+            if (profileUser.top8Friends.length > 0) {
+                const { data } = await window.supabaseClient.from('users').select('id, username, name, avatar_url, reaction_stats, top_8_friends').in('id', profileUser.top8Friends);
+                if (data) top8Data = data;
+            }
+            
             if (container) {
-                container.innerHTML = await this.getProfileHTML(profileUser, userPosts);
+                container.innerHTML = await this.getProfileHTML(profileUser, userPosts, friendStatus, top8Data, vibeMatchScore);
                 this.attachViewEvents();
                 window.scrollTo(0, 0);
             }
@@ -3515,72 +3575,7 @@ class VibeApp {
         await this.handleReaction(postId, 'heat');
     }
 
-    async viewUserProfile(userId, username) {
-        if (!userId) return;
-        
-        // If it's the current user, just go to the native profile view
-        if (State.user && State.user.id === userId) {
-            this.navigate('profile');
-            return;
-        }
 
-        const container = document.getElementById('view-container');
-        if (!container) return;
-
-        // Load skeleton
-        container.innerHTML = Components.skeletonLoading();
-        State.currentView = `user-${userId}`;
-
-        try {
-            // Fetch User Profile Data
-            const { data: profile } = await window.supabaseClient
-                .from('users')
-                .select('*')
-                .eq('id', userId)
-                .single();
-
-            if (!profile) {
-                container.innerHTML = `<div style="text-align:center; padding:50px;">User not found</div>`;
-                return;
-            }
-
-            // Standardize Profile Format for Component Render
-            const standardProfile = {
-                id: profile.id,
-                username: profile.username || username || 'anon',
-                displayName: profile.display_name || profile.username || 'Anonymous',
-                avatar: profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.username || 'anon'}`,
-                banner: profile.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
-                bio: profile.bio || 'No bio yet...',
-                followersCount: profile.followers_count || 0,
-                followingCount: profile.following_count || 0,
-                postCount: profile.post_count || 0,
-                isFollowing: false // Would need a separate check for real following status
-            };
-
-            // Get User's Posts
-            const { data: postsData } = await window.supabaseClient
-                .from('posts')
-                .select('*, reactions!left(type), comments!left(id)')
-                .eq('user_id', userId)
-                .order('created_at', { ascending: false });
-
-            let postsHtml = '';
-            if (postsData && postsData.length > 0) {
-                const formattedPosts = postsData.map(p => this.services.data.formatSupabasePost(p));
-                postsHtml = formattedPosts.map(p => Components.post(p)).join('');
-            } else {
-                postsHtml = `<p class="text-dim" style="text-align:center; padding:40px;">No vibes to show.</p>`;
-            }
-
-            // Render External Profile using the Component
-            container.innerHTML = Components.userProfile(standardProfile, postsHtml);
-
-        } catch (error) {
-            console.error('Error loading external profile:', error);
-            container.innerHTML = `<div style="text-align:center; padding:50px; color:var(--accent-pink);">Failed to load profile. Please try again.</div>`;
-        }
-    }
 
     async handleFollow(targetUserId) {
         if (!State.user) {
@@ -3639,8 +3634,136 @@ class VibeApp {
         }
     }
 
+    async handleAddFriend(userId) {
+        if (!State.user) return this.showToast('Login to add friends!', 'info');
+        const success = await this.services.data.sendFriendRequest(State.user.id, userId);
+        if (success) {
+            this.showToast('Friend request sent! 🤝');
+            this.renderView(`user-${userId}`); // Refresh profile
+        } else {
+            this.showToast('Failed to send request.', 'error');
+        }
+    }
+
+    async handleAcceptFriend(userId) {
+        if (!State.user) return;
+        const success = await this.services.data.respondToFriendRequest(State.user.id, userId, true);
+        if (success) {
+            this.showToast('Friend request accepted! ⚡');
+            this.renderView(`user-${userId}`);
+        } else {
+            this.showToast('Failed to accept request.', 'error');
+        }
+    }
+
+    async handleRejectFriend(userId) {
+        if (!State.user) return;
+        const success = await this.services.data.respondToFriendRequest(State.user.id, userId, false);
+        if (success) {
+            this.showToast('Friend request declined.');
+            this.renderView(`user-${userId}`);
+        } else {
+            this.showToast('Failed to decline request.', 'error');
+        }
+    }
+
+    async handleRemoveFriend(userId) {
+        if (!State.user) return;
+        if (!confirm('Are you sure you want to completely sever this link?')) return;
+        const success = await this.services.data.removeFriend(State.user.id, userId);
+        if (success) {
+            this.showToast('Friend link severed.');
+            this.renderView(`user-${userId}`);
+        } else {
+            this.showToast('Failed to remove friend.', 'error');
+        }
+    }
+
+    async showTop8Modal() {
+        if (!State.user) return;
+        
+        // Fetch all friends
+        const friends = await this.services.data.getFriends(State.user.id);
+        const currentTop8 = State.user.top_8_friends || [];
+        
+        // Build selection modal
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay top8-modal';
+        modal.id = 'top8-picker-modal';
+        modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; display:flex; justify-content:center; align-items:center; z-index:9000; background:rgba(0,0,0,0.8); backdrop-filter:blur(5px);';
+        
+        // We will maintain local state for picker
+        window._tempTop8Selection = [...currentTop8];
+        window.App._renderTop8PickerList = () => {
+            const listContainer = document.getElementById('top8-friends-list');
+            if (!listContainer) return;
+            
+            if (friends.length === 0) {
+                listContainer.innerHTML = '<p class="text-dim" style="text-align:center; padding:40px;">You need to accept or add friends before selecting your Top 8!</p>';
+                return;
+            }
+            
+            listContainer.innerHTML = friends.map(f => {
+                const isSelected = window._tempTop8Selection.includes(f.id);
+                return `
+                    <div class="glass-panel" style="display:flex; justify-content:space-between; align-items:center; padding:10px 15px; margin-bottom:10px; cursor:pointer; transition:all 0.3s; ${isSelected ? 'border-color:var(--accent-cyan); background:rgba(0,242,255,0.1);' : ''}" onclick="window.App._toggleTop8Selection('${f.id}')">
+                        <div style="display:flex; align-items:center; gap:15px;">
+                            <img src="${f.avatar}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                            <span>${f.displayName}</span>
+                        </div>
+                        <div style="font-size:1.5rem; color:${isSelected ? 'var(--accent-cyan)' : 'var(--text-dim)'}">${isSelected ? '✓' : '+'}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('top8-count-display').innerText = `${window._tempTop8Selection.length} / 8`;
+        };
+        
+        window.App._toggleTop8Selection = (friendId) => {
+            const idx = window._tempTop8Selection.indexOf(friendId);
+            if (idx > -1) {
+                window._tempTop8Selection.splice(idx, 1);
+            } else {
+                if (window._tempTop8Selection.length >= 8) {
+                    window.App.showToast('You can only select up to 8 vibes at once!', 'error');
+                    return;
+                }
+                window._tempTop8Selection.push(friendId);
+            }
+            window.App._renderTop8PickerList();
+        };
+
+        window.App._saveTop8Selection = async () => {
+            window.App.showToast('Saving Top 8...');
+            const success = await window.App.services.data.updateTop8(State.user.id, window._tempTop8Selection);
+            if (success) {
+                window.App.showToast('Top 8 updated! 🌟', 'success');
+                document.getElementById('top8-picker-modal').remove();
+                window.App.renderView('profile'); // re-render profile to show new top 8 grid
+            } else {
+                window.App.showToast('Failed to save Top 8', 'error');
+            }
+        };
+
+        modal.innerHTML = `
+            <div class="glass-panel" style="width:90%; max-width:500px; max-height:80vh; display:flex; flex-direction:column; padding:0; overflow:hidden;">
+                <div style="padding:20px; border-bottom:1px solid rgba(255,255,255,0.1); display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.5);">
+                    <h2 style="margin:0; font-family:var(--font-display); color:var(--primary-orange);">Select Top 8</h2>
+                    <span id="top8-count-display" style="font-weight:bold; color:var(--accent-cyan);">0 / 8</span>
+                </div>
+                <div id="top8-friends-list" style="padding:20px; overflow-y:auto; flex:1;"></div>
+                <div style="padding:20px; border-top:1px solid rgba(255,255,255,0.1); display:flex; justify-content:flex-end; gap:10px; background:rgba(0,0,0,0.5);">
+                    <button class="btn-secondary" onclick="document.getElementById('top8-picker-modal').remove()">Cancel</button>
+                    <button class="btn-primary" onclick="window.App._saveTop8Selection()">Save Preferences</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        window.App._renderTop8PickerList();
+    }
+
     showToast(msg, type = 'info') {
-        const toast = document.createElement('div');
         toast.className = 'glass-panel animate-fade';
         
         let borderColor = 'var(--primary-orange)';
