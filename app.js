@@ -64,9 +64,9 @@ class VibeApp {
 
             this.setupEventListeners();
             this.initHeaderParticles();
-            this.setupClerkListeners();
+            this.setupAuthListeners();
 
-            const clerkPromise = this.services.auth.initClerk();
+            const authPromise = this.services.auth.initAuth();
             
             let progress = 0;
             const timerFill = document.getElementById('timer-fill');
@@ -77,13 +77,13 @@ class VibeApp {
             }, 150);
 
             await Promise.race([
-                clerkPromise,
+                authPromise,
                 new Promise(resolve => setTimeout(resolve, 3500))
             ]);
             
             clearInterval(progressInterval);
             if (timerFill) timerFill.style.width = '100%';
-            console.log("Clerk initialization step complete.");
+            console.log("Auth initialization step complete.");
 
         } catch (err) {
             console.error("Initialization error:", err);
@@ -136,18 +136,19 @@ class VibeApp {
         }
     }
 
-    setupClerkListeners() {
-        // Listen for Clerk session changes
-        window.addEventListener('clerk-session-change', async (e) => {
-            if (e.detail) {
-                console.log('Clerk session detected, handling...');
-                await this.services.auth.handleClerkSession();
-            }
-        });
+    setupAuthListeners() {
+        // Auth service emits events when user logs in/out via Supabase
 
         // Listen for user logged in event from AuthService
         window.addEventListener('user-logged-in', (e) => {
-            if (State.user && State.user.id === e.detail.id) return; // Already handled
+            // Debounce: prevent duplicate login processing for same user in same session
+            // This can happen when signUp both returns a user AND triggers onAuthStateChange
+            const newUserId = e.detail?.id;
+            if (State.user && State.user.id === newUserId && this._lastLoginId === newUserId) {
+                console.log('Duplicate login event for same user, skipping.');
+                return;
+            }
+            this._lastLoginId = newUserId;
             
             console.log('User logged in:', e.detail);
             State.user = e.detail;
@@ -160,11 +161,19 @@ class VibeApp {
                 login.style.visibility = 'hidden';
             }
             
+            // Also hide loading screen if still visible
+            const loading = document.getElementById('loading-screen');
+            if (loading) {
+                loading.style.opacity = '0';
+                loading.style.visibility = 'hidden';
+            }
+            
             // Show main app
             const appElem = document.getElementById('app');
             if (appElem) {
                 appElem.classList.remove('hidden');
-                appElem.style.display = 'grid'; // Ensure it's visible
+                appElem.style.display = 'grid';
+                appElem.style.opacity = '1';
             }
 
             this.enableRealTimeSubscriptions();
@@ -179,8 +188,44 @@ class VibeApp {
         window.addEventListener('user-logged-out', () => {
             console.log('User logged out');
             State.user = null;
+            this._lastLoginId = null; // Reset so re-login works
             this.disableRealTimeSubscriptions();
-            this.navigate('login');
+            
+            // Properly hide the app shell and show the original login screen
+            const appElem = document.getElementById('app');
+            if (appElem) {
+                appElem.classList.add('hidden');
+                appElem.style.display = 'none';
+                appElem.style.opacity = '0';
+            }
+            
+            // Show the original login screen from index.html
+            const loginScreen = document.getElementById('login-screen');
+            if (loginScreen) {
+                loginScreen.style.opacity = '1';
+                loginScreen.style.visibility = 'visible';
+                
+                // Reset login form to sign-in mode
+                const loginFields = document.getElementById('login-form-fields');
+                const signupFields = document.getElementById('signup-form-fields');
+                const toggleBtn = document.getElementById('toggle-auth-btn');
+                const title = document.querySelector('.login-title');
+                if (loginFields) loginFields.style.display = 'block';
+                if (signupFields) signupFields.style.display = 'none';
+                if (toggleBtn) toggleBtn.innerText = 'Need an account? Sign Up';
+                if (title) title.innerText = 'Welcome Back';
+                
+                // Clear any previous input values
+                const inputs = loginScreen.querySelectorAll('input[type="email"], input[type="password"], input[type="text"]');
+                inputs.forEach(input => { input.value = ''; });
+            }
+            
+            // Close admin dropdown if open
+            const adminDropdown = document.getElementById('admin-dropdown');
+            if (adminDropdown) adminDropdown.classList.remove('active');
+            
+            this.initLoginParticles();
+            window.history.replaceState(null, '', '#login');
             this.showToast('You have been logged out');
         });
     }
@@ -2601,11 +2646,31 @@ class VibeApp {
             const rememberMe = document.getElementById('remember-me')?.checked ?? true;
             const result = await this.services.auth.customSignUp(email, password, name, rememberMe);
             if (result.success) {
-                this.showToast('Account created! Welcome to VibeHub ✨');
-                // The event listener will handle the actual navigation and state update
-                // But we can trigger a fast-track here too
-                if (!State.user) {
-                    this.navigate('home', true);
+                if (result.user) {
+                    // User was auto-confirmed and signed in
+                    this.showToast('Account created! Welcome to VibeHub ✨');
+                    // The user-logged-in event from syncUserSession will handle navigation.
+                    // However, give the event a moment to fire, then ensure we navigate.
+                    setTimeout(() => {
+                        if (State.user && State.user.id) {
+                            // Event already handled navigation - we're good
+                            return;
+                        }
+                        // Fallback: manually trigger the navigation in case event was missed
+                        State.user = result.user;
+                        if (result.user?.id) this._lastLoginId = result.user.id;
+                        this.updateAdminAccess();
+                        const login = document.getElementById('login-screen');
+                        if (login) { login.style.opacity = '0'; login.style.visibility = 'hidden'; }
+                        const appElem = document.getElementById('app');
+                        if (appElem) { appElem.classList.remove('hidden'); appElem.style.display = 'grid'; appElem.style.opacity = '1'; }
+                        this.navigate('home', true);
+                    }, 500);
+                } else if (result.message) {
+                    // Email confirmation required
+                    this.showToast(result.message, 'info');
+                } else {
+                    this.showToast('Account created! Welcome to VibeHub ✨');
                 }
             } else {
                 this.showToast(result.error || 'Sign up failed', 'error');

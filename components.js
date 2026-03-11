@@ -458,8 +458,8 @@ export const Views = {
                                 `<button class="btn-secondary" onclick="window.App.showEditProfileModal()" style="min-width:140px;">Edit Profile</button>` : 
                                 `
                                     ${friendButtonHTML}
-                                    <button class="btn-primary" onclick="window.App.boostVibe('${user.id}')" style="background:linear-gradient(135deg, var(--primary-purple), var(--accent-magenta)); border:none; min-width:120px;">
-                                        Boost ✨
+                                    <button class="btn-primary" onclick="window.App.boostVibe('${user.id}')" style="background:linear-gradient(135deg, var(--primary-purple), var(--accent-magenta)); border:none; min-width:140px;">
+                                        I Like Your Vibe ✨
                                     </button>
                                     <button class="btn-secondary" onclick="window.App.navigate('messages')" style="min-width:100px;">Message</button>
                                 `

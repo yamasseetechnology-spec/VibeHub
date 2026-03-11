@@ -1,25 +1,32 @@
 # Vibehub Task List
 
-## Phase 1: Foundation
-- [ ] Create `index.html` structure (Splash, Shell, Navigation)
-- [ ] Define global CSS variables and base styles in `styles.css`
-- [ ] Initialize `app.js` with Service Registry and Routing
+# Task List: VibeHub Social & Auth Refactor
 
-## Phase 2: Service Layer
-- [ ] Implement `AuthService` (Session management, Mock Login/Register)
-- [ ] Implement `DataService` (Posts, Profiles, Comments, Reactions)
-- [ ] Implement `VibeStreamService` (Video metadata)
-- [ ] Implement `ChatService` (Sync Rooms & DMs)
-- [ ] Implement `AdminService` (Stats & Ad Injection)
+## Phase 1: Authentication Refactor 🔐
+- [x] Analyze `AuthService.js` logic
+- [x] Remove Clerk SDK integration from `AuthService.js`
+- [x] Implement robust Supabase Auth in `AuthService.js`
+- [x] Update `index.html` to remove Clerk dependencies
+- [x] Verify Admin Bypass still works with Supabase-only flow
 
-## Phase 3: UI Implementation
-- [ ] Build Splash Screen & Loading Animation
-- [ ] Build Auth Views (Login/Signup)
-- [ ] Build Home Timeline (4 Tabs, Post rendering)
-- [ ] Build VibeStream Vertical Feed
-- [ ] Build Sync Rooms List & Chat View
-- [ ] Build User Profile Page & Top 8 Vibes
-- [ ] Build Communities & Marketplace
+## Phase 2: UI/UX Polishing ✨
+- [x] Redesign Login/Signup forms for premium Supabase flow
+- [x] Ensure auto-login after signup works perfectly
+- [x] Verify profile updates are persisted to Supabase
+
+## Phase 3: Social & Browser Audit 🕵️‍♂️
+- [ ] Perform full browser audit:
+    - [ ] Sign in as admin -> sign out
+    - [ ] Create new user (audit_vibe_2@test.com)
+    - [ ] Verify auto-login & profile persistence
+    - [ ] Make a post as new user -> sign out
+    - [ ] Sign in as admin -> like the new user's post
+    - [ ] Sign out / sign back in verification
+- [x] Confirm friend request and "I Like Your Vibe" functionality (Code Implemented)
+
+## Phase 4: Final Verification 🚀
+- [ ] Run final browser audit
+- [ ] Create walkthrough artifact with recordings/screenshots
 - [ ] Build Messaging & Notifications
 - [ ] Build Admin Dashboard
 

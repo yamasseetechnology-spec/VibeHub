@@ -241,5 +241,158 @@ export class DataService {
         return date.toLocaleDateString();
     }
     
-    // ... (rest of simple methods like getUserProfile, createNotification, etc are in the temp file)
+    subscribeToUserNotifications(userId, callback) {
+        if (!window.supabaseClient) return null;
+        return window.supabaseClient.channel(`notifications:${userId}`)
+            .on('postgres_changes', { 
+                event: 'INSERT', 
+                schema: 'public', 
+                table: 'notifications',
+                filter: `user_id=eq.${userId}`
+            }, (payload) => {
+                if (callback) callback({ type: 'notification', data: payload.new });
+            }).subscribe();
+    }
+
+    async getUserPosts(userId, username) {
+        if (!window.supabaseClient) return [];
+        try {
+            const { data } = await window.supabaseClient.from('posts').select('*, users(*)').eq('user_id', userId).order('created_at', { ascending: false });
+            return this.mapPosts(data);
+        } catch (error) { return []; }
+    }
+
+    async getNotifications(userId) {
+        if (!userId || !window.supabaseClient) return [];
+        try {
+            const { data } = await window.supabaseClient.from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50);
+            return data || [];
+        } catch (error) { return []; }
+    }
+
+    async markNotificationsRead(userId) {
+        if (!userId || !window.supabaseClient) return;
+        try {
+            await window.supabaseClient.from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false);
+        } catch (error) {}
+    }
+
+    async getFriendsPosts(userId) {
+        if (!userId || !window.supabaseClient) return [];
+        try {
+            const { data: friends } = await window.supabaseClient.from('friends').select('friend_id').eq('user_id', userId);
+            const friendIds = (friends || []).map(f => f.friend_id);
+            if (friendIds.length === 0) return [];
+            const { data } = await window.supabaseClient.from('posts').select('*, users(*)').in('user_id', friendIds).order('created_at', { ascending: false });
+            return this.mapPosts(data);
+        } catch (error) { return []; }
+    }
+
+    async sendFriendRequest(fromId, toId) {
+        if (!window.supabaseClient) return false;
+        try {
+            const { error } = await window.supabaseClient.from('friend_requests').insert([{
+                from_id: fromId,
+                to_id: toId,
+                status: 'pending'
+            }]);
+            if (error) throw error;
+            await this.createNotification(toId, 'Someone wants to link minds with you!', 'follow');
+            return true;
+        } catch (error) {
+            console.error('sendFriendRequest failed:', error);
+            return false;
+        }
+    }
+
+    async respondToFriendRequest(userId, friendId, accept) {
+        if (!window.supabaseClient) return false;
+        try {
+            if (accept) {
+                await window.supabaseClient.from('friends').insert([
+                    { user_id: userId, friend_id: friendId },
+                    { user_id: friendId, friend_id: userId }
+                ]);
+                await window.supabaseClient.from('friend_requests').update({ status: 'accepted' }).eq('from_id', friendId).eq('to_id', userId);
+                await this.createNotification(friendId, 'Social Link Established!', 'follow');
+            } else {
+                await window.supabaseClient.from('friend_requests').delete().eq('from_id', friendId).eq('to_id', userId);
+            }
+            return true;
+        } catch (error) {
+            console.error('respondToFriendRequest failed:', error);
+            return false;
+        }
+    }
+
+    async getFriendshipStatus(userId, friendId) {
+        if (!userId || !friendId || !window.supabaseClient) return 'none';
+        try {
+            const { data: friends } = await window.supabaseClient.from('friends').select('*').eq('user_id', userId).eq('friend_id', friendId);
+            if (friends && friends.length > 0) return 'friends';
+            const { data: sent } = await window.supabaseClient.from('friend_requests').select('*').eq('from_id', userId).eq('to_id', friendId).eq('status', 'pending');
+            if (sent && sent.length > 0) return 'pending';
+            const { data: received } = await window.supabaseClient.from('friend_requests').select('*').eq('from_id', friendId).eq('to_id', userId).eq('status', 'pending');
+            if (received && received.length > 0) return 'requested';
+            return 'none';
+        } catch (error) { return 'none'; }
+    }
+
+    async getUserProfile(userId) {
+        if (!userId || !window.supabaseClient) return null;
+        try {
+            const { data, error } = await window.supabaseClient.from('users').select('*').eq('id', userId).single();
+            if (error) throw error;
+            return {
+                id: data.id,
+                username: data.username,
+                displayName: data.name || data.username,
+                avatar: data.avatar_url,
+                banner: data.banner_url,
+                bio: data.bio,
+                songLink: data.song_link,
+                followersCount: data.followers?.length || 0,
+                followingCount: data.following?.length || 0,
+                postCount: 0, // Should fetch real count if possible
+                vibeBoosts: data.vibe_score || 0,
+                verified: data.verified
+            };
+        } catch (error) { return null; }
+    }
+
+    async createNotification(userId, message, type = 'info') {
+        if (!userId || !window.supabaseClient) return;
+        try {
+            await window.supabaseClient.from('notifications').insert([{ user_id: userId, message, type, read: false }]);
+        } catch (error) {}
+    }
+
+    calculateVibeMatch(user1, user2) {
+        if (!user1 || !user2) return 100;
+        // Simple mock calculation for now
+        return 85 + Math.floor(Math.random() * 15);
+    }
+
+    async boostUserVibe(targetUserId, fromUserId) {
+        if (!window.supabaseClient) return { success: true, action: 'added' };
+        try {
+            const { data: user } = await window.supabaseClient.from('users').select('vibe_likes').eq('id', targetUserId).single();
+            let likes = user?.vibe_likes || [];
+            let action = 'added';
+            
+            if (likes.includes(fromUserId)) {
+                likes = likes.filter(id => id !== fromUserId);
+                action = 'removed';
+            } else {
+                likes.push(fromUserId);
+                await this.createNotification(targetUserId, 'Someone boosted your vibe! ✨', 'vibe');
+            }
+            
+            await window.supabaseClient.from('users').update({ vibe_likes: likes }).eq('id', targetUserId);
+            return { success: true, action };
+        } catch (error) {
+            console.error('boostUserVibe failed:', error);
+            return { success: false };
+        }
+    }
 }
