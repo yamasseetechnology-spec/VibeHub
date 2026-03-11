@@ -17,8 +17,8 @@
     <!-- PWA -->
     <meta name="theme-color" content="#050505">
     <link rel="manifest" href="/vibehub/assets/manifest-xH2Y_cj-.json">
-  <script type="module" crossorigin src="/vibehub/assets/index-DPNtp6Lk.js"></script>
-  <link rel="stylesheet" crossorigin href="/vibehub/assets/index-DRn-DItW.css">
+  <script type="module" crossorigin src="/vibehub/assets/index-BaVjVkh3.js"></script>
+  <link rel="stylesheet" crossorigin href="/vibehub/assets/index-0gazfGCH.css">
 </head>
 <body>
     <!-- Loading Screen -->
@@ -126,13 +126,13 @@
                     border-radius: 0 0 12px 12px;
                     padding: 15px;
                 ">
-                    <input type="email" id="admin-login-email" class="login-input" placeholder="Admin Email" inputmode="email" autocomplete="email" ontouchend="event.preventDefault(); this.focus()" onclick="this.focus()" onfocus="this.select()" tabindex="0" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
-                    <input type="password" id="admin-login-password" class="login-input" placeholder="Admin Password" inputmode="text" autocomplete="current-password" ontouchend="event.preventDefault(); this.focus()" onclick="this.focus()" onfocus="this.select()" tabindex="0" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
+                    <input type="text" id="admin-login-email" class="login-input" placeholder="Admin Email" inputmode="email" autocomplete="email" ontouchend="event.preventDefault(); this.focus()" onclick="this.focus()" onfocus="this.select()" tabindex="0" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;" onkeypress="if(event.key==='Enter')window.App.handleAdminLogin()">
+                    <input type="password" id="admin-login-password" class="login-input" placeholder="Admin Password" inputmode="text" autocomplete="current-password" ontouchend="event.preventDefault(); this.focus()" onclick="this.focus()" onfocus="this.select()" tabindex="0" style="width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;" onkeypress="if(event.key==='Enter')window.App.handleAdminLogin()">
                     <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; cursor: pointer; color: #aaa; font-size: 13px;">
                         <input type="checkbox" id="admin-remember-me" checked style="accent-color: #ff9f00; width: 16px; height: 16px; cursor: pointer;">
                         Stay signed in
                     </label>
-                    <button class="login-submit" onclick="window.App.handleAdminLogin()" style="width: 100%; padding: 10px; border-radius: 8px; border: none; background: linear-gradient(135deg, #ff9f00, #ff6b00); color: white; font-weight: 600; cursor: pointer;">🔑 Enter</button>
+                    <button class="login-submit" onclick="console.log('Admin login button clicked!'); window.App.handleAdminLogin()" style="width: 100%; padding: 10px; border-radius: 8px; border: none; background: linear-gradient(135deg, #ff9f00, #ff6b00); color: white; font-weight: 600; cursor: pointer;">🔑 Enter</button>
                 </div>
             </div>
             
@@ -287,13 +287,6 @@
                 <div class="mobile-spacer mobile-only"></div>
 
                 <div class="top-actions">
-                    <button id="create-post-btn" class="nav-link brain-post-btn" onclick="window.App.showCreatePostModal()" title="Vibe Out">
-                        <span class="brain-icon">🧠</span>
-                        <div class="vibe-out-text">
-                            <span class="vibe-text">Vibe</span>
-                            <span class="out-text">Out</span>
-                        </div>
-                    </button>
                     <!-- Notification icon for mobile header -->
                     <button class="nav-link mobile-only" data-view="notifications" onclick="window.App.navigate('notifications')" style="padding: 10px; min-width: auto; border: none; background: none;">
                         <span class="icon">🔔</span>
@@ -306,6 +299,15 @@
                 <!-- Views will be injected here -->
             </div>
         </main>
+
+        <!-- Floating Vibe Out Button (Desktop) -->
+        <button id="create-post-btn" class="nav-link brain-post-btn desktop-only" onclick="window.App.showCreatePostModal()" title="Vibe Out">
+            <span class="brain-icon">🧠</span>
+            <div class="vibe-out-text">
+                <span class="vibe-text">Vibe</span>
+                <span class="out-text">Out</span>
+            </div>
+        </button>
 
         <!-- Admin Entry (Hidden/Small in Footer area) -->
         <footer id="app-footer">
@@ -322,37 +324,15 @@
     <!-- Supabase Client Setup -->
     <script>
     (function() {
-      // 1. Load Supabase JS CDN
+      // Load Supabase JS CDN
       var s = document.createElement('script');
       s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
       s.onload = function() {
         window.supabaseReady = true;
         console.log('Supabase JS loaded');
-        initSupabaseClient();
       };
       s.onerror = function() { console.error('Supabase JS failed to load'); };
       document.head.appendChild(s);
-
-      // 2. Supabase Project Credentials
-      var SUPABASE_URL = 'https://osfqlabtuqpynqcdmwff.supabase.co';
-      var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zZnFsYWJ0dXFweW5xY2Rtd2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5ODQ3OTEsImV4cCI6MjA4NzU2MDc5MX0.LXZ-lbLiarXHSSlu8NXi0c_uvIVFxh8mw6amXGJAwtA';
-
-      // 3. Create the client once the CDN is ready
-      function initSupabaseClient() {
-        if (window.supabase && !window.supabaseClient) {
-          window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-          console.log('✅ Supabase client initialized:', window.supabaseClient ? 'OK' : 'FAIL');
-        }
-      }
-
-      // 4. Fallback: retry in case the onload races
-      var retryCount = 0;
-      var retryInterval = setInterval(function() {
-        retryCount++;
-        if (window.supabaseClient) { clearInterval(retryInterval); return; }
-        if (window.supabase) { initSupabaseClient(); clearInterval(retryInterval); return; }
-        if (retryCount > 50) { clearInterval(retryInterval); console.error('Supabase init timed out'); }
-      }, 100);
     })();
     </script>
 

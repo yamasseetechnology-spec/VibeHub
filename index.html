@@ -323,37 +323,15 @@
     <!-- Supabase Client Setup -->
     <script>
     (function() {
-      // 1. Load Supabase JS CDN
+      // Load Supabase JS CDN
       var s = document.createElement('script');
       s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
       s.onload = function() {
         window.supabaseReady = true;
         console.log('Supabase JS loaded');
-        initSupabaseClient();
       };
       s.onerror = function() { console.error('Supabase JS failed to load'); };
       document.head.appendChild(s);
-
-      // 2. Supabase Project Credentials
-      var SUPABASE_URL = 'https://osfqlabtuqpynqcdmwff.supabase.co';
-      var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zZnFsYWJ0dXFweW5xY2Rtd2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5ODQ3OTEsImV4cCI6MjA4NzU2MDc5MX0.LXZ-lbLiarXHSSlu8NXi0c_uvIVFxh8mw6amXGJAwtA';
-
-      // 3. Create the client once the CDN is ready
-      function initSupabaseClient() {
-        if (window.supabase && !window.supabaseClient) {
-          window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-          console.log('✅ Supabase client initialized:', window.supabaseClient ? 'OK' : 'FAIL');
-        }
-      }
-
-      // 4. Fallback: retry in case the onload races
-      var retryCount = 0;
-      var retryInterval = setInterval(function() {
-        retryCount++;
-        if (window.supabaseClient) { clearInterval(retryInterval); return; }
-        if (window.supabase) { initSupabaseClient(); clearInterval(retryInterval); return; }
-        if (retryCount > 50) { clearInterval(retryInterval); console.error('Supabase init timed out'); }
-      }, 100);
     })();
     </script>
 
