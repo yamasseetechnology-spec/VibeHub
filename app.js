@@ -47,6 +47,10 @@ class VibeApp {
     async init() {
         console.log("Vibehub Initializing...");
 
+        // Initialize a startTime to enforce minimum loading duration
+        const initStartTime = Date.now();
+        const MIN_LOADING_MS = 2000;
+
         try {
             // Expose global reaction popup for components
             window.triggerReactionPopup = this.triggerReactionPopup.bind(this);
@@ -60,7 +64,7 @@ class VibeApp {
                 console.error('Unhandled promise rejection:', e.reason);
             });
 
-            // 1. Show loading screen
+            // 1. Show loading screen immediately
             this.showLoadingScreen();
             console.log("Loading screen shown.");
 
@@ -69,79 +73,79 @@ class VibeApp {
                 navigator.serviceWorker.register('./service-worker.js')
                     .catch(err => console.log("Service Worker registration failed:", err));
             }
-            console.log("Service worker step passed.");
 
             // 3. Setup Routing & Event Listeners
             this.setupEventListeners();
-            console.log("EventListeners setup passed.");
             
             // Initialize Premium Header Effects
             this.initHeaderParticles();
 
-            // 4. Initialize Clerk and setup listeners
+            // 4. Initialize Clerk
             console.log("Initializing Clerk...");
             this.setupClerkListeners();
-            console.log("Clerk listeners setup.");
 
-            // Wrap Clerk init in a timeout so it doesn't block the app if CDN fails
             const clerkPromise = this.services.auth.initClerk();
             
             // Loading progress simulation
             let progress = 0;
             const timerFill = document.getElementById('timer-fill');
             const progressInterval = setInterval(() => {
-                progress += Math.random() * 15;
-                if (progress > 95) progress = 95;
+                progress += Math.random() * 8;
+                if (progress > 90) progress = 90;
                 if (timerFill) timerFill.style.width = `${progress}%`;
-            }, 200);
+            }, 150);
 
             await Promise.race([
                 clerkPromise,
-                new Promise(resolve => setTimeout(resolve, 3000))
+                new Promise(resolve => setTimeout(resolve, 3500))
             ]);
             
             clearInterval(progressInterval);
             if (timerFill) timerFill.style.width = '100%';
-            console.log("Clerk initialization attempted.");
+            console.log("Clerk initialization step complete.");
 
         } catch (err) {
             console.error("Initialization error:", err);
-            // Fallback: hide loading screen even on error
-            this.hideLoadingScreen();
         } finally {
-            // 5. Check if user is already logged in (persisted)
-            let persistedUser = null;
-            try {
-                if (this.services && this.services.auth) {
-                    persistedUser = this.services.auth.checkSession();
-                }
-            } catch (authError) {
-                console.error("Auth session check failed:", authError);
+            const elapsed = Date.now() - initStartTime;
+            const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
+            
+            setTimeout(() => {
+                this.finalizeInitialization();
+            }, remaining);
+        }
+    }
+
+    async finalizeInitialization() {
+        console.log("Finalizing initialization...");
+        
+        let persistedUser = null;
+        try {
+            if (this.services && this.services.auth) {
+                persistedUser = this.services.auth.checkSession();
+            }
+        } catch (authError) {
+            console.error("Auth session check failed:", authError);
+        }
+
+        if (persistedUser) {
+            console.log("Persisted session found, navigating home.");
+            State.user = persistedUser;
+            this.updateAdminAccess();
+            this.hideLoadingScreen();
+            
+            const appElem = document.getElementById('app');
+            if (appElem) {
+                appElem.classList.remove('hidden');
+                appElem.style.opacity = '1';
             }
 
-            if (persistedUser) {
-                console.log("Persisted session found.");
-                State.user = persistedUser;
-                this.updateAdminAccess();
-                this.hideLoadingScreen();
-                
-                // Show app shell
-                const appElem = document.getElementById('app');
-                if (appElem) {
-                    appElem.classList.remove('hidden');
-                    appElem.style.opacity = '1';
-                }
-
-                this.enableRealTimeSubscriptions();
-                this.initializeLiveSub();
-                this.navigate('home', true);
-            } else {
-                // After 0.5 seconds, execute transition to login
-                console.log("No session found, executing transitionToLogin...");
-                setTimeout(() => {
-                    this.transitionToLogin();
-                }, 500);
-            }
+            this.enableRealTimeSubscriptions();
+            this.initializeLiveSub();
+            this.navigate('home', true);
+        } else {
+            console.log("No session found, transitioning to login.");
+            this.transitionToLogin();
         }
     }
 
