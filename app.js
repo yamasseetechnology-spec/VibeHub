@@ -1718,7 +1718,7 @@ class VibeApp {
                     container.innerHTML = this.getSyncRoomsHTML(rooms);
                     break;
                 case 'profile':
-                    const userPosts = State.user ? await this.services.data.getUserPosts(State.user.id) : [];
+                    const userPosts = State.user ? await this.services.data.getUserPosts(State.user.id, State.user.username) : [];
                     container.innerHTML = await this.getProfileHTML(State.user, userPosts);
                     break;
                 case 'login':
@@ -3284,46 +3284,38 @@ class VibeApp {
         this.showToast(`Loading ${username}'s vibe...`);
         
         try {
-            // Fetch user data and post count
-            const [userResponse, countResponse] = await Promise.all([
-                window.supabaseClient
-                    .from('users')
-                    .select('*')
-                    .eq('id', userId)
-                    .single(),
-                window.supabaseClient
-                    .from('posts')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('user_id', userId)
-            ]);
+            // Fetch resilient profile 
+            const profileUser = await this.services.data.getUserProfile(userId);
             
-            const user = userResponse.data;
-            if (!user) throw new Error('Could not find user');
+            if (!profileUser) {
+                if (container) {
+                    container.innerHTML = `
+                        <div class="view-header animate-fade" style="text-align:center; padding:100px 20px;">
+                            <h2 style="color:var(--text-dim);">Profile M.I.A.</h2>
+                            <p style="margin-top:10px;">The vibe of "@${username || userId}" has vanished or never existed.</p>
+                            <button class="btn-secondary" onclick="window.App.navigate('home')" style="margin-top:20px;">Return Pulse</button>
+                        </div>
+                    `;
+                }
+                return;
+            }
 
-            const actualPostCount = countResponse.count || 0;
+            // Fetch post count separately
+            // Check for both exact UUID match and string literal match (for legacy)
+            const { count: actualPostCount } = await window.supabaseClient
+                .from('posts')
+                .select('*', { count: 'exact', head: true })
+                .or(`user_id.eq.${profileUser.id},user_id.eq."${profileUser.username}"`);
             
-            const profileUser = {
-                id: user.id,
-                username: user.username,
-                displayName: user.name,
-                profilePhoto: user.avatar_url,
-                bannerImage: user.banner_url,
-                bio: user.bio,
-                vibeBoosts: user.vibe_likes?.length || 0,
-                followersCount: user.followers?.length || 0,
-                followingCount: user.following?.length || 0,
-                postCount: actualPostCount,
-                reactionScore: user.vibe_score || 0,
-                songLink: user.song_link,
-                top8Friends: user.top_8_friends || [],
-                reaction_stats: user.reaction_stats || { given: {}, received: {} },
-                verified: user.verified,
-                role: user.role
-            };
+            profileUser.postCount = actualPostCount || 0;
+            profileUser.vibeBoosts = profileUser.vibe_likes?.length || 0;
+            profileUser.top8Friends = profileUser.top_8_friends || [];
+            profileUser.reaction_stats = profileUser.reaction_stats || { given: {}, received: {} };
+            profileUser.reactionScore = profileUser.vibe_score || 0;
             
-            const userPosts = await this.services.data.getUserPosts(userId);
-            const friendStatus = State.user ? await this.services.data.getFriendshipStatus(State.user.id, userId) : 'none';
-            const vibeMatchScore = (State.user && State.user.id !== userId) ? this.services.data.calculateVibeMatch(State.user, profileUser) : 100;
+            const userPosts = await this.services.data.getUserPosts(profileUser.id, profileUser.username);
+            const friendStatus = State.user ? await this.services.data.getFriendshipStatus(State.user.id, profileUser.id) : 'none';
+            const vibeMatchScore = (State.user && State.user.id !== profileUser.id) ? this.services.data.calculateVibeMatch(State.user, profileUser) : 100;
             
             // Resolve top 8 friends details
             let top8Data = [];
@@ -3339,7 +3331,7 @@ class VibeApp {
             }
         } catch (err) {
             console.error('Error viewing profile:', err);
-            this.showToast('Failed to load profile', 'error');
+            this.showToast('Vibe check failed', 'error');
         }
     }
 

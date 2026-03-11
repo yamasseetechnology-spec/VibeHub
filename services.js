@@ -1583,33 +1583,47 @@ export class DataService {
         return channel;
     }
 
-    async getUserPosts(userId) {
-        if (!window.supabaseClient) return [];
+    async getUserPosts(identifier, altIdentifier = null) {
+        if (!window.supabaseClient || !identifier) return [];
 
         try {
-            const { data, error } = await window.supabaseClient
+            // Build the query and handle resilience
+            const query = window.supabaseClient
                 .from('posts')
-                .select('*, users(*)')
-                .eq('user_id', userId)
+                .select('*, users(*)');
+
+            if (altIdentifier) {
+                query.or(`user_id.eq.${identifier},user_id.eq.${altIdentifier}`);
+            } else {
+                query.eq('user_id', identifier);
+            }
+
+            const { data, error } = await query
                 .order('created_at', { ascending: false })
                 .limit(50);
 
             if (error) {
                 console.error('Error fetching user posts with join:', error);
-                // Fallback to non-joined query + manual user fetch
-                const fallback = await window.supabaseClient
-                    .from('posts')
-                    .select('*')
-                    .eq('user_id', userId)
+                
+                // Fallback to manual join
+                const fallbackQuery = window.supabaseClient.from('posts').select('*');
+                if (altIdentifier) {
+                    fallbackQuery.or(`user_id.eq.${identifier},user_id.eq.${altIdentifier}`);
+                } else {
+                    fallbackQuery.eq('user_id', identifier);
+                }
+
+                const fallback = await fallbackQuery
                     .order('created_at', { ascending: false })
                     .limit(50);
-                if (fallback.error) return [];
+
+                if (fallback.error || !fallback.data) return [];
                 return await this.manualJoinUsers(fallback.data);
             }
 
             return this.mapPosts(data);
-        } catch (error) {
-            console.error('Error fetching user posts:', error);
+        } catch (err) {
+            console.error('getUserPosts failed:', err);
             return [];
         }
     }
@@ -2246,29 +2260,51 @@ export class DataService {
         }
     }
 
-    async getUserProfile(userId) {
-        if (!window.supabaseClient) return null;
+    async getUserProfile(identifier) {
+        if (!window.supabaseClient || !identifier) return null;
 
         try {
-            const { data } = await window.supabaseClient
+            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+            
+            // 1. Try fetching by UUID (id) ONLY if it looks like one
+            if (isUUID) {
+                const { data: byId } = await window.supabaseClient
+                    .from('users')
+                    .select('*')
+                    .eq('id', identifier)
+                    .maybeSingle();
+
+                if (byId) return this.formatProfileData(byId);
+            }
+
+            // 2. Try fetching by username (this handles both legacy IDs and modern usernames)
+            const { data: byUsername } = await window.supabaseClient
                 .from('users')
                 .select('*')
-                .eq('id', userId)
-                .single();
+                .eq('username', identifier)
+                .maybeSingle();
 
-            if (data) {
-                data.badgeList = calculateUserBadges(data);
-                data.displayName = data.name;
-                data.handle = data.username;
-                data.profilePhoto = data.avatar_url;
-                data.bannerImage = data.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200';
-                data.songLink = data.song_link;
-            }
-            return data;
+            if (byUsername) return this.formatProfileData(byUsername);
+
+            console.warn(`⚠️ Profile not found for: ${identifier}`);
+            return null;
         } catch (error) {
             console.error('Error fetching profile:', error);
             return null;
         }
+    }
+
+    formatProfileData(data) {
+        if (!data) return null;
+        return {
+            ...data,
+            badgeList: calculateUserBadges(data),
+            displayName: data.name || data.username,
+            handle: data.username,
+            profilePhoto: data.avatar_url || `https://i.pravatar.cc/150?u=${data.id}`,
+            bannerImage: data.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
+            songLink: data.song_link
+        };
     }
 
     async manualJoinUsers(posts) {
@@ -2276,18 +2312,35 @@ export class DataService {
         if (!window.supabaseClient) return this.mapPosts(posts);
 
         try {
-            const userIds = [...new Set(posts.map(p => p.user_id))];
+            const rawIdentifiers = [...new Set(posts.map(p => p.user_id).filter(id => !!id))];
+            if (rawIdentifiers.length === 0) return this.mapPosts(posts);
+
+            // Partition identifiers into UUIDs and legacy usernames
+            const uuids = rawIdentifiers.filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+            const handles = rawIdentifiers.filter(id => !uuids.includes(id));
+
+            let orFilter = [];
+            if (uuids.length > 0) orFilter.push(`id.in.(${uuids.join(',')})`);
+            if (handles.length > 0) orFilter.push(`username.in.(${handles.map(h => `"${h}"`).join(',')})`);
+
+            if (orFilter.length === 0) return this.mapPosts(posts);
+
+            // Fetch users that match either ID (UUID) or Username
             const { data: userData } = await window.supabaseClient
                 .from('users')
                 .select('*')
-                .in('id', userIds);
+                .or(orFilter.join(','));
 
             const userMap = {};
-            (userData || []).forEach(u => { userMap[u.id] = u; });
+            const usernameMap = {};
+            (userData || []).forEach(u => { 
+                userMap[u.id] = u; 
+                usernameMap[u.username] = u;
+            });
 
             const joinedData = posts.map(p => ({
                 ...p,
-                users: userMap[p.user_id] || null
+                users: userMap[p.user_id] || usernameMap[p.user_id] || null
             }));
 
             return this.mapPosts(joinedData);
