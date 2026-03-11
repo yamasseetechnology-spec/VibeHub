@@ -106,29 +106,32 @@ class VibeApp {
 
         } catch (err) {
             console.error("Initialization error:", err);
-            this.showToast("Loading failed, trying login anyway...", "error");
+            // Fallback: hide loading screen even on error
+            this.hideLoadingScreen();
         } finally {
             // 5. Check if user is already logged in (persisted)
-            const persistedUser = this.services.auth.checkSession();
+            let persistedUser = null;
+            try {
+                if (this.services && this.services.auth) {
+                    persistedUser = this.services.auth.checkSession();
+                }
+            } catch (authError) {
+                console.error("Auth session check failed:", authError);
+            }
+
             if (persistedUser) {
-                console.log("Persisted session found, skipping login screen.");
+                console.log("Persisted session found.");
                 State.user = persistedUser;
                 this.updateAdminAccess();
+                this.hideLoadingScreen();
                 
-                // Hide loading
-                const loading = document.getElementById('loading-screen');
-                if (loading) {
-                    loading.style.opacity = '0';
-                    setTimeout(() => loading.style.visibility = 'hidden', 500);
-                }
-                
-                // Show app and navigate
+                // Show app shell
                 const appElem = document.getElementById('app');
                 if (appElem) {
                     appElem.classList.remove('hidden');
                     appElem.style.opacity = '1';
                 }
-                
+
                 this.enableRealTimeSubscriptions();
                 this.initializeLiveSub();
                 this.navigate('home', true);
@@ -139,6 +142,16 @@ class VibeApp {
                     this.transitionToLogin();
                 }, 500);
             }
+        }
+    }
+
+    hideLoadingScreen() {
+        const loading = document.getElementById('loading-screen');
+        if (loading) {
+            loading.style.opacity = '0';
+            setTimeout(() => {
+                loading.style.visibility = 'hidden';
+            }, 500);
         }
     }
 
@@ -381,6 +394,7 @@ class VibeApp {
         // Guard: If user somehow got logged in during clerk/supabase init, don't show login
         if (State.user) {
             console.log("User detected, skipping login transition.");
+            this.hideLoadingScreen();
             return;
         }
 

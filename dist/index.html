@@ -17,8 +17,8 @@
     <!-- PWA -->
     <meta name="theme-color" content="#050505">
     <link rel="manifest" href="/vibehub/assets/manifest-xH2Y_cj-.json">
-  <script type="module" crossorigin src="/vibehub/assets/index-C-eyFpMW.js"></script>
-  <link rel="stylesheet" crossorigin href="/vibehub/assets/index-DPl5yWJW.css">
+  <script type="module" crossorigin src="/vibehub/assets/index-DPNtp6Lk.js"></script>
+  <link rel="stylesheet" crossorigin href="/vibehub/assets/index-DRn-DItW.css">
 </head>
 <body>
     <!-- Loading Screen -->
@@ -158,9 +158,10 @@
     <div id="app" class="hidden">
         <!-- Main Navigation (Mobile Bottom / Desktop Sidebar) -->
         <nav id="main-nav" class="glass-panel">
-            <div class="nav-logo desktop-only">
+            <div class="nav-logo desktop-only" onclick="window.App.navigate('home')" style="cursor: pointer;">
                 <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" alt="Vibehub">
                 <span>Vibehub</span>
+                <span class="header-admin-badge admin-only hidden" onclick="event.stopPropagation(); window.App.navigate('admin')" title="Admin Access" style="font-size: 1.1rem; margin-left: 5px;">👮</span>
             </div>
             <div class="nav-links">
                 <button class="nav-link active mobile-bottom-nav" data-view="home" title="Home">
@@ -194,6 +195,9 @@
                 <button class="nav-link" data-view="settings" title="Settings">
                     <span class="icon">⚙️</span><span class="label">Settings</span>
                 </button>
+                <button class="nav-link admin-only hidden" data-view="admin" title="Admin Portal">
+                    <span class="icon">🔐</span><span class="label">Portal</span>
+                </button>
                 <button class="nav-link" data-view="guidelines" title="Guidelines">
                     <span class="icon">📋</span><span class="label">Guidelines</span>
                 </button>
@@ -210,8 +214,9 @@
         <!-- Mobile Navigation Drawer -->
         <div id="mobile-drawer" class="mobile-drawer" onclick="event.stopPropagation()">
             <div class="drawer-header">
-                <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" alt="Vibehub" class="drawer-logo">
-                <span class="drawer-title">Vibehub</span>
+                <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" alt="Vibehub" class="drawer-logo" onclick="window.App.navigate('home')">
+                <span class="drawer-title" onclick="window.App.navigate('home')">Vibehub</span>
+                <span class="header-admin-badge admin-only hidden" onclick="event.stopPropagation(); window.App.navigate('admin')" title="Admin Access" style="font-size: 1.1rem; margin-left: 5px;">👮</span>
                 <button class="drawer-close" onclick="window.App.closeMobileMenu()">✕</button>
             </div>
             <div class="drawer-links">
@@ -243,6 +248,9 @@
                 <button class="drawer-link" data-view="settings" onclick="window.App.navigate('settings'); window.App.closeMobileMenu();">
                     <span class="icon">⚙️</span><span>Settings</span>
                 </button>
+                <button class="drawer-link admin-only hidden" data-view="admin" onclick="window.App.navigate('admin'); window.App.closeMobileMenu();">
+                    <span class="icon">🔐</span><span>Admin Portal</span>
+                </button>
                 <button class="drawer-link" data-view="guidelines" onclick="window.App.navigate('guidelines'); window.App.closeMobileMenu();">
                     <span class="icon">📋</span><span>Guidelines</span>
                 </button>
@@ -270,9 +278,10 @@
                 <div id="header-particles"></div>
                 
 
-                <div class="brand-center" onclick="window.App.navigate('home')">
-                    <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" alt="Vibehub" class="header-logo">
-                    <span class="brand-text">Vibehub</span>
+                <div class="brand-center">
+                    <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" alt="Vibehub" class="header-logo" onclick="window.App.navigate('home')">
+                    <span class="brand-text" onclick="window.App.navigate('home')">Vibehub</span>
+                    <button class="header-admin-badge admin-only hidden" onclick="window.App.navigate('admin')" title="Admin Access">👮</button>
                     <div class="brand-glow"></div>
                 </div>
                 <div class="mobile-spacer mobile-only"></div>
@@ -313,11 +322,37 @@
     <!-- Supabase Client Setup -->
     <script>
     (function() {
+      // 1. Load Supabase JS CDN
       var s = document.createElement('script');
       s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-      s.onload = function() { window.supabaseReady = true; console.log('Supabase loaded'); };
-      s.onerror = function() { console.log('Supabase failed to load'); };
+      s.onload = function() {
+        window.supabaseReady = true;
+        console.log('Supabase JS loaded');
+        initSupabaseClient();
+      };
+      s.onerror = function() { console.error('Supabase JS failed to load'); };
       document.head.appendChild(s);
+
+      // 2. Supabase Project Credentials
+      var SUPABASE_URL = 'https://osfqlabtuqpynqcdmwff.supabase.co';
+      var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zZnFsYWJ0dXFweW5xY2Rtd2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5ODQ3OTEsImV4cCI6MjA4NzU2MDc5MX0.LXZ-lbLiarXHSSlu8NXi0c_uvIVFxh8mw6amXGJAwtA';
+
+      // 3. Create the client once the CDN is ready
+      function initSupabaseClient() {
+        if (window.supabase && !window.supabaseClient) {
+          window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          console.log('✅ Supabase client initialized:', window.supabaseClient ? 'OK' : 'FAIL');
+        }
+      }
+
+      // 4. Fallback: retry in case the onload races
+      var retryCount = 0;
+      var retryInterval = setInterval(function() {
+        retryCount++;
+        if (window.supabaseClient) { clearInterval(retryInterval); return; }
+        if (window.supabase) { initSupabaseClient(); clearInterval(retryInterval); return; }
+        if (retryCount > 50) { clearInterval(retryInterval); console.error('Supabase init timed out'); }
+      }, 100);
     })();
     </script>
 

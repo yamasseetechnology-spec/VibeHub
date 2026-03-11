@@ -286,13 +286,6 @@
                 <div class="mobile-spacer mobile-only"></div>
 
                 <div class="top-actions">
-                    <button id="create-post-btn" class="nav-link brain-post-btn" onclick="window.App.showCreatePostModal()" title="Vibe Out">
-                        <span class="brain-icon">🧠</span>
-                        <div class="vibe-out-text">
-                            <span class="vibe-text">Vibe</span>
-                            <span class="out-text">Out</span>
-                        </div>
-                    </button>
                     <!-- Notification icon for mobile header -->
                     <button class="nav-link mobile-only" data-view="notifications" onclick="window.App.navigate('notifications')" style="padding: 10px; min-width: auto; border: none; background: none;">
                         <span class="icon">🔔</span>
@@ -305,6 +298,15 @@
                 <!-- Views will be injected here -->
             </div>
         </main>
+
+        <!-- Floating Vibe Out Button (Desktop) -->
+        <button id="create-post-btn" class="nav-link brain-post-btn desktop-only" onclick="window.App.showCreatePostModal()" title="Vibe Out">
+            <span class="brain-icon">🧠</span>
+            <div class="vibe-out-text">
+                <span class="vibe-text">Vibe</span>
+                <span class="out-text">Out</span>
+            </div>
+        </button>
 
         <!-- Admin Entry (Hidden/Small in Footer area) -->
         <footer id="app-footer">
