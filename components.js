@@ -455,7 +455,9 @@ export const Views = {
                         </div>
                         <div class="profile-actions-bar" style="display:flex; gap:12px; margin-top:20px; justify-content:center; width:100%;">
                             ${isOwnProfile ? 
-                                `<button class="btn-secondary" onclick="window.App.showEditProfileModal()" style="min-width:140px;">Edit Profile</button>` : 
+                                `<button class="btn-primary edit-profile-btn" onclick="window.App.showEditProfileModal()" style="padding: 8px 24px; font-size: 0.9rem; border-radius: 30px; background: linear-gradient(135deg, var(--primary-orange), var(--primary-purple)); border: none; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(255,159,0,0.3); transition: transform 0.2s ease, box-shadow 0.2s ease;" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 6px 20px rgba(255,159,0,0.5)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 4px 15px rgba(255,159,0,0.3)'">
+                                    <span style="font-size:1.1rem">⚙️</span> Edit Profile
+                                </button>` : 
                                 `
                                     ${friendButtonHTML}
                                     <button class="btn-primary" onclick="window.App.boostVibe('${user.id}')" style="background:linear-gradient(135deg, var(--primary-purple), var(--accent-magenta)); border:none; min-width:140px;">

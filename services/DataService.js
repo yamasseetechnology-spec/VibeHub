@@ -101,9 +101,9 @@ export class DataService {
                 }
             }
             const postData = {
+                id: crypto.randomUUID(),
                 user_id: postObj.userId,
                 username: postObj.username || postObj.handle,
-                user_avatar: postObj.avatar,
                 text: postObj.content || postObj.text,
                 media_url: mediaUrl,
                 media_type: mediaType,
@@ -111,10 +111,11 @@ export class DataService {
                 likes: [],
                 dislikes: [],
                 reactions: { cap: [], relate: [], wild: [], facts: [] },
+                comments: [],
                 created_at: new Date().toISOString(),
                 expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
             };
-            const insertResult = await window.supabaseClient.from('posts').insert([{ ...postData, comment_count: 0 }]).select();
+            const insertResult = await window.supabaseClient.from('posts').insert([postData]).select();
             if (insertResult.error) throw insertResult.error;
             await this.cache.clearPostsCache();
             return insertResult.data ? insertResult.data[0] : postObj;

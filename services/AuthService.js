@@ -127,12 +127,14 @@ export class AuthService {
             }
 
             // Sync with local state
+            const finalAvatarUrl = userData?.avatar_url || supabaseUser.user_metadata?.avatar_url || `https://i.pravatar.cc/150?u=${supabaseUser.id}`;
             const finalUser = {
                 id: userData?.id || supabaseUser.id,
                 username: userData?.username || supabaseUser.user_metadata?.username || email.split('@')[0],
                 displayName: userData?.name || supabaseUser.user_metadata?.full_name || email.split('@')[0],
                 email: email,
-                profilePhoto: userData?.avatar_url || supabaseUser.user_metadata?.avatar_url || `https://i.pravatar.cc/150?u=${supabaseUser.id}`,
+                avatar: finalAvatarUrl,
+                profilePhoto: finalAvatarUrl,
                 bannerImage: userData?.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
                 bio: userData?.bio || 'New to VibeHub!',
                 followersCount: userData?.followers?.length || 0,
@@ -267,12 +269,14 @@ export class AuthService {
                 } catch(e) { console.warn('Admin user fetch from DB skipped', e); }
             }
 
+            const finalAdminAvatar = supabaseUser?.avatar_url || 'https://i.ibb.co/6P01wJvq/vibehubadmin.jpg';
             const user = {
                 id: supabaseUser?.id || `admin_${Date.now()}`,
                 username: supabaseUser?.username || 'KingKool23',
                 displayName: supabaseUser?.name || 'King Kool',
                 email: email,
-                profilePhoto: supabaseUser?.avatar_url || 'https://i.pravatar.cc/150?u=admin',
+                avatar: finalAdminAvatar,
+                profilePhoto: finalAdminAvatar,
                 bannerImage: supabaseUser?.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
                 bio: supabaseUser?.bio || 'Platform Administrator',
                 badgeList: ['Admin'],

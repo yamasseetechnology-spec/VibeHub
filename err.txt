@@ -1,0 +1,1 @@
+null value in column "id" of relation "posts" violates not-null constraint

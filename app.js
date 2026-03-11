@@ -18,6 +18,7 @@ const State = {
     viewData: {},
     liveStream: null
 };
+window.State = State;
 
 // --- CORE APP CLASS ---
 class VibeApp {
@@ -178,6 +179,11 @@ class VibeApp {
 
             this.enableRealTimeSubscriptions();
             this.initializeLiveSub();
+            
+            // Clear any stale/empty posts cache from the disconnected state
+            if (this.services.data && this.services.data.cache) {
+                this.services.data.cache.clearPostsCache();
+            }
             
             window.history.replaceState({ view: 'home' }, '', '#home');
             this.navigate('home', true);
