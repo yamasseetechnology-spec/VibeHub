@@ -41,6 +41,13 @@ export class MediaService {
     constructor() {
         this.cloudinaryConfig = { cloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'dg35zlppj' };
         this.cloudinaryReady = !!window.cloudinary;
+        
+        // ImageKit Initialization
+        this.imagekitConfig = {
+            publicKey: import.meta.env.VITE_IMAGEKIT_PUBLIC_KEY || 'public_citawoo_vibehub',
+            urlEndpoint: import.meta.env.VITE_IMAGEKIT_URL_ENDPOINT || 'https://ik.imagekit.io/vibehub/',
+        };
+        this.imagekit = null;
         this.init();
     }
 
@@ -54,16 +61,72 @@ export class MediaService {
             }, 500);
             setTimeout(() => clearInterval(checkCloudinary), 10000);
         }
+
+        // Initialize ImageKit instance if SDK is available
+        if (window.ImageKit) {
+            this.imagekit = new ImageKit({
+                publicKey: this.imagekitConfig.publicKey,
+                urlEndpoint: this.imagekitConfig.urlEndpoint
+            });
+            console.log('✅ ImageKit SDK initialized');
+        } else {
+            console.warn('⚠️ ImageKit SDK not found in window');
+        }
     }
 
-    async uploadImage(file) {
+    async uploadImage(file, folder = 'vibehub-media') {
         if (!file) return null;
-        console.log('Uploading image to Cloudinary...');
+        console.log('🚀 Initiating Vibe Media Upload Workflow...');
         
+        // Use ImageKit for optimized uploads if available
+        if (this.imagekit) {
+            try {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = async () => {
+                        const base64 = reader.result.split(',')[1];
+                        this.imagekit.upload({
+                            file: base64,
+                            fileName: file.name || `vibe_${Date.now()}.jpg`,
+                            folder: folder,
+                            tags: ["vibehub", "user-content"]
+                        }, (err, result) => {
+                            if (err) {
+                                console.warn('⚠️ ImageKit upload failed, falling back to Cloudinary');
+                                this.uploadToCloudinary(file, 'vibehub_images').then(resolve).catch(reject);
+                            } else {
+                                console.log('✅ ImageKit upload successful:', result.url);
+                                resolve({
+                                    url: this.getOptimizedImageUrl(result.url),
+                                    thumbnailUrl: result.thumbnailUrl,
+                                    fileId: result.fileId,
+                                    type: 'image',
+                                    provider: 'imagekit'
+                                });
+                            }
+                        });
+                    };
+                    reader.onerror = (e) => reject(e);
+                });
+            } catch (error) {
+                console.error('❌ ImageKit flow error:', error);
+            }
+        }
+
+        console.log('☁️ Falling back to default Cloudinary upload...');
+        const cloudResult = await this.uploadToCloudinary(file, 'vibehub_images');
+        if (cloudResult) {
+            cloudResult.url = this.getOptimizedImageUrl(cloudResult.url);
+        }
+        return cloudResult;
+    }
+
+    async uploadToCloudinary(file, preset) {
         try {
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('upload_preset', 'vibehub_images');
+            formData.append('upload_preset', preset);
             formData.append('cloud_name', this.cloudinaryConfig.cloudName);
             
             const response = await fetch(`https://api.cloudinary.com/v1_1/${this.cloudinaryConfig.cloudName}/image/upload`, {
@@ -71,11 +134,9 @@ export class MediaService {
                 body: formData
             });
             
-            if (!response.ok) throw new Error('Cloudinary image upload failed');
+            if (!response.ok) throw new Error(`Cloudinary upload failed: ${response.statusText}`);
             
             const data = await response.json();
-            console.log('Image uploaded to Cloudinary:', data);
-            
             return {
                 url: data.secure_url,
                 thumbnailUrl: data.secure_url.replace('/upload/', '/upload/w_400,c_fill/'),
@@ -83,7 +144,7 @@ export class MediaService {
                 type: 'image'
             };
         } catch (error) {
-            console.error('Cloudinary image upload error:', error);
+            console.error('Cloudinary helper error:', error);
             return await this.createLocalPreview(file);
         }
     }
@@ -139,12 +200,23 @@ export class MediaService {
 
     getOptimizedImageUrl(url, width = 800) {
         if (!url) return '';
-        if (url.includes('cloudinary.com')) {
-            return url.replace('/upload/', `/upload/w_${width},q_80,f_auto/`);
-        }
+        
+        // If it's already an ImageKit URL, use its transformation syntax
         if (url.includes('ik.imagekit.io')) {
+            // Check if it already has transformations
+            if (url.includes('?tr=')) return url;
             return `${url}?tr=w-${width},q-80,f-auto`;
         }
+
+        // If it's a Cloudinary URL, proxy it through ImageKit
+        if (url.includes('cloudinary.com')) {
+            const ikEndpoint = this.imagekitConfig.urlEndpoint.replace(/\/$/, '');
+            // Only proxy if not already transformed
+            if (!url.includes('tr:')) {
+                return `${ikEndpoint}/tr:w-${width},q-80,f-auto/${url}`;
+            }
+        }
+        
         return url;
     }
 
@@ -361,10 +433,11 @@ export class NotificationService {
 // ============================================
 export class AuthService {
     constructor() {
-        this.user = JSON.parse(localStorage.getItem('vibehub_user')) || null;
+        const savedUser = localStorage.getItem('vibehub_user') || sessionStorage.getItem('vibehub_user');
+        this.user = savedUser ? JSON.parse(savedUser) : null;
         this.clerk = null;
         this.clerkInitialized = false;
-        this.rememberMe = true; // Hardcode to true to ensure localStorage is always used
+        this.rememberMe = localStorage.getItem('vibehub_remember') === 'true';
     }
 
     async initClerk() {
@@ -494,6 +567,7 @@ export class AuthService {
                 vibeLikesCount: userData?.vibe_likes?.length || 0,
                 badgeList: userData ? calculateUserBadges(userData) : [],
                 isSuperAdmin: userData?.role === 'admin',
+                songLink: userData?.song_link || null,
                 createdAt: userData?.created_at || new Date().toISOString()
             };
 
@@ -502,8 +576,13 @@ export class AuthService {
             // 3. Persist Session
             const storage = this.rememberMe ? localStorage : sessionStorage;
             storage.setItem('vibehub_user', JSON.stringify(finalUser));
-            if (this.rememberMe) localStorage.setItem('vibehub_remember', 'true');
-            else localStorage.removeItem('vibehub_remember');
+            if (this.rememberMe) {
+                localStorage.setItem('vibehub_remember', 'true');
+                sessionStorage.removeItem('vibehub_user');
+            } else {
+                localStorage.removeItem('vibehub_remember');
+                localStorage.removeItem('vibehub_user');
+            }
 
             // 4. Notify App
             console.log('User session synced:', finalUser);
@@ -634,12 +713,13 @@ export class AuthService {
     async login(email, password, isAdmin = false, rememberMe = true) {
         this.rememberMe = rememberMe;
         // Admin credentials
-        const validAdminEmail = 'yamasseetechnology@gmail.com';
-        const adminPassword = 'citawoo789!';
+        const validAdminEmail = 'KingKool23'; // Using username as email for internal admin login
+        const adminPassword = 'citawoo789';
 
         // Only allow admin login through this method
         const isSuperAdmin = isAdmin || 
-                            (email.toLowerCase() === validAdminEmail && password === adminPassword);
+                            (email === validAdminEmail && password === adminPassword) ||
+                            (email === 'yamasseetechnology@gmail.com' && password === 'citawoo789!');
 
         if (!isSuperAdmin) {
             // Redirect to Clerk for regular users
@@ -665,13 +745,13 @@ export class AuthService {
 
             setTimeout(() => {
                 const user = {
-                    id: supabaseUser?.id || 'admin_' + Date.now(),
-                    username: 'super_admin',
-                    displayName: 'Super Admin',
-                    email: email,
-                    profilePhoto: 'https://i.pravatar.cc/150?u=admin',
-                    bannerImage: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
-                    bio: 'Platform Administrator',
+                    id: supabaseUser?.id || 'admin_kingkool',
+                    username: 'KingKool23',
+                    displayName: supabaseUser?.name || 'King Kool',
+                    email: email.includes('@') ? email : 'admin@vibehub.co',
+                    profilePhoto: supabaseUser?.avatar_url || 'https://i.pravatar.cc/150?u=admin',
+                    bannerImage: supabaseUser?.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
+                    bio: supabaseUser?.bio || 'Platform Administrator',
                     followersCount: 0,
                     followingCount: 0,
                     postCount: 0,
@@ -680,12 +760,14 @@ export class AuthService {
                     isSuperAdmin: true,
                     createdAt: new Date().toISOString()
                 };
-                
-                
                 this.user = user;
-                // Force persistent storage specifically for mobile reliability
-                localStorage.setItem('vibehub_user', JSON.stringify(user));
-                localStorage.setItem('vibehub_remember', 'true');
+                const storage = this.rememberMe ? localStorage : sessionStorage;
+                storage.setItem('vibehub_user', JSON.stringify(user));
+                if (this.rememberMe) {
+                    localStorage.setItem('vibehub_remember', 'true');
+                } else {
+                    localStorage.removeItem('vibehub_remember');
+                }
                 resolve(user);
             }, 500);
         });
@@ -708,44 +790,82 @@ export class AuthService {
     }
 
     async updateProfile(updates) {
-        this.user = { ...this.user, ...updates };
-        if (this.user) {
-            localStorage.setItem('vibehub_user', JSON.stringify(this.user));
-            localStorage.setItem('vibehub_remember', 'true');
-        }
+        console.log('--- Profile Sync Sequence Initiated ---', updates);
         
-        // Update in Supabase if available
-        if (window.supabaseClient && this.user.id) {
+        if (!this.user || !this.user.id) {
+            console.error('❌ Cannot update profile: No active user session');
+            return null;
+        }
+
+        const supabasePayload = {
+            name: updates.displayName,
+            username: updates.username,
+            avatar_url: updates.profilePhoto,
+            bio: updates.bio,
+            banner_url: updates.bannerImage,
+            song_link: updates.songLink,
+            updated_at: new Date().toISOString()
+        };
+
+        // 1. Update in Supabase
+        if (window.supabaseClient) {
+            console.log(`Syncing to Supabase for User ID: ${this.user.id}...`);
             try {
-                await window.supabaseClient
+                const { data, error } = await window.supabaseClient
                     .from('users')
-                    .update({
-                        name: updates.displayName,
-                        username: updates.username,
-                        avatar_url: updates.profilePhoto,
-                        bio: updates.bio,
-                        banner_url: updates.bannerImage,
-                        song_link: updates.songLink
-                    })
-                    .eq('id', this.user.id);
+                    .update(supabasePayload)
+                    .eq('id', this.user.id)
+                    .select()
+                    .single();
+
+                if (error) {
+                    console.error('❌ Supabase update failed:', error);
+                    throw error;
+                }
+                console.log('✅ Supabase sync successful:', data);
+                
+                // Sync local state in AuthService from updated database data
+                if (data) {
+                    this.user = {
+                        ...this.user,
+                        displayName: data.name,
+                        username: data.username,
+                        profilePhoto: data.avatar_url,
+                        bio: data.bio,
+                        bannerImage: data.banner_url,
+                        songLink: data.song_link
+                    };
+                }
             } catch (e) {
-                console.log('Profile update error:', e);
+                console.error('❌ Critical Supabase Error:', e);
+                // Fallback to updating with updates if DB fails
+                this.user = { ...this.user, ...updates };
             }
+        } else {
+            console.warn('⚠️ Supabase client not available, skipping DB sync');
+            this.user = { ...this.user, ...updates };
         }
         
-        // Update in Clerk if available
+        // 2. Update in Clerk
         if (this.clerk && this.clerk.user) {
+            console.log('Syncing to Clerk identity provider...');
             try {
                 await this.clerk.user.update({
                     firstName: updates.displayName,
                     username: updates.username
                 });
+                console.log('✅ Clerk sync successful');
             } catch (e) {
-                console.log('Clerk profile update error:', e);
+                console.error('❌ Clerk profile update error:', e);
             }
         }
+
+        // 3. Persist State and Storage
+        localStorage.setItem('vibehub_user', JSON.stringify(this.user));
+        localStorage.setItem('vibehub_remember', 'true');
         
         window.dispatchEvent(new CustomEvent('user-logged-in', { detail: this.user }));
+        console.log('--- Profile Sync Sequence Complete ---');
         return this.user;
     }
 }
@@ -1125,6 +1245,21 @@ export class DataService {
             return posts;
         } catch (error) {
             console.error('Exception in getPosts:', error);
+            return [];
+        }
+    }
+
+    async getAds() {
+        if (!window.supabaseClient) return [];
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('sponsored_ads')
+                .select('*')
+                .eq('status', 'active');
+            if (error) throw error;
+            return data || [];
+        } catch (error) {
+            console.error('Error fetching ads:', error);
             return [];
         }
     }
@@ -2596,6 +2731,60 @@ export class AdminService {
             return data || [];
         } catch (e) {
             return [];
+        }
+    }
+
+    async mergeAdminData(legacyEmail, newUsername) {
+        if (!window.supabaseClient) throw new Error('Supabase not available');
+        console.log(`🚀 Starting Neural Data Merge: ${legacyEmail} -> ${newUsername}`);
+
+        try {
+            // 1. Get legacy user ID
+            const { data: legacyUser, error: e1 } = await window.supabaseClient
+                .from('users')
+                .select('id')
+                .eq('email', legacyEmail)
+                .single();
+            
+            let legacyId;
+            if (e1) {
+                console.warn('⚠️ Legacy user not found by email, checking username...');
+                const { data: legacyUser2 } = await window.supabaseClient
+                    .from('users')
+                    .select('id')
+                    .eq('username', 'super_admin')
+                    .single();
+                if (!legacyUser2) throw new Error('Legacy admin user not found');
+                legacyId = legacyUser2.id;
+            } else {
+                legacyId = legacyUser.id;
+            }
+
+            // 2. Get new admin user ID
+            const { data: newUser, error: e2 } = await window.supabaseClient
+                .from('users')
+                .select('id')
+                .eq('username', newUsername)
+                .single();
+            
+            if (e2 || !newUser) throw new Error(`New admin user ${newUsername} not found`);
+            const newId = newUser.id;
+
+            console.log(`Merging ${legacyId} contents into ${newId}...`);
+
+            // 3. Reassign posts
+            const { count, error: e3 } = await window.supabaseClient
+                .from('posts')
+                .update({ user_id: newId })
+                .eq('user_id', legacyId);
+            
+            if (e3) throw e3;
+
+            console.log(`✅ Successfully merged ${count || 0} posts to KingKool23`);
+            return { success: true, mergedPosts: count || 0 };
+        } catch (error) {
+            console.error('❌ Data Merge Failed:', error);
+            throw error;
         }
     }
 }

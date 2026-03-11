@@ -95,25 +95,44 @@ export const Components = {
     userProfile(user, postsHtml) {
         return `
             <div class="profile-view animate-fade">
-                <div class="profile-banner" style="position:relative; height:160px; border-radius: var(--radius-lg); overflow:hidden; margin-bottom:-40px;">
-                    <img src="${user.banner}" style="width:100%; height:100%; object-fit:cover; opacity:0.7;">
+                <div class="profile-banner" style="position:relative; height:180px; border-radius: var(--radius-lg); overflow:hidden; margin-bottom:-50px; background: var(--bg-glass);">
+                    <img src="${user.banner || user.bannerImage || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200'}" style="width:100%; height:100%; object-fit:cover; opacity:0.8;">
+                    <div style="position:absolute; bottom:0; left:0; right:0; height:60%; background:linear-gradient(to top, var(--bg-deep), transparent);"></div>
                 </div>
-                <div class="profile-header glass-panel" style="text-align:center; padding:50px 20px 25px; position:relative; border-radius: var(--radius-lg);">
-                    <img src="${user.avatar}" style="width:90px; height:90px; border-radius:50%; border:3px solid var(--primary-purple); object-fit:cover; position:absolute; top:-45px; left:50%; transform:translateX(-50%); background:var(--bg-deep);">
-                    <h2 style="margin-top:10px; font-size:1.4rem;">${user.displayName}</h2>
-                    <span class="handle" style="color:var(--text-dim);">@${user.username}</span>
-                    <p style="margin-top:10px; color:var(--text-dim); font-size:0.9rem; max-width:400px; margin-left:auto; margin-right:auto;">${user.bio}</p>
-                    <div class="profile-stats" style="display:flex; justify-content:center; gap:30px; margin-top:20px;">
-                        <div style="text-align:center;"><span style="font-weight:800; font-size:1.1rem; color:var(--text-main);">${(user.followersCount || 0).toLocaleString()}</span><br><span style="font-size:0.75rem; color:var(--text-dim);">Followers</span></div>
-                        <div style="text-align:center;"><span style="font-weight:800; font-size:1.1rem; color:var(--text-main);">${(user.followingCount || 0).toLocaleString()}</span><br><span style="font-size:0.75rem; color:var(--text-dim);">Following</span></div>
-                        <div style="text-align:center;"><span style="font-weight:800; font-size:1.1rem; color:var(--text-main);">${(user.postCount || 0).toLocaleString()}</span><br><span style="font-size:0.75rem; color:var(--text-dim);">Posts</span></div>
+                <div class="profile-header glass-panel" style="text-align:center; padding:60px 20px 25px; position:relative; border-radius: var(--radius-lg); border-top: 1px solid rgba(255,255,255,0.1);">
+                    <div style="position:absolute; top:-45px; left:50%; transform:translateX(-50%);">
+                        <img src="${user.avatar || user.profilePhoto || 'https://i.pravatar.cc/150'}" style="width:100px; height:100px; border-radius:50%; border:3px solid var(--primary-purple); object-fit:cover; background:var(--bg-deep); box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);">
                     </div>
-                    <div style="display:flex; gap:10px; margin-top:20px; justify-content:center;">
-                        <button class="btn-primary" onclick="window.App.handleFollow('${user.id}')">Follow</button>
-                        <button class="btn-secondary" onclick="window.App.navigate('messages')">Message</button>
+                    
+                    <h2 style="margin-top:10px; font-size:1.6rem; font-family:var(--font-display);">${user.displayName}</h2>
+                    <span class="handle" style="color:var(--accent-cyan); font-weight:600; font-size:0.9rem;">@${user.username}</span>
+                    
+                    <p style="margin-top:15px; color:var(--text-dim); font-size:0.95rem; max-width:450px; margin-left:auto; margin-right:auto; line-height:1.5;">${user.bio || 'New to VibeHub!'}</p>
+                    
+                    ${user.songLink ? `
+                    <div class="vibe-track-pill" style="margin-top:20px; display:inline-flex; align-items:center; gap:10px; background:rgba(255,255,255,0.05); padding:8px 20px; border-radius:40px; border:1px solid var(--border-light); cursor:pointer;" onclick="window.open('${user.songLink}', '_blank')">
+                        <span style="font-size:1.2rem;">🎵</span>
+                        <span style="font-size:0.85rem; font-weight:bold; letter-spacing:0.5px; color:var(--text-main);">VIBE TRACK</span>
+                    </div>
+                    ` : ''}
+
+                    <div class="profile-stats" style="display:flex; justify-content:center; gap:40px; margin-top:25px;">
+                        <div style="text-align:center;"><span style="font-weight:800; font-size:1.2rem; color:var(--text-main);">${(user.followersCount || 0).toLocaleString()}</span><br><span style="font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px;">Followers</span></div>
+                        <div style="text-align:center;"><span style="font-weight:800; font-size:1.2rem; color:var(--text-main);">${(user.followingCount || 0).toLocaleString()}</span><br><span style="font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px;">Following</span></div>
+                        <div style="text-align:center;"><span style="font-weight:800; font-size:1.2rem; color:var(--text-main);">${(user.postCount || 0).toLocaleString()}</span><br><span style="font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:1px;">Posts</span></div>
+                    </div>
+                    
+                    <div style="display:flex; gap:12px; margin-top:25px; justify-content:center;">
+                        <button class="btn-primary" onclick="window.App.handleFollow('${user.id}')" style="min-width:120px;">Link Up</button>
+                        <button class="btn-secondary" onclick="window.App.navigate('messages')" style="min-width:120px;">Signal</button>
                     </div>
                 </div>
-                <h3 style="margin: 25px 0 15px; font-size:1rem; color:var(--text-dim); letter-spacing:1px; text-transform:uppercase;">Posts</h3>
+                
+                <div style="display:flex; justify-content:space-between; align-items:center; margin: 35px 0 15px;">
+                    <h3 style="font-size:0.85rem; color:var(--text-dim); letter-spacing:2px; text-transform:uppercase; font-weight:800;">Neural Feed</h3>
+                    <div style="height:1px; flex:1; background:linear-gradient(to right, rgba(255,255,255,0.1), transparent); margin-left:20px;"></div>
+                </div>
+                
                 <div id="post-feed">
                     ${postsHtml}
                 </div>

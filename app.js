@@ -113,6 +113,7 @@ class VibeApp {
             if (persistedUser) {
                 console.log("Persisted session found, skipping login screen.");
                 State.user = persistedUser;
+                this.updateAdminAccess();
                 
                 // Hide loading
                 const loading = document.getElementById('loading-screen');
@@ -154,6 +155,7 @@ class VibeApp {
         window.addEventListener('user-logged-in', (e) => {
             console.log('User logged in:', e.detail);
             State.user = e.detail;
+            this.updateAdminAccess();
             
             // Hide login screen
             const login = document.getElementById('login-screen');
@@ -619,6 +621,18 @@ class VibeApp {
 
         // Mobile Keyboard Adjustment
         this.setupKeyboardHandler();
+    }
+
+    updateAdminAccess() {
+        const isAdmin = State.user && (State.user.isSuperAdmin || State.user.username === 'KingKool23');
+        console.log('👑 Admin access status:', isAdmin);
+        document.querySelectorAll('.admin-only').forEach(el => {
+            if (isAdmin) {
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+            }
+        });
     }
 
     // --- Mobile Keyboard Adjustment System ---
@@ -1431,27 +1445,43 @@ class VibeApp {
             return;
         }
 
-        const modal = document.getElementById('stream-setup-modal');
-        if (modal) modal.remove();
+        const modalId = 'stream-setup-modal';
+        const existing = document.getElementById(modalId);
+        if (existing) existing.remove();
 
-        const newModal = document.createElement('div');
-        newModal.className = 'modal-overlay animate-fade';
-        newModal.id = 'stream-setup-modal';
-        newModal.innerHTML = `
-            <div class="modal-content glass-panel" style="max-width:400px; margin:auto; padding:30px;">
-                <h2 style="margin-bottom:15px; font-family:var(--font-display);">Go Live</h2>
-                <p class="text-dim" style="margin-bottom:20px;">neural link ready. what's your vibe?</p>
-                <input type="text" id="stream-topic" class="login-input" placeholder="Topic: e.g. Just Vibing" style="width:100%; margin-bottom:25px;">
-                <div style="display:flex; gap:12px;">
-                    <button class="btn-secondary" onclick="document.getElementById('stream-setup-modal').remove()" style="flex:1;">Cancel</button>
-                    <button class="btn-primary" onclick="window.App.goLive(document.getElementById('stream-topic').value)" style="flex:1;">Go Live✨</button>
+        const modal = document.createElement('div');
+        modal.className = 'profile-modal animate-fade';
+        modal.id = modalId;
+        
+        modal.innerHTML = `
+            <div class="profile-modal-content">
+                <span class="profile-close-btn" onclick="document.getElementById('${modalId}').remove()">&times;</span>
+                
+                <div class="edit-banner-area" style="height: 100px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--primary-purple), var(--primary-orange));">
+                    <h2 style="font-family:var(--font-display); text-shadow: 0 2px 10px rgba(0,0,0,0.3);">Go Live✨</h2>
+                </div>
+
+                <div class="edit-profile-body" style="margin-top: 0; padding-top: 25px;">
+                    <div class="edit-fields">
+                        <p class="text-dim" style="font-size: 0.9rem; text-align: center; margin-bottom: 10px;">Neural link ready. What's your vibe?</p>
+                        
+                        <div class="edit-field">
+                            <label class="edit-label">Stream Topic</label>
+                            <input type="text" id="stream-topic" class="edit-input" placeholder="e.g. Late Night Vibes" autofocus>
+                        </div>
+                    </div>
+
+                    <div class="edit-actions" style="margin-top: 30px;">
+                        <button class="btn-secondary edit-cancel-btn" onclick="document.getElementById('${modalId}').remove()">Cancel</button>
+                        <button class="btn-primary edit-save-btn" onclick="window.App.goLive(document.getElementById('stream-topic').value)">Go Live ✨</button>
+                    </div>
                 </div>
             </div>
         `;
-        document.body.appendChild(newModal);
+        document.body.appendChild(modal);
         
-        newModal.onclick = (e) => {
-            if (e.target === newModal) newModal.remove();
+        modal.onclick = (e) => {
+            if (e.target === modal) modal.remove();
         };
     }
 
@@ -2554,41 +2584,41 @@ class VibeApp {
             <div class="profile-modal-content">
                 <span class="profile-close-btn" onclick="document.getElementById('edit-profile-modal').remove()">&times;</span>
                 <!-- Banner Preview Area -->
-                <div class="edit-banner-preview" style="height:120px; position:relative; background:var(--bg-deep); overflow:hidden;">
-                    <img id="preview-banner" src="${user.bannerImage || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200'}" style="width:100%; height:100%; object-fit:cover; opacity:0.6; pointer-events:none;">
-                    <div style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; z-index:5;">
-                        <button type="button" class="btn-secondary" style="padding:8px 16px; font-size:0.8rem; cursor:pointer; pointer-events:all; position:relative; z-index:6;" onclick="document.getElementById('banner-upload-input').click()">
+                <div class="edit-banner-area">
+                    <img id="preview-banner" src="${user.bannerImage || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200'}" class="edit-banner-img">
+                    <div class="edit-banner-overlay">
+                        <button type="button" class="edit-upload-btn" onclick="document.getElementById('banner-upload-input').click()">
                             📸 Change Banner
                         </button>
-                        <input type="file" id="banner-upload-input" accept="image/*" onchange="window.App.handleProfileUpload(this, 'banner')" style="display:none;">
+                        <input type="file" id="banner-upload-input" accept="image/*" capture="environment" onchange="window.App.handleProfileUpload(this, 'banner')" style="display:none;">
                     </div>
                 </div>
-                <div style="padding:20px;">
+                <div class="edit-profile-body">
                     <!-- Avatar Upload Area -->
-                    <div style="position:relative; width:80px; height:80px; margin-bottom:20px;">
-                        <img id="preview-avatar" src="${user.profilePhoto || 'https://i.pravatar.cc/150'}" style="width:80px; height:80px; border-radius:50%; border:3px solid var(--primary-purple); object-fit:cover; background:var(--bg-deep);">
-                        <button type="button" style="position:absolute; bottom:0; right:0; width:28px; height:28px; border-radius:50%; background:var(--primary-purple); border:none; display:flex; align-items:center; justify-content:center; font-size:0.8rem; box-shadow:0 0 10px rgba(0,0,0,0.5); color:white; cursor:pointer; z-index:5;" onclick="document.getElementById('avatar-upload-input').click()">
+                    <div class="edit-avatar-area">
+                        <img id="preview-avatar" src="${user.profilePhoto || 'https://i.pravatar.cc/150'}" class="edit-avatar-img">
+                        <button type="button" class="edit-avatar-btn" onclick="document.getElementById('avatar-upload-input').click()">
                             📷
                         </button>
-                        <input type="file" id="avatar-upload-input" accept="image/*" onchange="window.App.handleProfileUpload(this, 'avatar')" style="display:none;">
+                        <input type="file" id="avatar-upload-input" accept="image/*" capture="environment" onchange="window.App.handleProfileUpload(this, 'avatar')" style="display:none;">
                     </div>
 
-                    <div style="display:flex; flex-direction:column; gap:15px;">
-                        <div class="input-group">
-                            <label style="color:var(--text-dim); font-size:0.75rem; display:block; margin-bottom:5px; text-transform:uppercase; letter-spacing:1px;">Display Name</label>
-                            <input type="text" id="edit-display-name" class="login-input" value="${user.displayName || ''}" style="width:100%; background:rgba(255,255,255,0.05);">
+                    <div class="edit-fields">
+                        <div class="edit-field">
+                            <label class="edit-label">Display Name</label>
+                            <input type="text" id="edit-display-name" class="edit-input" value="${user.displayName || ''}" placeholder="Your name">
                         </div>
-                        <div class="input-group">
-                            <label style="color:var(--text-dim); font-size:0.75rem; display:block; margin-bottom:5px; text-transform:uppercase; letter-spacing:1px;">Username</label>
-                            <input type="text" id="edit-username" class="login-input" value="${user.username || ''}" style="width:100%; background:rgba(255,255,255,0.05);">
+                        <div class="edit-field">
+                            <label class="edit-label">Username</label>
+                            <input type="text" id="edit-username" class="edit-input" value="${user.username || ''}" placeholder="username">
                         </div>
-                        <div class="input-group">
-                            <label style="color:var(--text-dim); font-size:0.75rem; display:block; margin-bottom:5px; text-transform:uppercase; letter-spacing:1px;">Neural Bio</label>
-                            <textarea id="edit-bio" class="login-input" rows="3" style="width:100%; resize:none; background:rgba(255,255,255,0.05);">${user.bio || ''}</textarea>
+                        <div class="edit-field">
+                            <label class="edit-label">Neural Bio</label>
+                            <textarea id="edit-bio" class="edit-input edit-textarea" rows="2" placeholder="Tell the network about your vibe...">${user.bio || ''}</textarea>
                         </div>
-                        <div class="input-group">
-                            <label style="color:var(--text-dim); font-size:0.75rem; display:block; margin-bottom:5px; text-transform:uppercase; letter-spacing:1px;">Vibe Track (Link)</label>
-                            <input type="text" id="edit-song" class="login-input" value="${user.songLink || ''}" placeholder="Spotify/Soundcloud URL" style="width:100%; background:rgba(255,255,255,0.05);">
+                        <div class="edit-field">
+                            <label class="edit-label">Vibe Track (Link)</label>
+                            <input type="text" id="edit-song" class="edit-input" value="${user.songLink || ''}" placeholder="Spotify / Soundcloud URL">
                         </div>
                     </div>
 
@@ -2596,9 +2626,9 @@ class VibeApp {
                     <input type="hidden" id="edit-avatar-url" value="${user.profilePhoto || ''}">
                     <input type="hidden" id="edit-banner-url" value="${user.bannerImage || ''}">
 
-                    <div style="display:flex; gap:10px; margin-top:30px;">
-                        <button class="btn-secondary" onclick="document.getElementById('edit-profile-modal').remove()" style="flex:1;">Cancel</button>
-                        <button class="btn-primary" id="save-profile-btn" onclick="window.App.saveProfile()" style="flex:1;">Sync Profile</button>
+                    <div class="edit-actions">
+                        <button class="btn-secondary edit-cancel-btn" onclick="document.getElementById('edit-profile-modal').remove()">Cancel</button>
+                        <button class="btn-primary edit-save-btn" id="save-profile-btn" onclick="window.App.saveProfile()">Sync Profile</button>
                     </div>
                 </div>
             </div>
@@ -2617,28 +2647,32 @@ class VibeApp {
 
         if (previewImg) {
             previewImg.style.opacity = '0.5';
-            previewImg.style.filter = 'grayscale(1)';
+            previewImg.style.filter = 'grayscale(1) blur(2px)';
         }
         if (saveBtn) {
             saveBtn.disabled = true;
-            saveBtn.innerText = 'Uploading...';
+            saveBtn.innerHTML = '<span class="spinner-mini"></span> Uploading...';
         }
 
         try {
-            this.showToast(`Uploading ${type}...`);
-            const result = await this.services.data.media.uploadImage(file);
-            const url = result?.url;
+            this.showToast(`Uploading ${type}...`, 'info');
+            // Folder mapping for ImageKit (avatar or banner)
+            const folder = type === 'avatar' ? 'profiles/avatars' : 'profiles/banners';
+            const result = await this.services.data.media.uploadImage(file, folder);
             
-            if (url) {
-                document.getElementById(hiddenInputId).value = url;
+            if (result && result.url) {
+                document.getElementById(hiddenInputId).value = result.url;
                 if (previewImg) {
-                    previewImg.src = url;
+                    previewImg.src = result.url;
                     previewImg.style.opacity = '1';
                     previewImg.style.filter = 'none';
                 }
-                this.showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} uploaded! ✨`);
+                this.showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} vibe captured! ✨`, 'success');
+            } else {
+                throw new Error('Upload returned no URL');
             }
         } catch (err) {
+            console.error(`${type} upload failed:`, err);
             this.showToast(`Upload failed: ${err.message}`, 'error');
             if (previewImg) {
                 previewImg.style.opacity = '1';
@@ -2677,32 +2711,39 @@ class VibeApp {
         const saveBtn = document.getElementById('save-profile-btn');
         if (saveBtn) {
             saveBtn.disabled = true;
-            saveBtn.innerText = 'Saving...';
+            saveBtn.innerHTML = '<span class="spinner-mini"></span> Syncing...';
         }
 
         try {
+            console.log('🚀 Initiating Cloud Sync...');
             // Update in AuthService (Supabase + Clerk)
-            await this.services.auth.updateProfile(updates);
+            const updatedUser = await this.services.auth.updateProfile(updates);
             
-            // Update local state
-            State.user = { ...State.user, ...updates };
-            
-            this.showToast('Profile synced with the cloud! ✨');
-            document.getElementById('edit-profile-modal')?.remove();
-            
-            // Refresh view if on profile
-            if (State.currentView === 'profile') {
-                this.renderView('profile');
+            if (updatedUser) {
+                // Update local global State to match synchronized service state
+                State.user = updatedUser;
+                
+                this.showToast('Global Profile Synced! ✨', 'success');
+                
+                // Close modal
+                document.getElementById('edit-profile-modal')?.remove();
+                
+                // Refresh view if on profile
+                if (State.currentView === 'profile') {
+                    this.renderView('profile', false);
+                }
+            } else {
+                throw new Error('Sync returned null user');
             }
         } catch (err) {
-            this.showToast('Failed to save profile: ' + err.message, 'error');
+            console.error('Profile sync error:', err);
+            this.showToast('Sync failed: ' + err.message, 'error');
         } finally {
             if (saveBtn) {
                 saveBtn.disabled = false;
                 saveBtn.innerText = 'Sync Profile';
             }
         }
-        this.navigate('profile');
     }
 
     generateBadges(user) {
@@ -3445,44 +3486,154 @@ class VibeApp {
 
     getAdminHTML(stats) {
         return `
-            <div class="view-header">
-                <h1 class="view-title">Admin Dashboard</h1>
-            </div>
-            <div class="tabs">
-                <button class="tab active" onclick="this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); this.classList.add('active'); document.getElementById('admin-stats').classList.remove('hidden'); document.getElementById('admin-manage').classList.add('hidden');">Dashboard</button>
-                <button class="tab" onclick="this.parentElement.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); this.classList.add('active'); document.getElementById('admin-stats').classList.add('hidden'); document.getElementById('admin-manage').classList.remove('hidden'); window.App.renderAdminModeration();">Moderation</button>
+            <div class="view-header animate-fade">
+                <h1 class="view-title" style="background: linear-gradient(135deg, var(--accent-pink), var(--accent-cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Admin Portal</h1>
+                <p class="text-dim">Unified Control Center for reality management.</p>
             </div>
 
-            <div id="admin-stats" class="admin-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px;">
-                <div class="stat-card glass-panel" style="padding: 24px;">
-                    <h3 class="text-dim">Total Users</h3>
-                    <p style="font-size: 2.5rem; font-weight:800; color: var(--primary-purple);">${stats?.users || 0}</p>
-                </div>
-                <div class="stat-card glass-panel" style="padding: 24px;">
-                    <h3 class="text-dim">Active Now</h3>
-                    <p style="font-size: 2.5rem; font-weight:800; color: var(--primary-orange);">${stats?.activeNow || 0}</p>
-                </div>
-                <div class="stat-card glass-panel" style="padding: 24px;">
-                    <h3 class="text-dim">Posts Today</h3>
-                    <p style="font-size: 2.5rem; font-weight:800; color: var(--accent-cyan);">${stats?.postsToday || 0}</p>
-                </div>
-                <div class="stat-card glass-panel" style="padding: 24px;">
-                    <h3 class="text-dim">Revenue</h3>
-                    <p style="font-size: 2.5rem; font-weight:800; color: var(--accent-pink);">${stats?.revenue || '$0'}</p>
-                </div>
+            <div class="tabs scrollable-tabs" style="margin-bottom: 25px;">
+                <button class="tab active" data-admin-tab="stats" onclick="window.App.switchAdminTab('stats')">📊 Stats</button>
+                <button class="tab" data-admin-tab="moderation" onclick="window.App.switchAdminTab('moderation')">🛡️ Moderation</button>
+                <button class="tab" data-admin-tab="ads" onclick="window.App.switchAdminTab('ads')">💰 Ad Manager</button>
+                <button class="tab" data-admin-tab="neural" onclick="window.App.switchAdminTab('neural')">🧠 Neural Merge</button>
             </div>
 
-            <div id="admin-manage" class="hidden glass-panel" style="padding:24px; margin-top:20px;">
-                <!-- Moderation content injected here -->
-                <h3 style="margin-top:30px;">Post Sponsored Ad</h3>
-                <div style="margin-top:15px; display:flex; flex-direction:column; gap:10px;">
-                    <textarea id="ad-content" class="login-input" placeholder="Ad Content"></textarea>
-                    <input type="text" id="ad-media" class="login-input" placeholder="Media URL">
-                    <input type="text" id="ad-link" class="login-input" placeholder="Target Link URL">
-                    <button class="btn-primary" onclick="window.App.submitAdPost()">Post Sponsored Ad</button>
+            <div id="admin-tab-content">
+                <!-- Content injected here by switchAdminTab -->
+                <div id="admin-stats-view" class="admin-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px;">
+                    <div class="stat-card glass-panel" style="padding: 24px;">
+                        <h3 class="text-dim">Total Users</h3>
+                        <p style="font-size: 2.5rem; font-weight:800; color: var(--primary-purple);">${stats?.users || 0}</p>
+                    </div>
+                    <div class="stat-card glass-panel" style="padding: 24px;">
+                        <h3 class="text-dim">Active Now</h3>
+                        <p style="font-size: 2.5rem; font-weight:800; color: var(--primary-orange);">${stats?.activeNow || 0}</p>
+                    </div>
+                    <div class="stat-card glass-panel" style="padding: 24px;">
+                        <h3 class="text-dim">Posts Today</h3>
+                        <p style="font-size: 2.5rem; font-weight:800; color: var(--accent-cyan);">${stats?.postsToday || 0}</p>
+                    </div>
+                    <div class="stat-card glass-panel" style="padding: 24px;">
+                        <h3 class="text-dim">Platform Revenue</h3>
+                        <p style="font-size: 2.5rem; font-weight:800; color: var(--accent-pink);">${stats?.revenue || '$0.00'}</p>
+                    </div>
                 </div>
             </div>
         `;
+    }
+
+    async switchAdminTab(tabId) {
+        const container = document.getElementById('admin-tab-content');
+        if (!container) return;
+
+        // Update Tab Highlighting
+        document.querySelectorAll('[data-admin-tab]').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.adminTab === tabId);
+        });
+
+        switch(tabId) {
+            case 'stats':
+                const stats = await this.services.admin.getStats();
+                container.innerHTML = `
+                    <div class="admin-grid animate-slide-up" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px;">
+                        <div class="stat-card glass-panel" style="padding: 24px;">
+                            <h3 class="text-dim">Total Users</h3>
+                            <p style="font-size: 2.5rem; font-weight:800; color: var(--primary-purple);">${stats?.users || 0}</p>
+                        </div>
+                        <div class="stat-card glass-panel" style="padding: 24px;">
+                            <h3 class="text-dim">Active Now</h3>
+                            <p style="font-size: 2.5rem; font-weight:800; color: var(--primary-orange);">${stats?.activeNow || 0}</p>
+                        </div>
+                        <div class="stat-card glass-panel" style="padding: 24px;">
+                            <h3 class="text-dim">Posts Today</h3>
+                            <p style="font-size: 2.5rem; font-weight:800; color: var(--accent-cyan);">${stats?.postsToday || 0}</p>
+                        </div>
+                        <div class="stat-card glass-panel" style="padding: 24px;">
+                            <h3 class="text-dim">Revenue</h3>
+                            <p style="font-size: 2.5rem; font-weight:800; color: var(--accent-pink);">${stats?.revenue || '$0'}</p>
+                        </div>
+                    </div>
+                `;
+                break;
+            case 'moderation':
+                container.innerHTML = `<div class="glass-panel animate-fade" style="padding:24px;"><p class="text-dim">Fetching reported vibrations...</p></div>`;
+                const reports = await this.services.admin.getReportedPosts();
+                container.innerHTML = `
+                    <div class="moderation-view animate-slide-up">
+                        <h3 style="margin-bottom:20px; color:var(--accent-pink);">Pending Reports</h3>
+                        ${reports.length > 0 ? reports.map(r => `
+                            <div class="glass-panel" style="padding:20px; margin-bottom:15px; border-left:4px solid var(--accent-pink);">
+                                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                                    <span style="font-weight:bold; color:var(--accent-cyan);">@${r.post?.username || 'unknown'}</span>
+                                    <span class="text-dim" style="font-size:0.8rem;">Reason: ${r.reason}</span>
+                                </div>
+                                <p style="margin-bottom:15px;">"${r.post?.text || '[Media Content]'}"</p>
+                                <div style="display:flex; gap:10px;">
+                                    <button class="btn-secondary btn-sm" onclick="window.App.handleDeletePost('${r.post_id}')">🗑️ Delete</button>
+                                    <button class="btn-secondary btn-sm" style="color:var(--accent-pink); border-color:var(--accent-pink);" onclick="window.App.handleBanUser('${r.post?.username}')">🚫 Ban User</button>
+                                </div>
+                            </div>
+                        `).join('') : '<div class="glass-panel" style="padding:40px; text-align:center;"><p class="text-dim">No vibes reported. Good job!</p></div>'}
+                    </div>
+                `;
+                break;
+            case 'ads':
+                container.innerHTML = `
+                    <div class="ad-manager glass-panel animate-slide-up" style="padding:24px;">
+                        <h3 style="margin-bottom:20px; color:var(--primary-orange);">Create Sponsored Vibe</h3>
+                        <div style="display:flex; flex-direction:column; gap:15px;">
+                            <div>
+                                <label class="text-dim" style="font-size:0.8rem; display:block; margin-bottom:5px;">Ad Content / Message</label>
+                                <textarea id="ad-content" class="login-input" placeholder="What should people see?"></textarea>
+                            </div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+                                <div>
+                                    <label class="text-dim" style="font-size:0.8rem; display:block; margin-bottom:5px;">Media URL (Image/Video)</label>
+                                    <input type="text" id="ad-media" class="login-input" placeholder="https://...">
+                                </div>
+                                <div>
+                                    <label class="text-dim" style="font-size:0.8rem; display:block; margin-bottom:5px;">Target Destination URL</label>
+                                    <input type="text" id="ad-link" class="login-input" placeholder="https://...">
+                                </div>
+                            </div>
+                            <button class="btn-primary" onclick="window.App.submitAdPost()" style="margin-top:10px;">🚀 Launch Campaign</button>
+                        </div>
+                    </div>
+                `;
+                break;
+            case 'neural':
+                container.innerHTML = `
+                    <div class="neural-merge glass-panel animate-slide-up" style="padding:24px; border-color:var(--primary-purple);">
+                        <h3 style="margin-bottom:20px; color:var(--primary-purple);">Neural Data Sync</h3>
+                        <p class="text-dim" style="margin-bottom:20px;">Link legacy admin vibrations (<code>yamasseetechnology@gmail.com</code>) to your unified identity (<code>KingKool23</code>). This process is irreversible.</p>
+                        <div style="display:flex; flex-direction:column; gap:15px; max-width:400px;">
+                            <input type="text" id="merge-legacy-email" class="login-input" value="yamasseetechnology@gmail.com" placeholder="Legacy Email">
+                            <button class="btn-primary" style="background:var(--primary-purple);" onclick="window.App.triggerNeuralMerge()">⚡ Execute Merge</button>
+                        </div>
+                    </div>
+                `;
+                break;
+        }
+    }
+
+    async triggerNeuralMerge() {
+        const legacyEmail = document.getElementById('merge-legacy-email')?.value?.trim();
+        if (!legacyEmail) {
+            this.showToast('Legacy email required', 'error');
+            return;
+        }
+
+        if (!confirm(`Warning: This will reassign all legacy vibes from ${legacyEmail} to KingKool23. Proceed?`)) return;
+
+        this.showToast('Initiating Neural Merge...', 'info');
+        try {
+            const result = await this.services.admin.mergeAdminData(legacyEmail, 'KingKool23');
+            if (result.success) {
+                this.showToast(`Success! ${result.mergedPosts} vibes merged into reality. ✨`, 'success');
+            }
+        } catch (err) {
+            this.showToast(`Merge Failed: ${err.message}`, 'error');
+        }
     }
 
     async submitAdPost() {

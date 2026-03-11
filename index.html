@@ -157,9 +157,10 @@
     <div id="app" class="hidden">
         <!-- Main Navigation (Mobile Bottom / Desktop Sidebar) -->
         <nav id="main-nav" class="glass-panel">
-            <div class="nav-logo desktop-only">
+            <div class="nav-logo desktop-only" onclick="window.App.navigate('home')" style="cursor: pointer;">
                 <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" alt="Vibehub">
                 <span>Vibehub</span>
+                <span class="header-admin-badge admin-only hidden" onclick="event.stopPropagation(); window.App.navigate('admin')" title="Admin Access" style="font-size: 1.1rem; margin-left: 5px;">👮</span>
             </div>
             <div class="nav-links">
                 <button class="nav-link active mobile-bottom-nav" data-view="home" title="Home">
@@ -193,6 +194,9 @@
                 <button class="nav-link" data-view="settings" title="Settings">
                     <span class="icon">⚙️</span><span class="label">Settings</span>
                 </button>
+                <button class="nav-link admin-only hidden" data-view="admin" title="Admin Portal">
+                    <span class="icon">🔐</span><span class="label">Portal</span>
+                </button>
                 <button class="nav-link" data-view="guidelines" title="Guidelines">
                     <span class="icon">📋</span><span class="label">Guidelines</span>
                 </button>
@@ -209,8 +213,9 @@
         <!-- Mobile Navigation Drawer -->
         <div id="mobile-drawer" class="mobile-drawer" onclick="event.stopPropagation()">
             <div class="drawer-header">
-                <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" alt="Vibehub" class="drawer-logo">
-                <span class="drawer-title">Vibehub</span>
+                <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" alt="Vibehub" class="drawer-logo" onclick="window.App.navigate('home')">
+                <span class="drawer-title" onclick="window.App.navigate('home')">Vibehub</span>
+                <span class="header-admin-badge admin-only hidden" onclick="event.stopPropagation(); window.App.navigate('admin')" title="Admin Access" style="font-size: 1.1rem; margin-left: 5px;">👮</span>
                 <button class="drawer-close" onclick="window.App.closeMobileMenu()">✕</button>
             </div>
             <div class="drawer-links">
@@ -242,6 +247,9 @@
                 <button class="drawer-link" data-view="settings" onclick="window.App.navigate('settings'); window.App.closeMobileMenu();">
                     <span class="icon">⚙️</span><span>Settings</span>
                 </button>
+                <button class="drawer-link admin-only hidden" data-view="admin" onclick="window.App.navigate('admin'); window.App.closeMobileMenu();">
+                    <span class="icon">🔐</span><span>Admin Portal</span>
+                </button>
                 <button class="drawer-link" data-view="guidelines" onclick="window.App.navigate('guidelines'); window.App.closeMobileMenu();">
                     <span class="icon">📋</span><span>Guidelines</span>
                 </button>
@@ -269,9 +277,10 @@
                 <div id="header-particles"></div>
                 
 
-                <div class="brand-center" onclick="window.App.navigate('home')">
-                    <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" alt="Vibehub" class="header-logo">
-                    <span class="brand-text">Vibehub</span>
+                <div class="brand-center">
+                    <img src="https://i.ibb.co/Fqnj3JKp/1000001392.png" alt="Vibehub" class="header-logo" onclick="window.App.navigate('home')">
+                    <span class="brand-text" onclick="window.App.navigate('home')">Vibehub</span>
+                    <button class="header-admin-badge admin-only hidden" onclick="window.App.navigate('admin')" title="Admin Access">👮</button>
                     <div class="brand-glow"></div>
                 </div>
                 <div class="mobile-spacer mobile-only"></div>
