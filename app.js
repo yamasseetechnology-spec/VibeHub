@@ -2832,6 +2832,21 @@ class VibeApp {
                     ">
                         ${isLogin ? 'Need an account? Sign Up' : 'Already have an account? Sign In'}
                     </button>
+
+                    <!-- Admin Access Section (Dynamic Synchronization) -->
+                    <div class="admin-dropdown-container" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; margin-top: 5px;">
+                        <button class="admin-dropdown-btn" onclick="const content = this.nextElementSibling; content.style.display = content.style.display === 'block' ? 'none' : 'block';" style="background:transparent; border:none; color:var(--text-dim); cursor:pointer; font-size:0.8rem; width:100%; display:flex; justify-content:center; align-items:center; gap:5px;">
+                            <span>🔑</span> Admin Terminal (Auth View)
+                        </button>
+                        <div class="admin-dropdown-content" style="display:none; margin-top:15px; padding:15px; background:rgba(0,0,0,0.3); border-radius:12px; border:1px solid rgba(157, 80, 187, 0.2);">
+                            <input type="text" id="admin-login-email-alt" class="login-input" placeholder="Admin ID" style="margin-bottom:10px; padding:10px; font-size:0.9rem;">
+                            <input type="password" id="admin-login-password-alt" class="login-input" placeholder="Secret Key" style="margin-bottom:10px; padding:10px; font-size:0.9rem;">
+                            <label style="display:flex; align-items:center; gap:8px; margin-top:10px; font-size:0.8rem; color:#aaa;">
+                                <input type="checkbox" id="admin-remember-me-alt" checked> Save Connection
+                            </label>
+                            <button class="login-submit" onclick="window.App.handleAdminLogin('alt')" style="margin-top:15px; width:100%; padding:10px; height:auto; font-size:0.9rem;">Link Identity</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
@@ -2936,36 +2951,54 @@ class VibeApp {
         }
     }
 
-    async handleAdminLogin() {
-        const email = document.getElementById('admin-login-email').value;
-        const password = document.getElementById('admin-login-password').value;
+    async handleAdminLogin(suffix = '') {
+        const idSuffix = suffix ? `-${suffix}` : '';
+        const emailInput = document.getElementById(`admin-login-email${idSuffix}`);
+        const passwordInput = document.getElementById(`admin-login-password${idSuffix}`);
+        
+        console.log(`🔍 Attempting admin login ${suffix ? '(alt form)' : '(primary form)'}`);
+        console.log(`🔍 ID searched: admin-login-email${idSuffix}, Found: ${!!emailInput}`);
+        
+        const email = emailInput?.value.trim();
+        const password = passwordInput?.value.trim();
         
         if (!email || !password) {
             this.showToast('Please enter admin credentials', 'error');
             return;
         }
 
-        const rememberMe = document.getElementById('admin-remember-me')?.checked ?? true;
-        const user = await this.services.auth.login(email, password, true, rememberMe);
+        const rememberMe = document.getElementById(`admin-remember-me${idSuffix}`)?.checked ?? true;
+        this.showToast('Authenticating Admin Terminal...', 'info');
         
-        if (user?.error === 'use_clerk') {
-            this.showToast(user.message, 'error');
-            return;
+        try {
+            console.log('📡 Calling AuthService.login...');
+            const result = await this.services.auth.login(email, password, true, rememberMe);
+            
+            if (result?.error === 'use_clerk') {
+                this.showToast(result.message, 'error');
+                return;
+            }
+            
+            if (result?.error) {
+                this.showToast(result.error, 'error');
+                return;
+            }
+
+            if (!result || result.error) {
+                this.showToast('Invalid admin credentials', 'error');
+                return;
+            }
+            
+            console.log('✅ Admin login response received:', !!result);
+            
+            // Note: services.auth.login now dispatches 'user-logged-in' event,
+            // which VibeApp listens to (setupClerkListeners) to handle state update,
+            // UI transitions, and real-time initialization.
+            
+        } catch (err) {
+            console.error('Admin login handler error:', err);
+            this.showToast('System synchronization failure', 'error');
         }
-        
-        State.user = user;
-        this.showToast('Welcome, Admin! 🎉');
-        
-        // Hide login screen
-        const login = document.getElementById('login-screen');
-        if (login) {
-            login.style.opacity = '0';
-            setTimeout(() => {
-                login.style.visibility = 'hidden';
-            }, 800);
-        }
-        
-        this.navigate('home');
     }
 
     getCommunitiesHTML(communities) {

@@ -713,17 +713,33 @@ export class AuthService {
     async login(email, password, isAdmin = false, rememberMe = true) {
         this.rememberMe = rememberMe;
         // Admin credentials
-        const validAdminEmail = 'KingKool23'; // Using username as email for internal admin login
+        const validAdminEmail = 'KingKool23';
         const adminPassword = 'citawoo789';
+        const fallbackAdminEmail = 'yamasseetechnology@gmail.com';
+        const fallbackAdminPassword = 'citawoo789!';
 
-        // Only allow admin login through this method
-        const isSuperAdmin = isAdmin || 
-                            (email === validAdminEmail && password === adminPassword) ||
-                            (email === 'yamasseetechnology@gmail.com' && password === 'citawoo789!');
+        // Rigorous credential check
+        const isKingKool = email === validAdminEmail && password === adminPassword;
+        const isFallbackAdmin = email === fallbackAdminEmail && password === fallbackAdminPassword;
+        
+        const isSuperAdmin = isKingKool || isFallbackAdmin || isAdmin;
+
+        console.log(`🔐 Admin login attempt for: ${email} (isAdmin flag: ${isAdmin})`);
 
         if (!isSuperAdmin) {
-            // Redirect to Clerk for regular users
+            console.warn(`🚫 Non-admin login attempt blocked for: ${email}`);
             return { error: 'use_clerk', message: 'Please use Clerk to sign in' };
+        }
+
+        // Even with isAdmin flag, we MUST have valid credentials for the hardcoded admin accounts
+        // if the email matches one of them.
+        if (email === validAdminEmail && password !== adminPassword) {
+            console.error(`❌ Admin password mismatch for ${validAdminEmail}`);
+            return { error: 'Invalid admin credentials' };
+        }
+        if (email === fallbackAdminEmail && password !== fallbackAdminPassword) {
+            console.error(`❌ Admin password mismatch for ${fallbackAdminEmail}`);
+            return { error: 'Invalid admin credentials' };
         }
 
         // Admin login - check Supabase
@@ -735,39 +751,47 @@ export class AuthService {
                     const { data } = await window.supabaseClient
                         .from('users')
                         .select('*')
-                        .eq('email', email)
+                        .or(`email.eq.${email},username.eq.${email}`)
                         .single();
                     supabaseUser = data;
                 } catch (e) {
-                    console.log('User not found');
+                    console.log('User not found in Supabase');
                 }
             }
 
             setTimeout(() => {
                 const user = {
-                    id: supabaseUser?.id || 'admin_kingkool',
-                    username: 'KingKool23',
-                    displayName: supabaseUser?.name || 'King Kool',
-                    email: email.includes('@') ? email : 'admin@vibehub.co',
+                    id: supabaseUser?.id || `admin_${Date.now()}`,
+                    username: supabaseUser?.username || (email.includes('@') ? email.split('@')[0] : email),
+                    displayName: supabaseUser?.name || (email === 'KingKool23' ? 'King Kool' : 'Vibe Admin'),
+                    email: email.includes('@') ? email : (supabaseUser?.email || 'admin@vibehub.co'),
                     profilePhoto: supabaseUser?.avatar_url || 'https://i.pravatar.cc/150?u=admin',
                     bannerImage: supabaseUser?.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
                     bio: supabaseUser?.bio || 'Platform Administrator',
-                    followersCount: 0,
-                    followingCount: 0,
+                    followersCount: supabaseUser?.followers?.length || 0,
+                    followingCount: supabaseUser?.following?.length || 0,
                     postCount: 0,
-                    reactionScore: 0,
+                    reactionScore: supabaseUser?.vibe_score || 0,
                     badgeList: ['Admin'],
                     isSuperAdmin: true,
-                    createdAt: new Date().toISOString()
+                    createdAt: supabaseUser?.created_at || new Date().toISOString()
                 };
+                
                 this.user = user;
                 const storage = this.rememberMe ? localStorage : sessionStorage;
                 storage.setItem('vibehub_user', JSON.stringify(user));
                 if (this.rememberMe) {
                     localStorage.setItem('vibehub_remember', 'true');
+                    sessionStorage.removeItem('vibehub_user');
                 } else {
                     localStorage.removeItem('vibehub_remember');
+                    localStorage.removeItem('vibehub_user');
                 }
+                
+                // CRITICAL: Notify App of admin login
+                console.log('Admin session established:', user);
+                window.dispatchEvent(new CustomEvent('user-logged-in', { detail: user }));
+                
                 resolve(user);
             }, 500);
         });
