@@ -22,24 +22,25 @@ const State = {
 // --- CORE APP CLASS ---
 class VibeApp {
     constructor() {
-        try {
-            this.services = {
-                auth: new AuthService(),
-                data: new DataService(),
-                video: new VideoService(),
-                chat: new ChatService(),
-                admin: new AdminService()
-            };
-        } catch (e) {
-            console.error("Service initialization failed:", e);
-            this.services = {
-                auth: null,
-                data: null,
-                video: null,
-                chat: null,
-                admin: null
-            };
+        this.services = {};
+        
+        const serviceClasses = {
+            auth: AuthService,
+            data: DataService,
+            video: VideoService,
+            chat: ChatService,
+            admin: AdminService
+        };
+
+        for (const [key, ServiceClass] of Object.entries(serviceClasses)) {
+            try {
+                this.services[key] = new ServiceClass();
+            } catch (e) {
+                console.error(`❌ Service initialization failed for ${key}:`, e);
+                this.services[key] = null;
+            }
         }
+
         this.init();
         window.App = this;
     }

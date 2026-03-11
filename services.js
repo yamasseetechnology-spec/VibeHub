@@ -63,12 +63,28 @@ export class MediaService {
         }
 
         // Initialize ImageKit instance if SDK is available
+        // Safety check for constructor type (sometimes .default or ImageKit.ImageKit)
         if (window.ImageKit) {
-            this.imagekit = new ImageKit({
-                publicKey: this.imagekitConfig.publicKey,
-                urlEndpoint: this.imagekitConfig.urlEndpoint
-            });
-            console.log('✅ ImageKit SDK initialized');
+            try {
+                let IK = window.ImageKit;
+                
+                // version 5.0 browser SDK often exports as a global constructor, 
+                // but let's be robust
+                if (typeof IK !== 'function' && IK.default) IK = IK.default;
+                if (typeof IK !== 'function' && IK.ImageKit) IK = IK.ImageKit;
+
+                if (typeof IK === 'function') {
+                    this.imagekit = new IK({
+                        publicKey: this.imagekitConfig.publicKey,
+                        urlEndpoint: this.imagekitConfig.urlEndpoint
+                    });
+                    console.log('✅ ImageKit SDK initialized');
+                } else {
+                    console.error('❌ ImageKit found but class constructor not found. Type:', typeof IK);
+                }
+            } catch (e) {
+                console.error('❌ ImageKit initialization error:', e);
+            }
         } else {
             console.warn('⚠️ ImageKit SDK not found in window');
         }
@@ -899,9 +915,27 @@ export class AuthService {
 // ============================================
 export class DataService {
     constructor() {
-        this.media = new MediaService();
-        this.cache = new CacheService();
-        this.notifications = new NotificationService();
+        try {
+            this.media = new MediaService();
+        } catch (e) {
+            console.error("❌ MediaService failed to initialize:", e);
+            this.media = null;
+        }
+        
+        try {
+            this.cache = new CacheService();
+        } catch (e) {
+            console.error("❌ CacheService failed to initialize:", e);
+            this.cache = null;
+        }
+
+        try {
+            this.notifications = new NotificationService();
+        } catch (e) {
+            console.error("❌ NotificationService failed to initialize:", e);
+            this.notifications = null;
+        }
+
         this.supabase = window.supabaseClient;
         this.loadSampleDataIfEmpty();
     }
@@ -1317,6 +1351,36 @@ export class DataService {
                 created_at: post.created_at || new Date().toISOString()
             };
         });
+    }
+
+    async manualJoinUsers(posts) {
+        if (!posts || posts.length === 0) return [];
+        
+        try {
+            const userIds = [...new Set(posts.map(p => p.user_id).filter(id => !!id))];
+            if (userIds.length === 0) return posts.map(p => ({ ...p, users: {} }));
+
+            const { data: users, error } = await window.supabaseClient
+                .from('users')
+                .select('*')
+                .in('id', userIds);
+
+            if (error) {
+                console.error('Error fetching users for manual join:', error);
+                return posts.map(p => ({ ...p, users: {} }));
+            }
+
+            const userMap = {};
+            users.forEach(u => { userMap[u.id] = u; });
+
+            return posts.map(p => ({
+                ...p,
+                users: userMap[p.user_id] || {}
+            }));
+        } catch (e) {
+            console.error('Exception in manualJoinUsers:', e);
+            return posts.map(p => ({ ...p, users: {} }));
+        }
     }
 
     subscribeToPosts(callback) {
