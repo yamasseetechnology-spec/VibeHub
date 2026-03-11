@@ -724,7 +724,8 @@ export class AuthService {
                         username: updates.username,
                         avatar_url: updates.profilePhoto,
                         bio: updates.bio,
-                        banner_url: updates.bannerImage
+                        banner_url: updates.bannerImage,
+                        song_link: updates.songLink
                     })
                     .eq('id', this.user.id);
             } catch (e) {
@@ -1047,13 +1048,13 @@ export class DataService {
 
             if (error) {
                 console.error('Error fetching joined posts:', error);
-                // Fallback to non-joined query if relation fails
+                // Fallback to non-joined query + manual user fetch
                 const fallback = await window.supabaseClient
                     .from('posts')
                     .select('*')
                     .order('created_at', { ascending: false });
                 if (fallback.error) return [];
-                return this.mapPosts(fallback.data);
+                return await this.manualJoinUsers(fallback.data);
             }
 
             let posts = this.mapPosts(data);
@@ -1372,7 +1373,7 @@ export class DataService {
 
             if (error) {
                 console.error('Error fetching user posts with join:', error);
-                // Fallback to non-joined query
+                // Fallback to non-joined query + manual user fetch
                 const fallback = await window.supabaseClient
                     .from('posts')
                     .select('*')
@@ -1380,7 +1381,7 @@ export class DataService {
                     .order('created_at', { ascending: false })
                     .limit(50);
                 if (fallback.error) return [];
-                return this.mapPosts(fallback.data);
+                return await this.manualJoinUsers(fallback.data);
             }
 
             return this.mapPosts(data);
@@ -1914,13 +1915,24 @@ export class DataService {
             const friendIds = friends.map(f => f.friend_id);
 
             // Get friends' posts with user details
-            const { data } = await window.supabaseClient
+            const { data, error } = await window.supabaseClient
                 .from('posts')
                 .select('*, users(*)')
                 .in('user_id', friendIds)
-                .gt('expires_at', new Date().toISOString())
                 .order('created_at', { ascending: false })
                 .limit(50);
+
+            if (error) {
+                console.error('Error fetching friends posts with join:', error);
+                const fallback = await window.supabaseClient
+                    .from('posts')
+                    .select('*')
+                    .in('user_id', friendIds)
+                    .order('created_at', { ascending: false })
+                    .limit(50);
+                if (fallback.error) return [];
+                return await this.manualJoinUsers(fallback.data);
+            }
 
             return this.mapPosts(data);
         } catch (error) {
@@ -2027,11 +2039,38 @@ export class DataService {
                 data.handle = data.username;
                 data.profilePhoto = data.avatar_url;
                 data.bannerImage = data.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200';
+                data.songLink = data.song_link;
             }
             return data;
         } catch (error) {
             console.error('Error fetching profile:', error);
             return null;
+        }
+    }
+
+    async manualJoinUsers(posts) {
+        if (!posts || posts.length === 0) return [];
+        if (!window.supabaseClient) return this.mapPosts(posts);
+
+        try {
+            const userIds = [...new Set(posts.map(p => p.user_id))];
+            const { data: userData } = await window.supabaseClient
+                .from('users')
+                .select('*')
+                .in('id', userIds);
+
+            const userMap = {};
+            (userData || []).forEach(u => { userMap[u.id] = u; });
+
+            const joinedData = posts.map(p => ({
+                ...p,
+                users: userMap[p.user_id] || null
+            }));
+
+            return this.mapPosts(joinedData);
+        } catch (err) {
+            console.error('Manual join failed:', err);
+            return this.mapPosts(posts);
         }
     }
 }
