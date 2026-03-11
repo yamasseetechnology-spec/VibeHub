@@ -3,13 +3,13 @@
     console.log("🛠️ Starting Admin Login Debug Verification...");
 
     const checkAppReady = setInterval(() => {
-        if (window.App) {
+        if (window.App && document.getElementById('admin-login-email')) {
             clearInterval(checkAppReady);
             runTests();
         }
-    }, 500);
+    }, 1000);
 
-    function runTests() {
+    async function runTests() {
         const mockEmail = 'KingKool23';
         const mockPass = 'citawoo789';
 
@@ -26,14 +26,21 @@
             emailInput.value = mockEmail;
             passInput.value = mockPass;
             console.log("✅ Primary credentials injected");
-            window.App.handleAdminLogin().then(() => console.log("⚙️ Login operation completed."));
+            console.log("🚀 Triggering primary admin login handle...");
+            await window.App.handleAdminLogin();
         } else if (emailInputAlt && passInputAlt) {
             emailInputAlt.value = mockEmail;
             passInputAlt.value = mockPass;
             console.log("✅ Alt credentials injected");
-            window.App.handleAdminLogin('alt').then(() => console.log("⚙️ Login operation completed."));
+            console.log("🚀 Triggering alt admin login handle...");
+            await window.App.handleAdminLogin('alt');
         } else {
-            console.error("❌ No admin login inputs found. Are you on the login screen?");
+            console.error("❌ No admin login inputs found. Toggling dropdown...");
+            const trigger = document.querySelector('.admin-dropdown-trigger');
+            if (trigger) {
+                trigger.click();
+                setTimeout(runTests, 500);
+            }
         }
     }
 })();

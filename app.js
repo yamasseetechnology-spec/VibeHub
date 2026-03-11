@@ -46,47 +46,27 @@ class VibeApp {
 
     async init() {
         console.log("Vibehub Initializing...");
-
-        // Initialize a startTime to enforce minimum loading duration
         const initStartTime = Date.now();
         const MIN_LOADING_MS = 2000;
 
         try {
-            // Expose global reaction popup for components
             window.triggerReactionPopup = this.triggerReactionPopup.bind(this);
+            window.addEventListener('error', (e) => console.error('Global error:', e.error));
+            window.addEventListener('unhandledrejection', (e) => console.error('Unhandled promise rejection:', e.reason));
 
-            // Global error handler
-            window.addEventListener('error', (e) => {
-                console.error('Global error:', e.error);
-            });
-            
-            window.addEventListener('unhandledrejection', (e) => {
-                console.error('Unhandled promise rejection:', e.reason);
-            });
-
-            // 1. Show loading screen immediately
             this.showLoadingScreen();
-            console.log("Loading screen shown.");
-
-            // 2. Register Service Worker (with error handling)
+            
             if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
                 navigator.serviceWorker.register('./service-worker.js')
                     .catch(err => console.log("Service Worker registration failed:", err));
             }
 
-            // 3. Setup Routing & Event Listeners
             this.setupEventListeners();
-            
-            // Initialize Premium Header Effects
             this.initHeaderParticles();
-
-            // 4. Initialize Clerk
-            console.log("Initializing Clerk...");
             this.setupClerkListeners();
 
             const clerkPromise = this.services.auth.initClerk();
             
-            // Loading progress simulation
             let progress = 0;
             const timerFill = document.getElementById('timer-fill');
             const progressInterval = setInterval(() => {
@@ -109,16 +89,12 @@ class VibeApp {
         } finally {
             const elapsed = Date.now() - initStartTime;
             const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
-            
-            setTimeout(() => {
-                this.finalizeInitialization();
-            }, remaining);
+            setTimeout(() => this.finalizeInitialization(), remaining);
         }
     }
 
-    async finalizeInitialization() {
-        console.log("Finalizing initialization...");
-        
+    finalizeInitialization() {
+        console.log("Finalizing initialization flow...");
         let persistedUser = null;
         try {
             if (this.services && this.services.auth) {
@@ -2805,8 +2781,8 @@ class VibeApp {
                 <div class="login-form">
                     <!-- Custom Login Form -->
                     <div id="login-form-fields" style="display: ${isLogin ? 'block' : 'none'}; margin-bottom: 20px;">
-                        <input type="email" id="login-email-input" class="login-input" placeholder="Email Address" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
-                        <input type="password" id="login-password-input" class="login-input" placeholder="Password" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;">
+                        <input type="email" id="login-email-input" class="login-input" placeholder="Email Address" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;" onkeypress="if(event.key==='Enter')window.App.handleCustomSignIn()">
+                        <input type="password" id="login-password-input" class="login-input" placeholder="Password" style="width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(0,0,0,0.3); color: white;" onkeypress="if(event.key==='Enter')window.App.handleCustomSignIn()">
                         <button class="login-submit-btn" onclick="window.App.handleCustomSignIn()" style="width: 100%; padding: 12px; border-radius: 8px; border: none; background: linear-gradient(135deg, #ff9f00, #ff6b00); color: white; font-weight: 600; cursor: pointer;">Sign In</button>
                     </div>
                     
@@ -2843,12 +2819,12 @@ class VibeApp {
                             <span>🔑</span> Admin Terminal (Auth View)
                         </button>
                         <div class="admin-dropdown-content" style="display:none; margin-top:15px; padding:15px; background:rgba(0,0,0,0.3); border-radius:12px; border:1px solid rgba(157, 80, 187, 0.2);">
-                            <input type="text" id="admin-login-email-alt" class="login-input" placeholder="Admin ID" style="margin-bottom:10px; padding:10px; font-size:0.9rem;">
-                            <input type="password" id="admin-login-password-alt" class="login-input" placeholder="Secret Key" style="margin-bottom:10px; padding:10px; font-size:0.9rem;">
+                            <input type="text" id="admin-login-email-alt" class="login-input" placeholder="Admin ID" style="margin-bottom:10px; padding:10px; font-size:0.9rem;" onkeypress="if(event.key==='Enter')window.App.handleAdminLogin('alt')">
+                            <input type="password" id="admin-login-password-alt" class="login-input" placeholder="Secret Key" style="margin-bottom:10px; padding:10px; font-size:0.9rem;" onkeypress="if(event.key==='Enter')window.App.handleAdminLogin('alt')">
                             <label style="display:flex; align-items:center; gap:8px; margin-top:10px; font-size:0.8rem; color:#aaa;">
                                 <input type="checkbox" id="admin-remember-me-alt" checked> Save Connection
                             </label>
-                            <button class="login-submit" onclick="window.App.handleAdminLogin('alt')" style="margin-top:15px; width:100%; padding:10px; height:auto; font-size:0.9rem;">Link Identity</button>
+                            <button class="login-submit" onclick="console.log('Alt Admin login button clicked!'); window.App.handleAdminLogin('alt')" style="margin-top:15px; width:100%; padding:10px; height:auto; font-size:0.9rem;">🔑 Enter</button>
                         </div>
                     </div>
                 </div>
@@ -2956,12 +2932,13 @@ class VibeApp {
     }
 
     async handleAdminLogin(suffix = '') {
+        console.log(`🚀 [DEBUG] handleAdminLogin called with suffix: "${suffix}"`);
         const idSuffix = suffix ? `-${suffix}` : '';
         const emailInput = document.getElementById(`admin-login-email${idSuffix}`);
         const passwordInput = document.getElementById(`admin-login-password${idSuffix}`);
         
-        console.log(`🔍 Attempting admin login ${suffix ? '(alt form)' : '(primary form)'}`);
-        console.log(`🔍 ID searched: admin-login-email${idSuffix}, Found: ${!!emailInput}`);
+        console.log(`🔍 [DEBUG] ID searched: admin-login-email${idSuffix}, Found: ${!!emailInput}`);
+        console.log(`🔍 [DEBUG] ID searched: admin-login-password${idSuffix}, Found: ${!!passwordInput}`);
         
         const email = emailInput?.value.trim();
         const password = passwordInput?.value.trim();
