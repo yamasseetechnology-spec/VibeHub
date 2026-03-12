@@ -121,6 +121,9 @@ class VibeApp {
             this.enableRealTimeSubscriptions();
             this.initializeLiveSub();
             
+            // Initialize Mood Glow for persisted user
+            this.initMoodGlow();
+            
             this.navigate('home', true);
         } else {
             console.log("No session found, transitioning to login.");
@@ -181,6 +184,9 @@ class VibeApp {
             this.enableRealTimeSubscriptions();
             this.initializeLiveSub();
             
+            // Initialize Mood Glow for logged in user
+            this.initMoodGlow();
+            
             // Clear any stale/empty posts cache from the disconnected state
             if (this.services.data && this.services.data.cache) {
                 this.services.data.cache.clearPostsCache();
@@ -197,6 +203,9 @@ class VibeApp {
             State.user = null;
             this._lastLoginId = null; // Reset so re-login works
             this.disableRealTimeSubscriptions();
+            
+            // Remove Mood Glow when logging out
+            this.removeMoodGlow();
             
             // Properly hide the app shell and show the original login screen
             const appElem = document.getElementById('app');
@@ -506,22 +515,14 @@ class VibeApp {
     }
 
     updateNotificationBadge() {
-        if (!State.notifications) return;
-        const count = State.notifications.filter(n => !n.read).length;
-
-        // Update all notification badges (header + nav)
-        const badgeIds = ['nav-notif-badge', 'header-notif-badge'];
-        badgeIds.forEach(id => {
-            const badge = document.getElementById(id);
-            if (!badge) return;
+        const badge = document.getElementById('notif-badge');
+        if (badge && State.notifications) {
+            const count = State.notifications.filter(n => !n.read).length;
             if (count > 0) {
                 badge.textContent = count > 9 ? '9+' : count;
                 badge.classList.remove('hidden');
-            } else {
-                badge.textContent = '';
-                badge.classList.add('hidden');
             }
-        });
+        }
     }
 
     showLoadingScreen() {
@@ -1046,9 +1047,7 @@ class VibeApp {
             // First get the post to find the exact author ID
             const { data: postData } = await window.supabaseClient.from('posts').select('user_id').eq('id', postId).single();
             if (postData && postData.user_id) {
-                if (this.services.admin?.banUser) {
-                    await this.services.admin.banUser(postData.user_id);
-                }
+                await this.services.admin.banUser(postData.user_id);
                 this.showToast('User has been banned.');
                 this.deletePost(postId); // Also remove the offending post
             } else {
@@ -1493,6 +1492,7 @@ class VibeApp {
         if (State.user) {
             this.showToast('Welcome back to VibeHub! ', 'success');
             this.services.data.cache.clearPostsCache();
+            this.initMoodGlow(); // Initialize Mood Glow
         } else {
             this.navigate('home', true);
         }
@@ -2173,10 +2173,6 @@ class VibeApp {
         // Update Bottom Nav Highlighting Silent
         document.querySelectorAll('.mobile-bottom-nav').forEach(nav => nav.classList.remove('active'));
         const activeNav = document.querySelector(`.mobile-bottom-nav[data-view="${view}"]`);
-        if (activeNav) activeNav.classList.add('active');
-        
-        this.renderView(view, false);
-    }
 
     async renderView(view, updateNav = true) {
         State.currentView = view;
@@ -2272,19 +2268,6 @@ class VibeApp {
                 case 'communities':
                     const communities = await this.services.data.getCommunities();
                     container.innerHTML = Views.communities(communities);
-                    break;
-                case 'admin':
-                    try {
-                        if (State.user && (State.user.isSuperAdmin || State.user.username === 'KingKool23')) {
-                            const stats = this.services.admin?.getStats ? await this.services.admin.getStats() : { users: 0, posts: 0 };
-                            container.innerHTML = Components.admin(stats);
-                        } else {
-                            container.innerHTML = '<div class="view-header"><h1 class="view-title">Access Denied</h1><p class="text-dim">Admin only.</p></div>';
-                        }
-                    } catch (err) {
-                        console.error('Admin panel error:', err);
-                        container.innerHTML = '<div class="view-header"><h1 class="view-title">Admin Panel</h1><p>Loading...</p></div>';
-                    }
                     break;
                 default:
                     container.innerHTML = `<div class="view-header"><h1 class="view-title">${view}</h1><p>Vibe missing. Error 404.</p></div>`;
@@ -3936,7 +3919,7 @@ class VibeApp {
     async handleDeleteAd(adId) {
         if (!confirm('Are you sure you want to pull this campaign?')) return;
         
-        const result = this.services.admin?.deleteAd ? await this.services.admin.deleteAd(adId) : { success: false, error: 'Admin service unavailable' };
+        const result = await this.services.admin.deleteAd(adId);
         if (result.success) {
             this.showToast('Ad campaign terminated.', 'success');
             this.loadAdminAds();
@@ -3956,7 +3939,7 @@ class VibeApp {
 
         this.showToast('Initiating Neural Merge...', 'info');
         try {
-            const result = this.services.admin?.mergeAdminData ? await this.services.admin.mergeAdminData(legacyEmail, 'KingKool23') : { success: false, error: 'Admin service unavailable' };
+            const result = await this.services.admin.mergeAdminData(legacyEmail, 'KingKool23');
             if (result.success) {
                 this.showToast(`Success! ${result.mergedPosts} vibes merged into reality. ✨`, 'success');
             }
@@ -3975,7 +3958,7 @@ class VibeApp {
             return;
         }
 
-        const result = this.services.admin?.submitAd ? await this.services.admin.submitAd(content, media, link) : { success: false, error: 'Admin service unavailable' };
+        const result = await this.services.admin.submitAd(content, media, link);
         if (result.success) {
             this.showToast('Sponsored Ad Posted!', 'success');
             document.getElementById('ad-content').value = '';
@@ -3995,7 +3978,7 @@ class VibeApp {
         const existingMod = document.getElementById('moderation-list');
         if (existingMod) existingMod.remove();
 
-        const reportedPosts = this.services.admin?.getReportedPosts ? await this.services.admin.getReportedPosts() : [];
+        const reportedPosts = await this.services.admin.getReportedPosts();
         
         const modHtml = `
             <div id="moderation-list" style="margin-top: 20px;">
@@ -4018,9 +4001,7 @@ class VibeApp {
     }
 
     async handleDeletePost(postId) {
-        if (this.services.admin?.deletePost) {
-            await this.services.admin.deletePost(postId);
-        }
+        await this.services.admin.deletePost(postId);
         this.showToast('Post deleted.');
         this.renderAdminModeration();
     }
@@ -4028,9 +4009,7 @@ class VibeApp {
     async handleBanUser(username) {
         // Need mapping for username -> id
         this.showToast(`Banning ${username} (Simulation)`);
-        if (this.services.admin?.banUser) {
-            await this.services.admin.banUser(username);
-        }
+        await this.services.admin.banUser(username);
         this.renderAdminModeration();
     }
 
@@ -4042,18 +4021,7 @@ class VibeApp {
 
         // --- Premium Animation ---
         const popup = document.createElement('div');
-        const emojiMap = { 
-            cap: '🧢', 
-            wild: '🤯', 
-            like: '👍', 
-            dislike: '👎', 
-            heat: '🔥', 
-            admire: '🙏', 
-            relate: '🙏',
-            gross: '🤢',
-            wtf: '😱',
-            dope: '🧊'
-        };
+        const emojiMap = { cap: '🧢', wild: '🤯', like: '👍', dislike: '👎', heat: '🔥', admire: '🙏', relate: '🙏' }; // Added relate
         popup.innerHTML = emojiMap[type] || '✨';
         popup.style.cssText = `
             position: fixed;
@@ -4082,19 +4050,8 @@ class VibeApp {
         // --- End Animation ---
 
         // Spawn dramatic floating reaction animation
-        const labelMap = { 
-            cap: 'CAP!', 
-            wild: 'WILD!', 
-            like: 'LIKED!', 
-            dislike: 'NAH!', 
-            heat: 'HEAT!', 
-            admire: 'RESPECT!', 
-            relate: 'RELATE!',
-            gross: 'GROSS!',
-            wtf: 'WTF?!',
-            dope: 'COLD!'
-        }; 
-        const postCard = document.querySelector(`[data-post-id="${postId}"]`);
+        const labelMap = { cap: 'CAP!', wild: 'WILD!', like: 'LIKED!', dislike: 'NAH!', heat: 'HEAT!', admire: 'RESPECT!', relate: 'RELATE!' }; // Added relate
+        const postCard = document.querySelector(`[data-id="${postId}"]`);
         if (postCard) {
             const btn = postCard.querySelector(`[data-type="${type}"]`);
             const rect = btn ? btn.getBoundingClientRect() : postCard.getBoundingClientRect();
@@ -4111,17 +4068,12 @@ class VibeApp {
         if (result.success) {
             // Optimistically update the counter in the DOM
             if (postCard) {
-                const btn = postCard.querySelector(`[data-type="${type}"]`);
+                const btn = postCard.querySelector(`[data-type="${type}"] span`);
                 if (btn) {
-                    // Extract current count from text content (format: "❤️ 5" or "❤️ 0")
-                    const textContent = btn.textContent.trim();
-                    const match = textContent.match(/(\d+)$/);
-                    const currentCount = match ? parseInt(match[1]) : 0;
-                    const isRemoving = btn.classList.contains('active');
-                    // Update the count in the text
-                    const emoji = textContent.replace(/\d+$/, '').trim();
-                    btn.textContent = `${emoji} ${isRemoving ? Math.max(0, currentCount - 1) : currentCount + 1}`;
-                    btn.classList.toggle('active');
+                    const currentCount = parseInt(btn.textContent || 0);
+                    const isRemoving = btn.parentElement.classList.contains('active');
+                    btn.textContent = isRemoving ? Math.max(0, currentCount - 1) : currentCount + 1;
+                    btn.parentElement.classList.toggle('active');
                 }
             }
         }
