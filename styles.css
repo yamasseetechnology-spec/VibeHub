@@ -2067,9 +2067,13 @@ body.keyboard-open #app-footer {
     position: fixed;
     inset: 0;
     z-index: 1000;
-    display: flex;
+    display: none;
     justify-content: center;
     align-items: center;
+}
+
+#modal-container:not(.hidden) {
+    display: flex;
 }
 
 .modal-backdrop {
@@ -2722,12 +2726,14 @@ body.keyboard-open #app-footer {
     z-index: 2999;
     opacity: 0;
     visibility: hidden;
+    pointer-events: none;
     transition: all 0.3s ease;
 }
 
 .drawer-overlay.open {
     opacity: 1;
     visibility: visible;
+    pointer-events: auto;
 }
 
 /* Mobile Search */
