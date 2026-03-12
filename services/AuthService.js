@@ -144,6 +144,25 @@ export class AuthService {
 
             // Sync with local state
             const finalAvatarUrl = userData?.avatar_url || supabaseUser.user_metadata?.avatar_url || `https://i.pravatar.cc/150?u=${supabaseUser.id}`;
+            // Get followers and following counts from the friends table
+            let followersCount = 0;
+            let followingCount = 0;
+            if (window.supabaseClient) {
+                try {
+                    const { count: followersCountResult, error: followersError } = await window.supabaseClient
+                        .from('friends')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('friend_id', userData?.id || supabaseUser.id);
+                    if (!followersError) followersCount = followersCountResult || 0;
+                    const { count: followingCountResult, error: followingError } = await window.supabaseClient
+                        .from('friends')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('user_id', userData?.id || supabaseUser.id);
+                    if (!followingError) followingCount = followingCountResult || 0;
+                } catch (e) {
+                    console.warn('Error fetching friends counts:', e);
+                }
+            }
             const finalUser = {
                 id: userData?.id || supabaseUser.id,
                 username: userData?.username || supabaseUser.user_metadata?.username || email.split('@')[0],
@@ -153,8 +172,8 @@ export class AuthService {
                 profilePhoto: finalAvatarUrl,
                 bannerImage: userData?.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
                 bio: userData?.bio || 'New to VibeHub!',
-                followersCount: userData?.followers?.length || 0,
-                followingCount: userData?.following?.length || 0,
+                followersCount: followersCount,
+                followingCount: followingCount,
                 postCount: 0, 
                 reactionScore: userData?.vibe_score || 0,
                 badgeList: userData ? calculateUserBadges(userData) : [],
