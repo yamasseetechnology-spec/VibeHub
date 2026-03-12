@@ -1,0 +1,80 @@
+[
+  {
+    "id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+    "email": "test@vibehub.com",
+    "username": "test",
+    "role": "user"
+  },
+  {
+    "id": "5531149e-ea75-4dc7-8d1a-4873097dce39",
+    "email": "citaw@mail.com",
+    "username": "QueenC",
+    "role": "user"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000000002",
+    "email": "testbeta@vibehub.com",
+    "username": "testbeta",
+    "role": "user"
+  },
+  {
+    "id": "0b43d6c5-dacc-4c05-b5d0-6f1ee2f15ef2",
+    "email": "newuser_test_@vibehub.io",
+    "username": "newuser_test_",
+    "role": "user"
+  },
+  {
+    "id": "0b9771ea-85a1-4a83-a302-efc9c2337076",
+    "email": "tester_vibe_ready@vibetest.io",
+    "username": "tester_vibe_ready",
+    "role": "user"
+  },
+  {
+    "id": "b88a2ab3-4494-4594-a516-88b43b996531",
+    "email": "testvibeuser_audit@gmail.com",
+    "username": "testvibeuser_audit",
+    "role": "user"
+  },
+  {
+    "id": "901f7d99-033e-4787-91f3-58025dc152f8",
+    "email": "final_tester@test.com",
+    "username": "final_tester",
+    "role": "user"
+  },
+  {
+    "id": "44b43542-1a4d-4fe8-a14e-2bcf38f83cb2",
+    "email": "Rakimaljabbaar@gmail.com",
+    "username": "awoadebanjofayemi.",
+    "role": "user"
+  },
+  {
+    "id": "b04ba36f-5fc1-401b-906f-47b1f9665979",
+    "email": "designsbynateh3@gmail.com",
+    "username": "designsbynateh3",
+    "role": "user"
+  },
+  {
+    "id": "40deb9a6-668a-41ee-b7fd-491be685a29f",
+    "email": "Rakimaljabbaar@icloud.com",
+    "username": "Bigbanythanos",
+    "role": "user"
+  },
+  {
+    "id": "c790cd79-2f4f-48a2-8428-859d06602fbf",
+    "email": "testuser_99@gmail.com",
+    "username": "testuser_99",
+    "role": "user"
+  },
+  {
+    "id": "7c122ba1-02ec-4f38-bde7-1ee164127218",
+    "email": "fnmuhammad@gmail.com",
+    "username": "fnmuhammad",
+    "role": "user"
+  },
+  {
+    "id": "e6915a7d-762c-493e-ac17-8b9434563080",
+    "email": "yamasseetechnology@gmail.com",
+    "username": "KingKool23",
+    "role": "admin"
+  }
+]

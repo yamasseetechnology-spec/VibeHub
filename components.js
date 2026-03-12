@@ -29,12 +29,43 @@ export const Components = {
                         <span>💬</span> ${post.commentCount || 0}
                     </div>
                     <div class="action-item action-react" onmouseenter="window.App.showReactionMenu('${post.id}', this)" onmouseleave="window.App.hideReactionMenu('${post.id}')">
-                        <span class="primary-reaction">${reactions.like > 0 ? '❤️' : '⚡'}</span>
-                        <span class="reaction-count">${Object.values(reactions).reduce((a, b) => a + b, 0)}</span>
+                        <div class="reaction-buttons" style="display: flex; gap: 8px;">
+                            <button class="reaction-btn ${post.userReaction === 'like' ? 'active' : ''}" onclick="window.App.handleReaction('${post.id}', 'like')" data-type="like">⚡ <span class="count">${reactions.like || 0}</span></button>
+                            <button class="reaction-btn ${post.userReaction === 'dislike' ? 'active' : ''}" onclick="window.App.handleReaction('${post.id}', 'dislike')" data-type="dislike">👎 <span class="count">${reactions.dislike || 0}</span></button>
+                            <button class="reaction-btn ${post.userReaction === 'heat' ? 'active' : ''}" onclick="window.App.handleReaction('${post.id}', 'heat')" data-type="heat">🔥 <span class="count">${reactions.heat || 0}</span></button>
+                            <button class="reaction-btn ${post.userReaction === 'admire' ? 'active' : ''}" onclick="window.App.handleReaction('${post.id}', 'admire')" data-type="admire">✨ <span class="count">${reactions.admire || 0}</span></button>
+                            <button class="reaction-btn ${post.userReaction === 'cap' ? 'active' : ''}" onclick="window.App.handleReaction('${post.id}', 'cap')" data-type="cap">🧢 <span class="count">${reactions.cap || 0}</span></button>
+                            <button class="reaction-btn ${post.userReaction === 'wild' ? 'active' : ''}" onclick="window.App.handleReaction('${post.id}', 'wild')" data-type="wild">😲 <span class="count">${reactions.wild || 0}</span></button>
+                        </div>
                     </div>
                     <div class="action-item action-share" onclick="window.App.copyPostLink('${post.id}')">
                         <span>🔗</span>
                     </div>
+                </div>
+            </div>
+        `;
+    },
+
+    sponsoredAd(ad) {
+        return `
+            <div class="post-card glass-panel sponsored-ad animate-fade" style="border: 2px solid var(--primary-orange); background: rgba(255, 157, 0, 0.05); margin-bottom: 20px;">
+                <div class="post-header">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div class="ad-icon" style="width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg, var(--primary-orange), var(--primary-purple)); display:flex; align-items:center; justify-content:center; color:white; font-weight:bold;">V</div>
+                        <div class="post-user-info">
+                            <span class="post-display-name" style="color:white; font-weight:700;">Sponsored Vibe</span>
+                            <span class="badge" style="position:static; background:var(--primary-orange); margin-left:5px; font-size:0.6rem;">SPONSORED</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="post-content" style="margin-top:10px;">
+                    <p style="font-size:1.1rem; line-height:1.4; color:white;">${ad.content}</p>
+                    ${ad.media_url ? (ad.media_type === 'video' ? 
+                        `<video src="${ad.media_url}" autoplay muted loop playsinline class="post-media" style="border-radius:12px; margin-top:10px; width:100%;"></video>` : 
+                        `<img src="${ad.media_url}" class="post-media" style="border-radius:12px; margin-top:10px; width:100%;">`) : ''}
+                </div>
+                <div class="post-footer" style="margin-top:15px; display:flex; justify-content:center;">
+                    <a href="${ad.link}" target="_blank" class="btn-primary" style="width:100%; text-align:center; text-decoration:none; padding:12px; border-radius:30px; font-weight:bold; letter-spacing:1px; box-shadow: 0 0 20px var(--primary-orange-glow); color:white;">LINK YOUR MIND →</a>
                 </div>
             </div>
         `;
@@ -292,7 +323,7 @@ export const Views = {
                 ${tabs.map(t => `<button class="tab ${activeTab === t.id ? 'active' : ''}" onclick="window.App.switchHomeTab('${t.id}')">${t.label}</button>`).join('')}
             </div>
             <div id="post-feed">
-                ${safePosts.length > 0 ? safePosts.map(p => Components.post(p)).join('') : '<p class="text-dim" style="padding:30px; text-align:center;">No vibes yet. Be the first to post!</p>'}
+                ${safePosts.length > 0 ? safePosts.map(p => p.isAd ? Components.sponsoredAd(p) : Components.post(p)).join('') : '<p class="text-dim" style="padding:30px; text-align:center;">No vibes yet. Be the first to post!</p>'}
             </div>
         `;
     },
@@ -865,6 +896,7 @@ export const Views = {
                 <button class="tab active" data-admin-tab="stats" onclick="window.App.switchAdminTab('stats')">📊 Stats</button>
                 <button class="tab" data-admin-tab="users" onclick="window.App.switchAdminTab('users')">👥 Users</button>
                 <button class="tab" data-admin-tab="moderation" onclick="window.App.switchAdminTab('moderation')">🛡️ Moderation</button>
+                <button class="tab" data-admin-tab="ads" onclick="window.App.switchAdminTab('ads')">📢 Ads</button>
                 <button class="tab" data-admin-tab="terminal" onclick="window.App.switchAdminTab('terminal')">💻 Terminal</button>
                 <button class="tab" data-admin-tab="neural" onclick="window.App.switchAdminTab('neural')">🧠 Neural Merge</button>
             </div>
@@ -873,6 +905,70 @@ export const Views = {
                     <div class="stat-card glass-panel" style="padding: 24px;">
                         <h3 class="text-dim">Total Users</h3>
                         <p style="font-size: 2.5rem; font-weight:800; color: var(--primary-purple);">${stats?.users || 0}</p>
+                    </div>
+                    <div class="stat-card glass-panel" style="padding: 24px;">
+                        <h3 class="text-dim">Total Posts</h3>
+                        <p style="font-size: 2.5rem; font-weight:800; color: var(--primary-orange);">${stats?.posts || 0}</p>
+                    </div>
+                    <div class="stat-card glass-panel" style="padding: 24px;">
+                        <h3 class="text-dim">Reports</h3>
+                        <p style="font-size: 2.5rem; font-weight:800; color: var(--accent-pink);">${stats?.reports || 0}</p>
+                    </div>
+                </div>
+                
+                <div id="admin-moderation-view" class="hidden">
+                    <div class="glass-panel" style="padding: 20px;">
+                        <h3>Active Reports</h3>
+                        <div id="admin-reports-list" style="margin-top: 15px;">
+                            <p class="text-dim">No active reports. Community is vibing safely. ✨</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="admin-users-view" class="hidden">
+                    <div class="glass-panel" style="padding: 20px;">
+                        <h3>User Management</h3>
+                        <div id="admin-users-list" style="margin-top: 15px;">
+                            <p class="text-dim">Retrieving user sync state...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="admin-ads-view" class="hidden">
+                    <div class="glass-panel" style="padding: 25px;">
+                        <h3 style="color:var(--primary-orange); margin-bottom:20px;">Launch Global Advertisement</h3>
+                        <div style="display:flex; flex-direction:column; gap:15px;">
+                            <div class="input-group">
+                                <label class="text-dim" style="font-size:0.8rem; display:block; margin-bottom:5px;">Ad Content (The Message)</label>
+                                <textarea id="ad-content" class="login-input" placeholder="Enter your sponsored message..." style="min-height:100px;"></textarea>
+                            </div>
+                            <div class="input-group">
+                                <label class="text-dim" style="font-size:0.8rem; display:block; margin-bottom:5px;">Media Link (Image/Video URL)</label>
+                                <input type="text" id="ad-media" class="login-input" placeholder="https://example.com/vibe.mp4">
+                            </div>
+                            <div class="input-group">
+                                <label class="text-dim" style="font-size:0.8rem; display:block; margin-bottom:5px;">Target Destination (Link)</label>
+                                <input type="text" id="ad-link" class="login-input" placeholder="https://vibehub.link/join">
+                            </div>
+                            <button class="btn-primary" onclick="window.App.submitAdPost()" style="height:55px; font-size:1.1rem; box-shadow: 0 0 30px var(--primary-orange-glow);">🚀 Broadast to Universe</button>
+                        </div>
+                    </div>
+                    <div id="admin-active-ads" style="margin-top:30px;">
+                        <h3 class="text-dim">Active Campaigns</h3>
+                        <div id="admin-ads-list" style="margin-top:15px; display:flex; flex-direction:column; gap:15px;">
+                            <!-- Ads will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+
+                <div id="admin-neural-view" class="hidden">
+                    <div class="glass-panel" style="padding: 20px;">
+                        <h3>Neural Merge Controls</h3>
+                        <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 20px;">
+                            <button class="btn-secondary" onclick="window.App.toggleGlobalMaintenance()">Toggle Maintenance Mode</button>
+                            <button class="btn-primary" style="background: var(--accent-pink);" onclick="window.App.purgeExpiredVibes()">Purge Expired Vibes</button>
+                            <button class="btn-primary" onclick="window.App.pushGlobalNotification()">Push Broadcast Signal</button>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -1,0 +1,84 @@
+{
+  "required": [
+    "id",
+    "user_id"
+  ],
+  "properties": {
+    "id": {
+      "description": "Note:\nThis is a Primary Key.<pk/>",
+      "format": "text",
+      "type": "string"
+    },
+    "user_id": {
+      "format": "text",
+      "type": "string"
+    },
+    "username": {
+      "format": "text",
+      "type": "string"
+    },
+    "text": {
+      "format": "text",
+      "type": "string"
+    },
+    "tags": {
+      "format": "text[]",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "likes": {
+      "format": "text[]",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "dislikes": {
+      "format": "text[]",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "reactions": {
+      "format": "jsonb"
+    },
+    "comments": {
+      "format": "jsonb"
+    },
+    "media_type": {
+      "default": "text",
+      "format": "text",
+      "type": "string"
+    },
+    "media_url": {
+      "format": "text",
+      "type": "string"
+    },
+    "created_at": {
+      "default": "now()",
+      "format": "timestamp with time zone",
+      "type": "string"
+    },
+    "content_tags": {
+      "format": "text[]",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "category": {
+      "default": "general",
+      "format": "text",
+      "type": "string"
+    },
+    "expires_at": {
+      "default": "(now() + '48:00:00'::interval)",
+      "format": "timestamp with time zone",
+      "type": "string"
+    }
+  },
+  "type": "object"
+}

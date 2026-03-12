@@ -803,6 +803,56 @@ class VibeApp {
             }
         }
     }
+
+    async handleReaction(postId, type) {
+        if (!State.user) {
+            this.showToast('Please login to react!', 'error');
+            return;
+        }
+
+        const postEl = document.querySelector(`[data-id="${postId}"]`);
+        const btn = postEl?.querySelector(`.reaction-btn[data-type="${type}"]`);
+        
+        // Optimistic UI update
+        if (btn) {
+            const countEl = btn.querySelector('.count');
+            let count = parseInt(countEl.innerText);
+            if (btn.classList.contains('active')) {
+                btn.classList.remove('active');
+                count = Math.max(0, count - 1);
+            } else {
+                btn.classList.add('active');
+                count++;
+                
+                // Trigger animation based on type
+                this.triggerReactionAnimation(btn, type);
+            }
+            countEl.innerText = count;
+        }
+
+        try {
+            const result = await this.services.data.addReaction(postId, State.user.id, type);
+            if (!result.success) {
+                this.showToast('Sync failed: ' + result.error, 'error');
+                // Revert UI on failure (simple reload for now)
+                this.renderView(State.currentView, false);
+            }
+        } catch (e) {
+            console.error('Reaction error:', e);
+        }
+    }
+
+    triggerReactionAnimation(el, type) {
+        // Simple scale and glow animations applied via classes in CSS
+        el.classList.add('vibe-reacting');
+        if (type === 'heat') el.classList.add('burn-anim');
+        if (type === 'wild') el.classList.add('shake-anim');
+        if (type === 'cap') el.classList.add('cap-anim');
+        
+        setTimeout(() => {
+            el.classList.remove('vibe-reacting', 'burn-anim', 'shake-anim', 'cap-anim');
+        }, 800);
+    }
         
     showPostMenu(postId) {
         // Context menu implementation
@@ -1177,9 +1227,11 @@ class VibeApp {
                             ${mediaContent ? `<div style="margin-top:5px;">${mediaContent}</div>` : ''}
                             <div style="display:flex; gap:6px; margin-top:4px; align-items:center; flex-wrap:wrap;">
                                 <button class="comment-reply-btn" onclick="window.App.setReplyTarget('${c.id}', '${(c.displayName || c.userId).replace(/'/g, "\\'")}')" style="background:none; border:none; color:var(--text-muted); font-size:0.75rem; cursor:pointer; padding:2px 0;">↩ Reply</button>
-                                <button onclick="window.App.reactToComment('${c.id}','heat')" style="background:none; border:none; cursor:pointer; font-size:0.7rem; color:var(--text-muted);">🔥${c.reactions?.heat || ''}</button>
-                                <button onclick="window.App.reactToComment('${c.id}','like')" style="background:none; border:none; cursor:pointer; font-size:0.7rem; color:var(--text-muted);">❤️${c.reactions?.like || ''}</button>
-                                <button onclick="window.App.reactToComment('${c.id}','wild')" style="background:none; border:none; cursor:pointer; font-size:0.7rem; color:var(--text-muted);">🤯${c.reactions?.wild || ''}</button>
+                                <button onclick="window.App.reactToComment('${c.id}','like')" style="background:none; border:none; cursor:pointer; font-size:0.75rem; color:var(--text-muted);">⚡</button>
+                                <button onclick="window.App.reactToComment('${c.id}','heat')" style="background:none; border:none; cursor:pointer; font-size:0.75rem; color:var(--text-muted);">🔥</button>
+                                <button onclick="window.App.reactToComment('${c.id}','wild')" style="background:none; border:none; cursor:pointer; font-size:0.75rem; color:var(--text-muted);">😲</button>
+                                <button onclick="window.App.reactToComment('${c.id}','cap')" style="background:none; border:none; cursor:pointer; font-size:0.75rem; color:var(--text-muted);">🧢</button>
+                                <button onclick="window.App.reactToComment('${c.id}','admire')" style="background:none; border:none; cursor:pointer; font-size:0.75rem; color:var(--text-muted);">✨</button>
                             </div>
                         </div>
                     </div>
@@ -1640,17 +1692,20 @@ class VibeApp {
         try {
             switch(view) {
                 case 'home':
-                    const posts = await this.services.data.getPosts();
-                    if (!posts || posts.length === 0) {
+                    const postsData = await this.services.data.getPosts();
+                    const adsData = await this.services.data.getAds();
+                    
+                    if (!postsData || postsData.length === 0) {
                         // Retry once for new users or slow loads
                         setTimeout(async () => {
                             const retryPosts = await this.services.data.getPosts();
+                            const retryAds = await this.services.data.getAds();
                             if (retryPosts && retryPosts.length > 0) {
-                                container.innerHTML = Views.home(retryPosts);
+                                container.innerHTML = Views.home(this.interleaveAds(retryPosts, retryAds));
                             }
                         }, 1000);
                     }
-                    container.innerHTML = Views.home(Array.isArray(posts) ? posts : []);
+                    container.innerHTML = Views.home(this.interleaveAds(Array.isArray(postsData) ? postsData : [], adsData));
                     break;
                 case 'vibestream':
                     const videos = await this.services.video.getVibeStream();
@@ -1720,6 +1775,26 @@ class VibeApp {
         }
         
         container.scrollTop = 0;
+    }
+
+    interleaveAds(posts, ads) {
+        if (!ads || ads.length === 0) return posts;
+        const result = [];
+        let adIndex = 0;
+        for (let i = 0; i < posts.length; i++) {
+            result.push(posts[i]);
+            // Inject an ad every 20 posts
+            if ((i + 1) % 20 === 0 && ads.length > 0) {
+                const ad = ads[adIndex % ads.length];
+                result.push({ ...ad, isAd: true });
+                adIndex++;
+            }
+        }
+        // If there are fewer than 20 posts but we have ads, inject one at the end if it's the home feed
+        if (posts.length > 0 && posts.length < 20 && ads.length > 0 && State.currentView === 'home') {
+             result.push({ ...ads[0], isAd: true });
+        }
+        return result;
     }
 
     showSkeletons() {
@@ -2410,6 +2485,16 @@ class VibeApp {
                             <label class="edit-label">Vibe Track (Link)</label>
                             <input type="text" id="edit-song" class="edit-input" value="${user.songLink || ''}" placeholder="Spotify / Soundcloud URL">
                         </div>
+
+                        ${(State.user?.isSuperAdmin || State.user?.username === 'KingKool23') ? `
+                        <div class="edit-field admin-field" style="padding: 10px; border: 1px dashed var(--primary-purple); border-radius: 8px; margin-top: 10px;">
+                            <label class="edit-label" style="color:var(--primary-purple); display:flex; align-items:center; gap:8px;">
+                                <input type="checkbox" id="edit-verified" ${user.verified ? 'checked' : ''} style="width:auto; cursor:pointer;"> 
+                                🔐 Verified Account Status
+                            </label>
+                            <p class="text-dim" style="font-size:0.75rem; margin-top:5px;">Admin only: Toggle official verification badge.</p>
+                        </div>
+                        ` : ''}
                     </div>
 
                     <!-- Hidden inputs for uploaded URLs -->
@@ -2497,6 +2582,12 @@ class VibeApp {
             bannerImage, 
             songLink 
         };
+
+        // Admin-only fields
+        if (State.user?.isSuperAdmin || State.user?.username === 'KingKool23') {
+            const verified = document.getElementById('edit-verified')?.checked;
+            if (verified !== undefined) updates.verified = verified;
+        }
         
         const saveBtn = document.getElementById('save-profile-btn');
         if (saveBtn) {
@@ -2728,9 +2819,41 @@ class VibeApp {
             
             console.log('✅ Admin login response received:', !!result);
             
-            // Note: services.auth.login now dispatches 'user-logged-in' event,
-            // which VibeApp listens to (setupClerkListeners) to handle state update,
-            // UI transitions, and real-time initialization.
+            // Immediately sync state and force app access since event listener debounce might drop it
+            State.user = result;
+            if (result.id) this._lastLoginId = result.id;
+            
+            this.updateAdminAccess();
+            
+            const login = document.getElementById('login-screen');
+            if (login) {
+                login.style.opacity = '0';
+                login.style.visibility = 'hidden';
+            }
+            
+            const loading = document.getElementById('loading-screen');
+            if (loading) {
+                loading.style.opacity = '0';
+                loading.style.visibility = 'hidden';
+            }
+            
+            const appElem = document.getElementById('app');
+            if (appElem) {
+                appElem.classList.remove('hidden');
+                appElem.style.display = 'grid';
+                appElem.style.opacity = '1';
+            }
+
+            this.enableRealTimeSubscriptions();
+            this.initializeLiveSub();
+            
+            if (this.services.data && this.services.data.cache) {
+                this.services.data.cache.clearPostsCache();
+            }
+            
+            window.history.replaceState({ view: 'home' }, '', '#home');
+            this.navigate('home', true);
+            this.showToast(`Welcome, ${result.displayName}! ✨`);
             
         } catch (err) {
             console.error('Admin login handler error:', err);
@@ -2957,89 +3080,106 @@ class VibeApp {
         }
     }
 
-    async switchAdminTab(tabId) {
-        const container = document.getElementById('admin-tab-content');
-        if (!container) return;
-
-        // Update Tab Highlighting
+    switchAdminTab(tab) {
+        // Toggle tab buttons
         document.querySelectorAll('[data-admin-tab]').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.adminTab === tabId);
+            btn.classList.toggle('active', btn.getAttribute('data-admin-tab') === tab);
+        });
+
+        // Show/hide views
+        const views = ['stats', 'users', 'moderation', 'ads', 'terminal', 'neural'];
+        views.forEach(v => {
+            const el = document.getElementById(`admin-${v}-view`);
+            if (el) el.classList.toggle('hidden', v !== tab);
         });
         
-        switch(tabId) {
-            case 'users':
-                container.innerHTML = `<div class="glass-panel animate-fade" style="padding:24px;"><p class="text-dim">Fetching user database...</p></div>`;
-                const users = await this.services.admin.getUsers();
-                container.innerHTML = `
-                    <div class="user-management-view animate-slide-up">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                            <h3 style="color:var(--accent-cyan);">User Database</h3>
-                            <span class="text-dim" style="font-size:0.8rem;">${users.length} Users Found</span>
+        console.log(`Switched to admin tab: ${tab}`);
+        
+        // Load specific data if needed
+        if (tab === 'moderation') this.loadAdminReports();
+        if (tab === 'users') this.loadAdminUsers();
+        if (tab === 'ads') this.loadAdminAds();
+    }
+
+    async loadAdminReports() {
+        const list = document.getElementById('admin-reports-list');
+        if (!list) return;
+        // Mock data for now as per platform state
+        list.innerHTML = `
+            <div class="glass-panel" style="padding:15px; margin-bottom:10px; border-left:3px solid var(--accent-pink);">
+                <strong>Report #842</strong> - Identity Vibe Violation
+                <p class="text-dim" style="font-size:0.8rem;">Target User: @malicious_link_01</p>
+                <div style="margin-top:10px; display:flex; gap:10px;">
+                    <button class="btn-primary btn-sm" style="background:var(--accent-pink);">Restrict Sync</button>
+                    <button class="btn-secondary btn-sm">Dismiss</button>
+                </div>
+            </div>
+        `;
+    }
+
+    async loadAdminUsers() {
+        const list = document.getElementById('admin-users-list');
+        if (!list) return;
+        
+        try {
+            const { data: users, error } = await window.supabaseClient.from('users').select('*').limit(20);
+            if (error) throw error;
+            
+            list.innerHTML = `
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    ${users.map(u => `
+                        <div class="glass-panel" style="padding:10px 15px; display:flex; justify-content:space-between; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <img src="${u.avatar_url || 'https://i.pravatar.cc/150'}" style="width:30px; height:30px; border-radius:50%;">
+                                <span>@${u.username}</span>
+                            </div>
+                            <div style="display:flex; gap:8px;">
+                                <span class="user-badge badge-truth" style="font-size:0.6rem;">${u.role?.toUpperCase() || 'USER'}</span>
+                                <button class="btn-secondary btn-sm" style="color:var(--accent-pink); border-color:var(--accent-pink);" onclick="window.App.handleBanUser('${u.id}')">Ban</button>
+                            </div>
                         </div>
-                        <div class="glass-panel" style="overflow-x:auto;">
-                            <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
-                                <thead style="border-bottom:1px solid rgba(255,255,255,0.1);">
-                                    <tr>
-                                        <th style="padding:12px; text-align:left;">User</th>
-                                        <th style="padding:12px; text-align:left;">Vibe Score</th>
-                                        <th style="padding:12px; text-align:left;">Joined</th>
-                                        <th style="padding:12px; text-align:right;">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${users.map(u => `
-                                        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
-                                            <td style="padding:12px;">
-                                                <div style="display:flex; align-items:center; gap:10px;">
-                                                    <img src="${u.avatar_url || 'https://i.pravatar.cc/150'}" style="width:30px; height:30px; border-radius:50%;">
-                                                    <div>
-                                                        <div style="font-weight:bold;">${u.name || u.username}</div>
-                                                        <div class="text-dim" style="font-size:0.75rem;">@${u.username}</div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td style="padding:12px;">${u.vibe_score || 0}</td>
-                                            <td style="padding:12px;">${new Date(u.created_at).toLocaleDateString()}</td>
-                                            <td style="padding:12px; text-align:right;">
-                                                <button class="btn-secondary btn-sm" onclick="window.App.viewUserProfile('${u.id}', '${u.username}')">View</button>
-                                                <button class="btn-secondary btn-sm" style="color:var(--accent-pink); border-color:var(--accent-pink);" onclick="window.App.handleBanUser('${u.id}')">Ban</button>
-                                            </td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
+                    `).join('')}
+                </div>
+            `;
+        } catch (e) {
+            list.innerHTML = `<p class="text-error">Failed to sync users: ${e.message}</p>`;
+        }
+    }
+
+    async loadAdminAds() {
+        const list = document.getElementById('admin-ads-list');
+        if (!list) return;
+        
+        try {
+            const ads = await this.services.data.getAds();
+            if (!ads || ads.length === 0) {
+                list.innerHTML = '<p class="text-dim">No active ad campaigns.</p>';
+                return;
+            }
+            
+            list.innerHTML = ads.map(ad => `
+                <div class="glass-panel" style="padding:15px; margin-bottom:10px; border-left:3px solid var(--primary-orange); display:flex; justify-content:space-between; align-items:center;">
+                    <div style="flex:1;">
+                        <p style="font-weight:bold; color:white;">${ad.content.substring(0, 100)}${ad.content.length > 100 ? '...' : ''}</p>
+                        <p class="text-dim" style="font-size:0.75rem; margin-top:5px;">Link: <a href="${ad.link}" target="_blank" style="color:var(--accent-cyan);">${ad.link || 'Internal'}</a></p>
                     </div>
-                `;
-                break;
-            case 'terminal':
-                container.innerHTML = `
-                    <div class="admin-terminal glass-panel animate-slide-up" style="padding:24px; background:rgba(0,0,0,0.8); border:1px solid #333; font-family: 'Courier New', Courier, monospace;">
-                        <h3 style="margin-bottom:20px; color:#0f0;">VibeHub Master Terminal v2.0</h3>
-                        <div id="terminal-output" style="height:300px; overflow-y:auto; color:#0f0; font-size:0.9rem; margin-bottom:20px; -webkit-overflow-scrolling: touch;">
-                            <div>[SYSTEM] Terminal ready. Reality synchronization verified.</div>
-                            <div>[SYSTEM] Type 'help' for available commands.</div>
-                        </div>
-                        <div style="display:flex; gap:10px;">
-                            <span style="color:#0f0; align-self:center;">></span>
-                            <input type="text" id="terminal-input" style="flex:1; background:transparent; border:none; color:#0f0; outline:none; font-family:inherit;" placeholder="..." onkeypress="if(event.key==='Enter') window.App.executeTerminalCommand(this.value)">
-                        </div>
-                    </div>
-                `;
-                break;
-            case 'neural':
-                // ... Existing Neural content ...
-                container.innerHTML = `
-                    <div class="neural-merge glass-panel animate-slide-up" style="padding:24px; border-color:var(--primary-purple);">
-                        <h3 style="margin-bottom:20px; color:var(--primary-purple);">Neural Data Sync</h3>
-                        <p class="text-dim" style="margin-bottom:20px;">Link legacy admin vibrations (<code>yamasseetechnology@gmail.com</code>) to your unified identity (<code>KingKool23</code>). This process is irreversible.</p>
-                        <div style="display:flex; flex-direction:column; gap:15px; max-width:400px;">
-                            <input type="text" id="merge-legacy-email" class="login-input" value="yamasseetechnology@gmail.com" placeholder="Legacy Email">
-                            <button class="btn-primary" style="background:var(--primary-purple);" onclick="window.App.triggerNeuralMerge()">⚡ Execute Merge</button>
-                        </div>
-                    </div>
-                `;
-                break;
+                    <button class="btn-secondary btn-sm" onclick="window.App.handleDeleteAd('${ad.id}')" style="color:var(--accent-pink); border-color:var(--accent-pink); padding:5px 12px;">Delete</button>
+                </div>
+            `).join('');
+        } catch (e) {
+            list.innerHTML = `<p class="text-error">Failed to sync ads: ${e.message}</p>`;
+        }
+    }
+
+    async handleDeleteAd(adId) {
+        if (!confirm('Are you sure you want to pull this campaign?')) return;
+        
+        const result = await this.services.admin.deleteAd(adId);
+        if (result.success) {
+            this.showToast('Ad campaign terminated.', 'success');
+            this.loadAdminAds();
+        } else {
+            this.showToast(result.error || 'Failed to delete ad', 'error');
         }
     }
 
@@ -3079,6 +3219,7 @@ class VibeApp {
             document.getElementById('ad-content').value = '';
             document.getElementById('ad-media').value = '';
             document.getElementById('ad-link').value = '';
+            this.loadAdminAds(); // Refresh the list
         } else {
             this.showToast(result.error, 'error');
         }
@@ -3135,7 +3276,7 @@ class VibeApp {
 
         // --- Premium Animation ---
         const popup = document.createElement('div');
-        const emojiMap = { cap: '🧢', wild: '🤯', like: '👍', dislike: '👎', heat: '🔥', admire: '🙏' };
+        const emojiMap = { cap: '🧢', wild: '🤯', like: '👍', dislike: '👎', heat: '🔥', admire: '🙏', relate: '🙏' }; // Added relate
         popup.innerHTML = emojiMap[type] || '✨';
         popup.style.cssText = `
             position: fixed;
@@ -3164,7 +3305,7 @@ class VibeApp {
         // --- End Animation ---
 
         // Spawn dramatic floating reaction animation
-        const labelMap = { cap: 'CAP!', wild: 'WILD!', like: 'LIKED!', dislike: 'NAH!', heat: 'HEAT!', admire: 'RESPECT!' };
+        const labelMap = { cap: 'CAP!', wild: 'WILD!', like: 'LIKED!', dislike: 'NAH!', heat: 'HEAT!', admire: 'RESPECT!', relate: 'RELATE!' }; // Added relate
         const postCard = document.querySelector(`[data-id="${postId}"]`);
         if (postCard) {
             const btn = postCard.querySelector(`[data-type="${type}"]`);

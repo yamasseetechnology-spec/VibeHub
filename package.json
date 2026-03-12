@@ -22,6 +22,7 @@
   "homepage": "https://github.com/yamasseetechnology-spec/vibehub#readme",
   "dependencies": {
     "@clerk/clerk-js": "^6.0.0",
+    "@supabase/supabase-js": "^2.99.1",
     "vite": "^7.3.1"
   }
 }

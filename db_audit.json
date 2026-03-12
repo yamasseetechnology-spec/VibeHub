@@ -1,0 +1,122 @@
+{
+  "totalPosts": 12,
+  "posts": [
+    {
+      "user": "verify_1773271002044",
+      "text": "Automated verification post!"
+    },
+    {
+      "user": "verify_1773270988425",
+      "text": "Automated verification post!"
+    },
+    {
+      "user": "KingKool23",
+      "text": ""
+    },
+    {
+      "user": "KingKool23",
+      "text": ""
+    },
+    {
+      "user": "KingKool23",
+      "text": "All the post are back up, I'm working ok"
+    },
+    {
+      "user": "The_Homebody_Baddie",
+      "text": "Excited!"
+    },
+    {
+      "user": "KingKool23",
+      "text": "Fixing profile image uploading stuff y'a"
+    },
+    {
+      "user": "KingKool23",
+      "text": "Let's launch. Beta testing time."
+    },
+    {
+      "user": "KingKool23",
+      "text": "Let me know you see this"
+    },
+    {
+      "user": "awoadebanjofayemi.",
+      "text": "Feeling like Ice Cube…..today was a good"
+    },
+    {
+      "user": "testbeta",
+      "text": "Hello world!!"
+    },
+    {
+      "user": "TestUser",
+      "text": "Hello from Supabase! This is a test post"
+    }
+  ],
+  "totalUsers": 11,
+  "users": [
+    {
+      "username": "test",
+      "email": "test@vibehub.com",
+      "name": "Test User",
+      "id": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+    },
+    {
+      "username": "QueenC",
+      "email": "citaw@mail.com",
+      "name": "QueenC",
+      "id": "5531149e-ea75-4dc7-8d1a-4873097dce39"
+    },
+    {
+      "username": "testbeta",
+      "email": "testbeta@vibehub.com",
+      "name": "Test Beta User",
+      "id": "00000000-0000-0000-0000-000000000002"
+    },
+    {
+      "username": "newuser_test_",
+      "email": "newuser_test_@vibehub.io",
+      "name": "New User",
+      "id": "0b43d6c5-dacc-4c05-b5d0-6f1ee2f15ef2"
+    },
+    {
+      "username": "tester_vibe_ready",
+      "email": "tester_vibe_ready@vibetest.io",
+      "name": "Vibe Tester Final",
+      "id": "0b9771ea-85a1-4a83-a302-efc9c2337076"
+    },
+    {
+      "username": "testvibeuser_audit",
+      "email": "testvibeuser_audit@gmail.com",
+      "name": "Test Vibe User",
+      "id": "b88a2ab3-4494-4594-a516-88b43b996531"
+    },
+    {
+      "username": "KingKool23",
+      "email": "yamasseetechnology@gmail.com",
+      "name": "Nathaniel Harper III",
+      "id": "00000000-0000-0000-0000-000000000001"
+    },
+    {
+      "username": "awoadebanjofayemi.",
+      "email": "Rakimaljabbaar@gmail.com",
+      "name": "Awo Adebanjo Fayemi",
+      "id": "44b43542-1a4d-4fe8-a14e-2bcf38f83cb2"
+    },
+    {
+      "username": "designsbynateh3",
+      "email": "designsbynateh3@gmail.com",
+      "name": "nate",
+      "id": "b04ba36f-5fc1-401b-906f-47b1f9665979"
+    },
+    {
+      "username": "Bigbanythanos",
+      "email": "Rakimaljabbaar@icloud.com",
+      "name": "Bigbabythanos",
+      "id": "40deb9a6-668a-41ee-b7fd-491be685a29f"
+    },
+    {
+      "username": "fnmuhammad",
+      "email": "fnmuhammad@gmail.com",
+      "name": "Fowziyyah Muhammad",
+      "id": "7c122ba1-02ec-4f38-bde7-1ee164127218"
+    }
+  ]
+}

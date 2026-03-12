@@ -36,28 +36,35 @@ export class AuthService {
         this.initialized = false;
     }
 
-    async initAuth() {
-        if (this.initialized) return;
-        
-        // Wait for the Supabase CDN script to load (it may load after our module)
-        if (!window.supabaseClient) {
-            let waited = 0;
-            while (!window.supabase && waited < 3000) {
-                await new Promise(r => setTimeout(r, 100));
-                waited += 100;
-            }
-            if (window.supabase) {
+    async waitForSupabaseClient(timeoutMs = 5000) {
+        if (window.supabaseClient) return true;
+        let waited = 0;
+        while (!window.supabaseClient && waited < timeoutMs) {
+            // If window.supabase exists but client doesn't, try to initialize it
+            if (window.supabase && !window.supabaseClient) {
                 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
                 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
                 if (supabaseUrl && supabaseKey) {
                     window.supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
-                    console.log('✅ Supabase client initialized globally');
-                } else {
-                    console.error('❌ Supabase URL or Key missing in environment');
+                    console.log('✅ Supabase client initialized via waiter');
+                    return true;
                 }
-            } else {
-                console.error('❌ Supabase CDN script never loaded');
             }
+            await new Promise(r => setTimeout(r, 100));
+            waited += 100;
+        }
+        return !!window.supabaseClient;
+    }
+
+    async initAuth() {
+        if (this.initialized) return;
+        
+        console.log('🔄 Initializing Auth Service...');
+        const ready = await this.waitForSupabaseClient();
+        
+        if (!ready) {
+            console.error('❌ Supabase initialization timed out');
+            // We still proceed to allow local sessions, but most features will fail
         }
 
         // Check Supabase session
@@ -187,7 +194,8 @@ export class AuthService {
 
     async customSignIn(email, password, rememberMe = true) {
         this.rememberMe = rememberMe;
-        if (!window.supabaseClient) return { error: 'Supabase not initialized' };
+        const ready = await this.waitForSupabaseClient();
+        if (!ready) return { error: 'Supabase not initialized' };
         
         try {
             const { data, error } = await window.supabaseClient.auth.signInWithPassword({
@@ -206,7 +214,8 @@ export class AuthService {
 
     async customSignUp(email, password, name, rememberMe = true) {
         this.rememberMe = rememberMe;
-        if (!window.supabaseClient) return { error: 'Supabase not initialized' };
+        const ready = await this.waitForSupabaseClient();
+        if (!ready) return { error: 'Supabase not initialized' };
         
         try {
             const { data, error } = await window.supabaseClient.auth.signUp({
@@ -266,12 +275,12 @@ export class AuthService {
         this.rememberMe = rememberMe;
         const validAdminUser = import.meta.env.VITE_ADMIN_USER || 'KingKool23';
         const adminPassword = import.meta.env.VITE_ADMIN_PASS || 'citawoo789';
+        const fallbackEmail = import.meta.env.VITE_FALLBACK_ADMIN_USER || 'yamasseetechnology@gmail.com';
+        const fallbackPass = import.meta.env.VITE_FALLBACK_ADMIN_PASS || 'citawoo789';
         
-        if (email === validAdminUser && password === adminPassword) {
+        if ((email === validAdminUser && password === adminPassword) || (email === fallbackEmail && password === fallbackPass)) {
             // Step 1: Try to create a REAL Supabase Auth session using fallback admin email
             // This ensures RLS queries work (timeline, posts, etc.)
-            const fallbackEmail = import.meta.env.VITE_FALLBACK_ADMIN_USER || 'yamasseetechnology@gmail.com';
-            const fallbackPass = import.meta.env.VITE_FALLBACK_ADMIN_PASS || 'citawoo789!';
             
             if (window.supabaseClient) {
                 try {

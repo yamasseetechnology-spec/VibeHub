@@ -498,6 +498,17 @@ export class AdminService {
         }
     }
 
+    async deleteAd(adId) {
+        if (!window.supabaseClient) return { success: true };
+        try {
+            await window.supabaseClient.from('sponsored_ads').delete().eq('id', adId);
+            return { success: true };
+        } catch (e) {
+            console.error('Error deleting ad:', e);
+            return { error: 'Failed to delete ad' };
+        }
+    }
+
     async reportContent(type, targetId, reporterId) {
         if (!window.supabaseClient) return true;
         try {

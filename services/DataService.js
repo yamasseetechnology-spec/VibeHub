@@ -128,15 +128,59 @@ export class DataService {
         const cacheKey = `posts_${tab}_${communityId || 'all'}`;
         const cached = await this.cache.getCachedPosts(cacheKey);
         if (cached && Array.isArray(cached)) return cached;
+        
         try {
+            // Attempt join query first
             let query = window.supabaseClient.from('posts').select('*, users(*)').order('created_at', { ascending: false });
             if (communityId) query = query.eq('community_id', communityId);
+            
             const { data, error } = await query;
-            if (error) throw error;
+            
+            if (error) {
+                // If it's the specific join error (PGRST200), fall back to dual-query
+                if (error.code === 'PGRST200' || error.message.includes('relationship')) {
+                    console.warn('⚠️ Supabase Relationship Missing (PGRST200). Falling back to dual-query fetch.');
+                    
+                    let fallbackQuery = window.supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
+                    if (communityId) fallbackQuery = fallbackQuery.eq('community_id', communityId);
+                    
+                    const { data: postsData, error: postsError } = await fallbackQuery;
+                    if (postsError) throw postsError;
+                    
+                    if (!postsData || postsData.length === 0) return [];
+
+                    // Fetch associated users
+                    const userIds = [...new Set(postsData.map(p => p.user_id))].filter(id => !!id);
+                    const { data: userData, error: userError } = await window.supabaseClient
+                        .from('users').select('*').in('id', userIds);
+                    
+                    if (userError) console.error('User fetch error in fallback:', userError);
+                    
+                    const userMap = (userData || []).reduce((acc, u) => {
+                        acc[u.id] = u;
+                        return acc;
+                    }, {});
+
+                    // Manually join
+                    const joinedData = postsData.map(p => ({
+                        ...p,
+                        users: userMap[p.user_id] || null
+                    }));
+
+                    let posts = this.mapPosts(joinedData);
+                    await this.cache.cachePosts(cacheKey, posts);
+                    return posts;
+                }
+                throw error;
+            }
+            
             let posts = this.mapPosts(data);
             await this.cache.cachePosts(cacheKey, posts);
             return posts;
-        } catch (error) { console.error('getPosts failed:', error); return []; }
+        } catch (error) { 
+            console.error('getPosts failed:', error); 
+            return []; 
+        }
     }
 
     mapPosts(data) {
@@ -161,6 +205,17 @@ export class DataService {
                 created_at: post.created_at || new Date().toISOString()
             };
         });
+    }
+
+    async getAds() {
+        if (!window.supabaseClient) return [];
+        try {
+            const { data } = await window.supabaseClient.from('sponsored_ads').select('*').order('created_at', { ascending: false });
+            return data || [];
+        } catch (error) {
+            console.error('Error fetching ads:', error);
+            return [];
+        }
     }
 
     subscribeToPosts(callback) {
