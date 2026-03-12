@@ -42,8 +42,8 @@ export class AuthService {
         while (!window.supabaseClient && waited < timeoutMs) {
             // If window.supabase exists but client doesn't, try to initialize it
             if (window.supabase && !window.supabaseClient) {
-                const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-                const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+                const supabaseUrl = window.VIBEHUB_SUPABASE_URL;
+                const supabaseKey = window.VIBEHUB_SUPABASE_ANON_KEY;
                 if (supabaseUrl && supabaseKey) {
                     window.supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
                     console.log('✅ Supabase client initialized via waiter');
@@ -273,10 +273,10 @@ export class AuthService {
 
     async login(email, password, isAdmin = false, rememberMe = true) {
         this.rememberMe = rememberMe;
-        const validAdminUser = import.meta.env.VITE_ADMIN_USER || 'KingKool23';
-        const adminPassword = import.meta.env.VITE_ADMIN_PASS || 'citawoo789';
-        const fallbackEmail = import.meta.env.VITE_FALLBACK_ADMIN_USER || 'yamasseetechnology@gmail.com';
-        const fallbackPass = import.meta.env.VITE_FALLBACK_ADMIN_PASS || 'citawoo789';
+        const validAdminUser = window.VIBEHUB_ADMIN_USER || 'KingKool23';
+        const adminPassword = window.VIBEHUB_ADMIN_PASS || 'citawoo789';
+        const fallbackEmail = window.VIBEHUB_FALLBACK_ADMIN_USER || 'yamasseetechnology@gmail.com';
+        const fallbackPass = window.VIBEHUB_FALLBACK_ADMIN_PASS || 'citawoo789';
         
         if ((email === validAdminUser && password === adminPassword) || (email === fallbackEmail && password === fallbackPass)) {
             // Step 1: Try to create a REAL Supabase Auth session using fallback admin email
@@ -400,6 +400,6 @@ export class AuthService {
                 console.error('Profile update error:', e);
             }
         }
-        return this.user;
+        return !!window.supabaseClient;
     }
 }

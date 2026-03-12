@@ -5,7 +5,7 @@
 
 export class MediaService {
     constructor() {
-        this.cloudinaryConfig = { cloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME };
+        this.cloudinaryConfig = { cloudName: window.VIBEHUB_CLOUDINARY_CLOUD_NAME || '' };
         this.cloudinaryReady = !!window.cloudinary;
         
         // ImageKit Initialization
