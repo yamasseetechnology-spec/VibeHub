@@ -56,42 +56,40 @@ export const Components = {
                     </div>
                 ` : ''}
                 
-                <div class="post-stats" style="display:flex; flex-direction:column; gap:6px; padding:10px 0; border-top:1px solid var(--border-light);">
-                    <div class="reactions-row-1" style="display:flex; gap:4px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
-                        <div style="display:flex; gap:4px; flex-wrap:wrap;">
-                            <button onclick="window.App.handleReaction('${post.id}', 'like')" class="reaction-btn ${post.reactions.like > 0 ? 'active' : ''}" data-type="like" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:2px 6px; cursor:pointer; font-size:0.7rem; transition:all 0.3s; white-space:nowrap;">
-                                ❤️ ${post.reactions.like || 0}
-                            </button>
-                            <button onclick="window.App.handleReaction('${post.id}', 'dislike')" class="reaction-btn ${post.reactions.dislike > 0 ? 'active' : ''}" data-type="dislike" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:2px 6px; cursor:pointer; font-size:0.7rem; transition:all 0.3s; white-space:nowrap;">
-                                👎 ${post.reactions.dislike || 0}
-                            </button>
-                            <button onclick="window.App.handleReaction('${post.id}', 'heat')" class="reaction-btn ${post.reactions.heat > 0 ? 'active' : ''}" data-type="heat" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:2px 6px; cursor:pointer; font-size:0.7rem; transition:all 0.3s; white-space:nowrap;">
-                                🌶️ ${post.reactions.heat || 0}
-                            </button>
-                            <button onclick="window.App.handleReaction('${post.id}', 'wild')" class="reaction-btn ${post.reactions.wild > 0 ? 'active' : ''}" data-type="wild" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:2px 6px; cursor:pointer; font-size:0.7rem; transition:all 0.3s; white-space:nowrap;">
-                                🤪 ${post.reactions.wild || 0}
-                            </button>
-                            <button onclick="window.App.handleReaction('${post.id}', 'admire')" class="reaction-btn ${post.reactions.admire > 0 ? 'active' : ''}" data-type="admire" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:2px 6px; cursor:pointer; font-size:0.7rem; transition:all 0.3s; white-space:nowrap;">
-                                🤩 ${post.reactions.admire || 0}
-                            </button>
-                            <button onclick="window.App.handleReaction('${post.id}', 'gross')" class="reaction-btn ${post.reactions.gross > 0 ? 'active' : ''}" data-type="gross" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:2px 6px; cursor:pointer; font-size:0.7rem; transition:all 0.3s; white-space:nowrap;">
-                                🤢 ${post.reactions.gross || 0}
-                            </button>
-                            <button onclick="window.App.handleReaction('${post.id}', 'wtf')" class="reaction-btn ${post.reactions.wtf > 0 ? 'active' : ''}" data-type="wtf" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:2px 6px; cursor:pointer; font-size:0.7rem; transition:all 0.3s; white-space:nowrap;">
-                                😱 ${post.reactions.wtf || 0}
-                            </button>
-                            <button onclick="window.App.handleReaction('${post.id}', 'dope')" class="reaction-btn ${post.reactions.dope > 0 ? 'active' : ''}" data-type="dope" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:2px 6px; cursor:pointer; font-size:0.7rem; transition:all 0.3s; white-space:nowrap;">
-                                🔥 ${post.reactions.dope || 0}
-                            </button>
-                            <button onclick="window.App.handleReaction('${post.id}', 'cap')" class="reaction-btn ${post.reactions.cap > 0 ? 'active' : ''}" data-type="cap" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:2px 6px; cursor:pointer; font-size:0.7rem; transition:all 0.3s; white-space:nowrap;">
-                                🧢 ${post.reactions.cap || 0}
-                            </button>
-                        </div>
-                        <div style="display:flex; gap:4px; align-items:center;">
-                            <button onclick="window.App.showCommentModal('${post.id}')" class="reaction-btn" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:2px 6px; cursor:pointer; font-size:0.7rem; transition:all 0.3s; white-space:nowrap;">
-                                💬 ${post.commentCount || 0}
-                            </button>
-                        </div>
+                <div class="post-stats" style="display:flex; flex-direction:column; gap:4px; padding:8px 0; border-top:1px solid var(--border-light);">
+                    <div class="reactions-row-1" style="display:flex; gap:3px; flex-wrap:wrap; justify-content:space-between;">
+                        <button onclick="window.App.handleReaction('${post.id}', 'like')" class="reaction-btn ${post.reactions.like > 0 ? 'active' : ''}" data-type="like" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                            ❤️ ${post.reactions.like || 0}
+                        </button>
+                        <button onclick="window.App.handleReaction('${post.id}', 'dislike')" class="reaction-btn ${post.reactions.dislike > 0 ? 'active' : ''}" data-type="dislike" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                            👎 ${post.reactions.dislike || 0}
+                        </button>
+                        <button onclick="window.App.handleReaction('${post.id}', 'heat')" class="reaction-btn ${post.reactions.heat > 0 ? 'active' : ''}" data-type="heat" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                            🌶️ ${post.reactions.heat || 0}
+                        </button>
+                        <button onclick="window.App.handleReaction('${post.id}', 'wild')" class="reaction-btn ${post.reactions.wild > 0 ? 'active' : ''}" data-type="wild" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                            🤪 ${post.reactions.wild || 0}
+                        </button>
+                        <button onclick="window.App.handleReaction('${post.id}', 'admire')" class="reaction-btn ${post.reactions.admire > 0 ? 'active' : ''}" data-type="admire" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                            🤩 ${post.reactions.admire || 0}
+                        </button>
+                    </div>
+                    <div class="reactions-row-2" style="display:flex; gap:3px; flex-wrap:wrap; justify-content:space-between;">
+                        <button onclick="window.App.handleReaction('${post.id}', 'gross')" class="reaction-btn ${post.reactions.gross > 0 ? 'active' : ''}" data-type="gross" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                            🤢 ${post.reactions.gross || 0}
+                        </button>
+                        <button onclick="window.App.handleReaction('${post.id}', 'wtf')" class="reaction-btn ${post.reactions.wtf > 0 ? 'active' : ''}" data-type="wtf" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                            😱 ${post.reactions.wtf || 0}
+                        </button>
+                        <button onclick="window.App.handleReaction('${post.id}', 'dope')" class="reaction-btn ${post.reactions.dope > 0 ? 'active' : ''}" data-type="dope" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                            🔥 ${post.reactions.dope || 0}
+                        </button>
+                        <button onclick="window.App.handleReaction('${post.id}', 'cap')" class="reaction-btn ${post.reactions.cap > 0 ? 'active' : ''}" data-type="cap" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                            🧢 ${post.reactions.cap || 0}
+                        </button>
+                        <button onclick="window.App.showCommentModal('${post.id}')" class="reaction-btn" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                            💬 ${post.commentCount || 0}
+                        </button>
                     </div>
                 </div>
             </div>
