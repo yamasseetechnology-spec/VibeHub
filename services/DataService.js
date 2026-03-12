@@ -60,7 +60,7 @@ export class DataService {
             { id: 'u2', username: 'cyber_soul', email: 'cyber@vibehub.com', name: 'Cyber Soul', bio: 'Neon dreams in a digital world. 🏙️✨', avatar_url: 'https://i.pravatar.cc/150?u=vibehub2', banner_url: 'https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=1200', theme: 'cyan', followers: ['u1', 'u3', 'u4'], following: ['u1'], vibe_score: 850, verified: true, role: 'user', created_at: new Date().toISOString() }
         ];
         const samplePosts = [
-            { user_id: 'u1', username: 'echo_mind', user_avatar: 'https://i.pravatar.cc/150?u=vibehub1', text: 'The geometry of thought is fascinating.', media_url: 'https://images.unsplash.com/photo-1633167606207-d840b5070fc2?w=800', media_type: 'image', tags: ['mindfulness'], mood: '🧠', likes: ['u2'], dislikes: [], reactions: { cap: [], relate: [], wild: [], facts: [] }, comment_count: 0 }
+            { id: crypto.randomUUID(), user_id: 'u1', username: 'echo_mind', text: 'The geometry of thought is fascinating.', media_url: 'https://images.unsplash.com/photo-1633167606207-d840b5070fc2?w=800', media_type: 'image', tags: ['mindfulness'], likes: ['u2'], dislikes: [], reactions: { cap: [], relate: [], wild: [], facts: [] }, comments: [] }
         ];
         try {
             await window.supabaseClient.from('users').insert(sampleUsers);

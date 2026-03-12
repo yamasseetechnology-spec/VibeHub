@@ -39,15 +39,24 @@ export class AuthService {
     async initAuth() {
         if (this.initialized) return;
         
-        // Initialize Supabase Client if not already initialized
-        if (!window.supabaseClient && window.supabase) {
-            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-            const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-            if (supabaseUrl && supabaseKey) {
-                window.supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
-                console.log('✅ Supabase client initialized globally');
+        // Wait for the Supabase CDN script to load (it may load after our module)
+        if (!window.supabaseClient) {
+            let waited = 0;
+            while (!window.supabase && waited < 3000) {
+                await new Promise(r => setTimeout(r, 100));
+                waited += 100;
+            }
+            if (window.supabase) {
+                const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+                const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+                if (supabaseUrl && supabaseKey) {
+                    window.supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+                    console.log('✅ Supabase client initialized globally');
+                } else {
+                    console.error('❌ Supabase URL or Key missing in environment');
+                }
             } else {
-                console.error('❌ Supabase URL or Key missing in environment');
+                console.error('❌ Supabase CDN script never loaded');
             }
         }
 
@@ -254,19 +263,44 @@ export class AuthService {
     }
 
     async login(email, password, isAdmin = false, rememberMe = true) {
-        // Admin Bypass logic
         this.rememberMe = rememberMe;
-        const validAdminEmail = import.meta.env.VITE_ADMIN_USER || 'KingKool23';
+        const validAdminUser = import.meta.env.VITE_ADMIN_USER || 'KingKool23';
         const adminPassword = import.meta.env.VITE_ADMIN_PASS || 'citawoo789';
         
-        if (email === validAdminEmail && password === adminPassword) {
-            // Fetch real user data from Supabase if it exists for this admin
+        if (email === validAdminUser && password === adminPassword) {
+            // Step 1: Try to create a REAL Supabase Auth session using fallback admin email
+            // This ensures RLS queries work (timeline, posts, etc.)
+            const fallbackEmail = import.meta.env.VITE_FALLBACK_ADMIN_USER || 'yamasseetechnology@gmail.com';
+            const fallbackPass = import.meta.env.VITE_FALLBACK_ADMIN_PASS || 'citawoo789!';
+            
+            if (window.supabaseClient) {
+                try {
+                    const { data: authData, error: authError } = await window.supabaseClient.auth.signInWithPassword({
+                        email: fallbackEmail,
+                        password: fallbackPass
+                    });
+                    if (authError) {
+                        console.warn('Admin Supabase auth failed, falling back to local session:', authError.message);
+                    } else {
+                        console.log('✅ Admin Supabase auth session established');
+                    }
+                } catch(e) {
+                    console.warn('Admin Supabase auth exception:', e);
+                }
+            }
+
+            // Step 2: Fetch admin profile data from users table by USERNAME (not email)
             let supabaseUser = null;
             if (window.supabaseClient) {
                 try {
-                    const { data } = await window.supabaseClient.from('users').select('*').eq('email', email).limit(1).single();
+                    const { data } = await window.supabaseClient
+                        .from('users').select('*')
+                        .eq('username', validAdminUser)
+                        .limit(1).single();
                     if (data) supabaseUser = data;
-                } catch(e) { console.warn('Admin user fetch from DB skipped', e); }
+                } catch(e) {
+                    console.warn('Admin profile fetch by username skipped:', e);
+                }
             }
 
             const finalAdminAvatar = supabaseUser?.avatar_url || 'https://i.ibb.co/6P01wJvq/vibehubadmin.jpg';
@@ -274,13 +308,16 @@ export class AuthService {
                 id: supabaseUser?.id || `admin_${Date.now()}`,
                 username: supabaseUser?.username || 'KingKool23',
                 displayName: supabaseUser?.name || 'King Kool',
-                email: email,
+                email: fallbackEmail,
                 avatar: finalAdminAvatar,
                 profilePhoto: finalAdminAvatar,
                 bannerImage: supabaseUser?.banner_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
                 bio: supabaseUser?.bio || 'Platform Administrator',
                 badgeList: ['Admin'],
                 isSuperAdmin: true,
+                followersCount: supabaseUser?.followers?.length || 0,
+                followingCount: supabaseUser?.following?.length || 0,
+                songLink: supabaseUser?.song_link || null,
                 createdAt: supabaseUser?.created_at || new Date().toISOString()
             };
             

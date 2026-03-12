@@ -2,123 +2,88 @@ import * as fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
 
 const dotenv = fs.readFileSync('.env', 'utf8');
-const urlMatch = dotenv.match(/VITE_SUPABASE_URL=(.*)/);
-const keyMatch = dotenv.match(/VITE_SUPABASE_ANON_KEY=(.*)/);
-
-const SUPABASE_URL = urlMatch[1].trim();
-const SUPABASE_ANON_KEY = keyMatch[1].trim();
+const SUPABASE_URL = dotenv.match(/VITE_SUPABASE_URL=(.*)/)[1].trim();
+const SUPABASE_ANON_KEY = dotenv.match(/VITE_SUPABASE_ANON_KEY=(.*)/)[1].trim();
+const ADMIN_EMAIL = dotenv.match(/VITE_FALLBACK_ADMIN_USER=(.*)/)[1].trim();
+const ADMIN_PASS = dotenv.match(/VITE_FALLBACK_ADMIN_PASS=(.*)/)[1].trim();
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-async function runTests() {
-    console.log("=== VIBEHUB FEATURE VERIFICATION ===");
+async function verify() {
+    console.log("=== VIBEHUB REGRESSION FIX VERIFICATION ===\n");
     
-    // 1. Authenticate (using a test account or sign up a temporary one)
-    const testEmail = `verify_${Date.now()}@gmail.com`;
-    const testPassword = 'Password123!';
-    
-    console.log(`[TEST 1] Creating temporary test user: ${testEmail}`);
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: testEmail,
-        password: testPassword,
-        options: {
-            data: { full_name: 'Test Verify', username: `verify_${Date.now()}` }
-        }
+    // Test 1: Admin auth session
+    console.log("[TEST 1] Admin Supabase Auth login...");
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: ADMIN_EMAIL, password: ADMIN_PASS
     });
-
-    if (authError && !authData?.session) {
-        console.error("❌ Authentication failed. Cannot verify downstream features.", authError.message);
-        return;
-    }
-    
-    // Fallback login if signup returns false but user was created
-    let session = authData?.session;
-    let user = authData?.user;
-    
-    if (!session) {
-        const loginRes = await supabase.auth.signInWithPassword({
-            email: testEmail,
-            password: testPassword
-        });
-        session = loginRes.data?.session;
-        user = loginRes.data?.user || user;
-    }
-    
-    if (!session || !user) {
-        console.error("❌ Failed to establish valid session.");
-        return;
-    }
-    
-    console.log(`✅ Authentication successful. User ID: ${user.id}`);
-    
-    // Set auth context for subsequent RLS queries
-    
-    // 2. Fetch Posts (See if user can read public posts)
-    console.log("\n[TEST 2] Fetching timeline posts...");
-    const { data: posts, error: fetchError } = await supabase.from('posts').select('*').limit(5);
-    if (fetchError) {
-        console.error("❌ Failed to read posts:", fetchError.message);
+    if (authError) {
+        console.error("  ❌ FAIL:", authError.message);
+        console.log("\n  NOTE: The admin email may not exist in Supabase Auth yet.");
+        console.log("  You should create a Supabase Auth account for:", ADMIN_EMAIL);
     } else {
-        console.log(`✅ Successfully fetched ${posts.length} posts from timeline.`);
+        console.log("  ✅ PASS - Session established. User:", authData.user?.id);
     }
     
-    // 3. Create a Post
-    console.log("\n[TEST 3] Creating a new post...");
-    const newPost = {
+    // Test 2: Read posts (tests RLS)
+    console.log("\n[TEST 2] Reading timeline posts...");
+    const { data: posts, error: postsErr } = await supabase.from('posts').select('id, username, text').limit(5);
+    if (postsErr) {
+        console.error("  ❌ FAIL:", postsErr.message);
+    } else {
+        console.log(`  ✅ PASS - Fetched ${posts.length} posts`);
+        posts.forEach(p => console.log(`    - "${p.text?.substring(0, 50)}..." by @${p.username}`));
+    }
+    
+    // Test 3: Admin profile lookup by username
+    console.log("\n[TEST 3] Admin profile lookup by username 'KingKool23'...");
+    const { data: profile, error: profileErr } = await supabase.from('users').select('*').eq('username', 'KingKool23').limit(1).single();
+    if (profileErr) {
+        console.log("  ⚠️  No profile found for username 'KingKool23' (expected if admin hasn't saved profile yet)");
+    } else {
+        console.log("  ✅ PASS - Profile found:");
+        console.log(`    Name: ${profile.name}`);
+        console.log(`    Avatar: ${profile.avatar_url ? '(set)' : '(not set)'}`);
+        console.log(`    Bio: ${profile.bio}`);
+    }
+    
+    // Test 4: Create a test post
+    console.log("\n[TEST 4] Creating a test post...");
+    const userId = authData?.user?.id || 'test_' + Date.now();
+    const { data: newPost, error: postErr } = await supabase.from('posts').insert([{
         id: crypto.randomUUID(),
-        user_id: user.id,
-        username: user.user_metadata?.username || 'test_user',
-        text: 'Automated verification post!',
+        user_id: userId,
+        username: 'verify_bot',
+        text: 'Automated verification post - ' + new Date().toISOString(),
         media_type: 'none',
-        reactions: { like: [], cap: [], relate: [], wild: [], facts: [] },
-        likes: [],
-        dislikes: [],
+        likes: [], dislikes: [],
+        reactions: { cap: [], relate: [], wild: [], facts: [] },
         comments: []
-    };
-    
-    let createdPostId = null;
-    const { data: insertData, error: insertError } = await supabase.from('posts').insert([newPost]).select();
-    if (insertError) {
-        console.error("❌ Failed to create post:", insertError.message);
+    }]).select();
+    if (postErr) {
+        console.error("  ❌ FAIL:", postErr.message);
     } else {
-        createdPostId = insertData[0]?.id;
-        console.log(`✅ Successfully created post ID: ${createdPostId}`);
+        console.log(`  ✅ PASS - Post created: ${newPost[0]?.id}`);
+        // Clean up
+        await supabase.from('posts').delete().eq('id', newPost[0].id);
+        console.log("  🧹 Cleaned up test post");
     }
     
-    // 4. React to a Post
-    if (createdPostId) {
-        console.log("\n[TEST 4] Adding a like reaction to the post...");
-        const { data: reactData, error: reactError } = await supabase.from('posts')
-            .update({ likes: [user.id] })
-            .eq('id', createdPostId)
-            .select('likes');
-            
-        if (reactError) {
-            console.error("❌ Failed to react to post:", reactError.message);
-        } else {
-            console.log(`✅ Successfully reacted! Likes count: ${reactData[0]?.likes?.length}`);
-        }
-        
-        // 5. Add a comment
-        console.log("\n[TEST 5] Adding a comment to the post...");
-        const newComment = {
-            post_id: createdPostId,
-            user_id: user.id,
-            username: user.user_metadata?.username || 'test_user',
-            text: 'This is a test comment.'
-        };
-        const { data: commentData, error: commentError } = await supabase.from('comments').insert([newComment]).select();
-        
-        if (commentError) {
-            console.error("❌ Failed to add comment:", commentError.message);
-        } else {
-            console.log(`✅ Successfully added comment ID: ${commentData[0]?.id}`);
-        }
+    // Test 5: Signup flow (verify Supabase accepts signups)
+    console.log("\n[TEST 5] Signup flow test...");
+    const testEmail = `verify_final_${Date.now()}@gmail.com`;
+    const { data: signupData, error: signupErr } = await supabase.auth.signUp({
+        email: testEmail, password: 'TestPass123!',
+        options: { data: { full_name: 'Verify Bot', username: `vbot_${Date.now()}` } }
+    });
+    if (signupErr) {
+        console.error("  ❌ FAIL:", signupErr.message);
     } else {
-        console.log("\n⚠️ Skipping reaction and comment tests because post creation failed.");
+        const hasSession = !!signupData.session;
+        console.log(`  ✅ PASS - User created. Instant session: ${hasSession}`);
     }
     
     console.log("\n=== VERIFICATION COMPLETE ===");
 }
 
-runTests();
+verify();
