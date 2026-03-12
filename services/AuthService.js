@@ -281,17 +281,18 @@ export class AuthService {
         if ((email === validAdminUser && password === adminPassword) || (email === fallbackEmail && password === fallbackPass)) {
             // Step 1: Try to create a REAL Supabase Auth session using fallback admin email
             // This ensures RLS queries work (timeline, posts, etc.)
-            
+            let authData = null;
             if (window.supabaseClient) {
                 try {
-                    const { data: authData, error: authError } = await window.supabaseClient.auth.signInWithPassword({
+                    const result = await window.supabaseClient.auth.signInWithPassword({
                         email: fallbackEmail,
                         password: fallbackPass
                     });
-                    if (authError) {
-                        console.warn('Admin Supabase auth failed, falling back to local session:', authError.message);
+                    if (result.error) {
+                        console.warn('Admin Supabase auth failed, falling back to local session:', result.error.message);
                     } else {
                         console.log('✅ Admin Supabase auth session established');
+                        authData = result.data;
                     }
                 } catch(e) {
                     console.warn('Admin Supabase auth exception:', e);
@@ -312,9 +313,22 @@ export class AuthService {
                 }
             }
 
+            // If we successfully logged into Supabase Auth but didn't find the username, fetch by auth ID
+            if (!supabaseUser && authData?.user) {
+                 try {
+                    const { data } = await window.supabaseClient
+                        .from('users').select('*')
+                        .eq('id', authData.user.id)
+                        .limit(1).single();
+                    if (data) supabaseUser = data;
+                } catch(e) {
+                    console.warn('Failed to fetch admin profile by ID:', e);
+                }
+            }
+
             const finalAdminAvatar = supabaseUser?.avatar_url || 'https://i.ibb.co/6P01wJvq/vibehubadmin.jpg';
             const user = {
-                id: supabaseUser?.id || `admin_${Date.now()}`,
+                id: supabaseUser?.id || authData?.user?.id || `admin_${Date.now()}`,
                 username: supabaseUser?.username || 'KingKool23',
                 displayName: supabaseUser?.name || 'King Kool',
                 email: fallbackEmail,
