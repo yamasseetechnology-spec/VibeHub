@@ -2984,3 +2984,12 @@ body.keyboard-open #app-footer {
     filter: drop-shadow(0 0 5px rgba(57, 255, 20, 0.3));
 }
 
+
+/* Timeline avatar size – only affects posts on Vibeline */
+.post-avatar {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 50% !important;
+    object-fit: cover !important;
+    flex-shrink: 0;
+}
