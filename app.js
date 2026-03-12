@@ -4394,35 +4394,61 @@ class VibeApp {
             right: 0;
             bottom: 0;
             pointer-events: none;
-            z-index: 1;
-            opacity: 0.3;
+            z-index: 9999;
+            opacity: 0.4;
             transition: all 2s cubic-bezier(0.4, 0, 0.2, 1);
             background: linear-gradient(45deg, 
-                rgba(255, 215, 0, 0.3), 
-                rgba(255, 165, 0, 0.3), 
-                rgba(255, 99, 71, 0.3));
+                rgba(255, 215, 0, 0.4), 
+                rgba(255, 165, 0, 0.4), 
+                rgba(255, 99, 71, 0.4));
             animation: moodGlowPulse 4s ease-in-out infinite;
+            box-shadow: inset 0 0 100px rgba(255, 215, 0, 0.2);
         `;
         
-        // Add CSS animation if not already present
+        // Add mobile-specific styles
+        if (window.innerWidth <= 768) {
+            glowElement.style.opacity = '0.5';
+            glowElement.style.background = 'linear-gradient(45deg, rgba(255, 215, 0, 0.5), rgba(255, 165, 0, 0.5), rgba(255, 99, 71, 0.5))';
+        }
+        
+        // Add CSS animation with mobile optimizations
         if (!document.getElementById('mood-glow-styles')) {
             const style = document.createElement('style');
             style.id = 'mood-glow-styles';
             style.textContent = `
                 @keyframes moodGlowPulse {
-                    0%, 100% { opacity: 0.3; }
-                    50% { opacity: 0.6; }
+                    0%, 100% { 
+                        opacity: 0.3; 
+                        box-shadow: inset 0 0 50px rgba(255, 215, 0, 0.1);
+                    }
+                    50% { 
+                        opacity: 0.6; 
+                        box-shadow: inset 0 0 150px rgba(255, 215, 0, 0.3);
+                    }
                 }
                 @keyframes moodGlowShift {
                     0%, 100% { transform: scale(1) rotate(0deg); }
-                    50% { transform: scale(1.05) rotate(180deg); }
+                    50% { transform: scale(1.02) rotate(180deg); }
+                }
+                @media (max-width: 768px) {
+                    #mood-glow {
+                        opacity: 0.5 !important;
+                        animation-duration: 3s !important;
+                    }
                 }
             `;
             document.head.appendChild(style);
         }
         
+        // Force the glow to be visible
         document.body.appendChild(glowElement);
-        console.log('✨ Mood Glow element created');
+        
+        // Force a reflow to ensure the element is rendered
+        glowElement.offsetHeight;
+        
+        console.log('✨ Mood Glow element created with enhanced visibility');
+        console.log('📱 Mobile detected:', window.innerWidth <= 768);
+        console.log('🎯 Glow element:', glowElement);
     }
     
     async updateMoodGlow() {

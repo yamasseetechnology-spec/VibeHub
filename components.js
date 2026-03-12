@@ -53,21 +53,23 @@ export const Components = {
                     </div>
                 ` : ''}
                 
-                <div class="post-stats" style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-top:1px solid var(--border-light);">
-                    <div class="reactions" style="display:flex; gap:15px;">
-                        <button onclick="window.App.handleReaction('${post.id}', 'like')" class="reaction-btn ${post.reactions.like > 0 ? 'active' : ''}" data-type="like" style="background:none; border:1px solid var(--border-light); border-radius:20px; padding:5px 12px; cursor:pointer; font-size:0.9rem; transition:all 0.3s;">
+                <div class="post-stats" style="display:flex; flex-direction:column; gap:10px; padding:10px 0; border-top:1px solid var(--border-light);">
+                    <div class="reactions-row-1" style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-start;">
+                        <button onclick="window.App.handleReaction('${post.id}', 'like')" class="reaction-btn ${post.reactions.like > 0 ? 'active' : ''}" data-type="like" style="background:none; border:1px solid var(--border-light); border-radius:20px; padding:5px 12px; cursor:pointer; font-size:0.9rem; transition:all 0.3s; white-space:nowrap;">
                             ❤️ ${post.reactions.like || 0}
                         </button>
-                        <button onclick="window.App.toggleReactionPicker('${post.id}', event)" class="reaction-btn" style="background:none; border:1px solid var(--border-light); border-radius:20px; padding:5px 12px; cursor:pointer; font-size:0.9rem; transition:all 0.3s;">
+                        <button onclick="window.App.toggleReactionPicker('${post.id}', event)" class="reaction-btn" style="background:none; border:1px solid var(--border-light); border-radius:20px; padding:5px 12px; cursor:pointer; font-size:0.9rem; transition:all 0.3s; white-space:nowrap;">
                             ✨ ${post.reactions.heat + post.reactions.wild + post.reactions.cap + post.reactions.admire}
                         </button>
-                        <button onclick="window.App.showCommentModal('${post.id}')" class="reaction-btn" style="background:none; border:1px solid var(--border-light); border-radius:20px; padding:5px 12px; cursor:pointer; font-size:0.9rem; transition:all 0.3s;">
+                        <button onclick="window.App.showCommentModal('${post.id}')" class="reaction-btn" style="background:none; border:1px solid var(--border-light); border-radius:20px; padding:5px 12px; cursor:pointer; font-size:0.9rem; transition:all 0.3s; white-space:nowrap;">
                             💬 ${post.commentCount || 0}
                         </button>
                     </div>
-                    <button onclick="window.App.sharePost('${post.id}')" class="reaction-btn" style="background:none; border:1px solid var(--border-light); border-radius:20px; padding:5px 12px; cursor:pointer; font-size:0.9rem; transition:all 0.3s;">
-                        🔄 Share
-                    </button>
+                    <div class="reactions-row-2" style="display:flex; justify-content:flex-end;">
+                        <button onclick="window.App.sharePost('${post.id}')" class="reaction-btn" style="background:none; border:1px solid var(--border-light); border-radius:20px; padding:5px 12px; cursor:pointer; font-size:0.9rem; transition:all 0.3s; white-space:nowrap;">
+                            🔄 Share
+                        </button>
+                    </div>
                 </div>
             </div>
         `;
