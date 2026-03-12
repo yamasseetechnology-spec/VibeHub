@@ -2084,18 +2084,186 @@ body.keyboard-open #app-footer {
     display: none !important;
 }
 
+/* --- Enhanced Notifications --- */
+.notification-card {
+    transition: all 0.3s ease;
+    border-left: 3px solid transparent;
+}
+
+.notification-card:hover {
+    transform: translateX(5px);
+    border-left-color: var(--primary-purple);
+}
+
+.notification-card.unread {
+    background: rgba(157, 80, 187, 0.1);
+    border-left-color: var(--primary-orange);
+}
+
+.notification-delete {
+    opacity: 0.6;
+    transition: all 0.2s ease;
+}
+
+.notification-delete:hover {
+    opacity: 1;
+    background: rgba(239, 68, 68, 0.2) !important;
+    transform: scale(1.1);
+}
+
+.notif-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-glass);
+    border-radius: 50%;
+    border: 1px solid var(--border-light);
+    flex-shrink: 0;
+}
+
+/* Notification Badge Animation */
+#notif-badge {
+    animation: badge-pulse 2s infinite;
+}
+
+@keyframes badge-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+/* Notification Settings */
+.notification-settings {
+    background: var(--bg-card);
+    padding: 20px;
+    border-radius: var(--radius-lg);
+    margin-top: 20px;
+}
+
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 0;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.setting-item:last-child {
+    border-bottom: none;
+}
+
+.setting-toggle {
+    position: relative;
+    width: 50px;
+    height: 24px;
+    background: var(--bg-glass);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.setting-toggle.active {
+    background: var(--primary-purple);
+}
+
+.setting-toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.3s ease;
+}
+
+.setting-toggle.active::after {
+    transform: translateX(26px);
+}
+
 /* Custom UI Elements */
 .user-badge {
     padding: 2px 8px;
     border-radius: 4px;
     font-size: 0.7rem;
-    font-weight: 800;
+    font-weight: 600;
     text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 2px;
+    display: inline-block;
 }
 
+/* Badge Styles */
+.badge-verified { 
+    background: linear-gradient(135deg, var(--accent-cyan), var(--primary-purple)); 
+    color: white; 
+    border: 1px solid var(--accent-cyan);
+    box-shadow: 0 0 10px rgba(0, 242, 255, 0.3);
+}
+
+.badge-legend { 
+    background: linear-gradient(135deg, #ffea00, #ff9d00); 
+    color: #000; 
+    border: 1px solid #ffea00;
+    box-shadow: 0 0 10px rgba(255, 234, 0, 0.3);
+}
+
+.badge-master { 
+    background: linear-gradient(135deg, var(--primary-purple), var(--accent-magenta)); 
+    color: white; 
+    border: 1px solid var(--primary-purple);
+    box-shadow: 0 0 10px rgba(157, 80, 187, 0.3);
+}
+
+.badge-viber { 
+    background: linear-gradient(135deg, var(--accent-neon-green), var(--primary-purple)); 
+    color: white; 
+    border: 1px solid var(--accent-neon-green);
+    box-shadow: 0 0 10px rgba(57, 255, 20, 0.3);
+}
+
+.badge-admin { 
+    background: linear-gradient(135deg, #dc2626, #ef4444); 
+    color: white; 
+    border: 1px solid #dc2626;
+    box-shadow: 0 0 10px rgba(220, 38, 38, 0.3);
+    animation: admin-pulse 2s infinite;
+}
+
+.badge-creator { 
+    background: linear-gradient(135deg, var(--primary-orange), var(--accent-gold)); 
+    color: #000; 
+    border: 1px solid var(--primary-orange);
+    box-shadow: 0 0 10px rgba(255, 157, 0, 0.3);
+}
+
+.badge-popular { 
+    background: linear-gradient(135deg, var(--accent-pink), var(--accent-magenta)); 
+    color: white; 
+    border: 1px solid var(--accent-pink);
+    box-shadow: 0 0 10px rgba(255, 0, 127, 0.3);
+}
+
+.badge-influencer { 
+    background: linear-gradient(135deg, var(--accent-gold), var(--primary-orange)); 
+    color: #000; 
+    border: 1px solid var(--accent-gold);
+    box-shadow: 0 0 10px rgba(255, 234, 0, 0.3);
+}
+
+@keyframes admin-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Legacy Badge Styles (for compatibility) */
 .badge-heat { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid #ef4444; }
 .badge-truth { background: rgba(249, 115, 22, 0.2); color: #f97316; border: 1px solid #f97316; }
 .badge-admired { background: rgba(139, 92, 246, 0.2); color: #8b5cf6; border: 1px solid #8b5cf6; }
+.badge-wild { background: rgba(168, 85, 247, 0.2); color: #a855f7; border: 1px solid #a855f7; }
+.badge-gold { background: rgba(255, 234, 0, 0.2); color: #ffea00; border: 1px solid #ffea00; }
 
 /* Admin Hidden Entry */
 #app-footer {

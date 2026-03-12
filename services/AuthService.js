@@ -198,15 +198,12 @@ export class AuthService {
         storage.setItem('vibehub_user', JSON.stringify(user));
         if (this.rememberMe) {
             localStorage.setItem('vibehub_remember', 'true');
-        } else {
-            localStorage.removeItem('vibehub_remember');
         }
     }
 
     clearSession() {
         this.user = null;
         localStorage.removeItem('vibehub_user');
-        localStorage.removeItem('vibehub_remember');
         sessionStorage.removeItem('vibehub_user');
         window.dispatchEvent(new CustomEvent('user-logged-out'));
     }
@@ -334,7 +331,7 @@ export class AuthService {
 
             // If we successfully logged into Supabase Auth but didn't find the username, fetch by auth ID
             if (!supabaseUser && authData?.user) {
-                 try {
+                try {
                     const { data } = await window.supabaseClient
                         .from('users').select('*')
                         .eq('id', authData.user.id)
@@ -415,10 +412,13 @@ export class AuthService {
                     this.persistSession(this.user);
                     window.dispatchEvent(new CustomEvent('user-logged-in', { detail: this.user }));
                     
-                    // Clear post cache to ensure timeline shows updated avatar
+                    // CRITICAL FIX: Clear posts cache when profile updated
+                    // This ensures timeline shows updated avatar immediately
                     if (window.App && window.App.services && window.App.services.data && window.App.services.data.cache) {
                         await window.App.services.data.cache.clearPostsCache();
                     }
+                    
+                    this.showToast('Profile updated successfully!', 'success');
                 }
             } catch (e) {
                 console.error('Profile update error:', e);

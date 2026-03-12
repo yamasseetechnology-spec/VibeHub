@@ -372,6 +372,138 @@ class VibeApp {
         }
     }
 
+    async handleNotificationClick(notificationId, type, relatedId) {
+        try {
+            // Mark notification as read
+            await this.services.data.markNotificationRead(notificationId);
+            
+            // Update local state
+            const notification = State.notifications.find(n => n.id === notificationId);
+            if (notification) {
+                notification.read = true;
+                this.updateNotificationBadge();
+            }
+            
+            // Handle navigation based on notification type
+            switch (type) {
+                case 'like':
+                if (relatedId) {
+                    this.viewPost(relatedId);
+                    this.showToast('Viewing the post you liked! ✨');
+                }
+                break;
+                case 'comment':
+                    if (relatedId) {
+                        this.viewPost(relatedId);
+                        this.showCommentModal(relatedId);
+                        this.showToast('Viewing the post with new comment! 💬');
+                    }
+                    break;
+                case 'follow':
+                    if (relatedId) {
+                        this.viewUserProfile(relatedId);
+                        this.showToast('Viewing your new follower! 👤');
+                    }
+                    break;
+                case 'vibe_boost':
+                    if (relatedId) {
+                        this.viewUserProfile(relatedId);
+                        this.showToast('Viewing the user who boosted your vibe! ✨');
+                    }
+                    break;
+                case 'mention':
+                    if (relatedId) {
+                        this.viewPost(relatedId);
+                        this.showToast('Viewing the post where you were mentioned! 📢');
+                    }
+                    break;
+                default:
+                    this.navigate('notifications');
+                    break;
+            }
+        } catch (error) {
+            console.error('Error handling notification click:', error);
+            this.showToast('Failed to handle notification', 'error');
+        }
+    }
+
+    async markNotificationRead(notificationId) {
+        try {
+            await this.services.data.markNotificationRead(notificationId);
+            
+            // Update local state
+            const notification = State.notifications.find(n => n.id === notificationId);
+            if (notification) {
+                notification.read = true;
+                this.updateNotificationBadge();
+            }
+        } catch (error) {
+            console.error('Error marking notification as read:', error);
+        }
+    }
+
+    async markAllNotificationsRead() {
+        try {
+            if (State.user) {
+                await this.services.data.markNotificationsRead(State.user.id);
+                
+                // Update local state
+                State.notifications.forEach(n => n.read = true);
+                this.updateNotificationBadge();
+                
+                this.showToast('All notifications marked as read! ✅');
+            }
+        } catch (error) {
+            console.error('Error marking all notifications as read:', error);
+            this.showToast('Failed to mark notifications as read', 'error');
+        }
+    }
+
+    async deleteNotification(notificationId) {
+        try {
+            // Delete from database
+            if (window.supabaseClient) {
+                await window.supabaseClient
+                    .from('notifications')
+                    .delete()
+                    .eq('id', notificationId);
+            }
+            
+            // Remove from local state
+            State.notifications = State.notifications.filter(n => n.id !== notificationId);
+            this.updateNotificationBadge();
+            
+            // Refresh notifications view if active
+            if (State.currentView === 'notifications') {
+                this.renderView('notifications', true);
+            }
+            
+            this.showToast('Notification deleted! 🗑️');
+        } catch (error) {
+            console.error('Error deleting notification:', error);
+            this.showToast('Failed to delete notification', 'error');
+        }
+    }
+
+    async refreshNotifications() {
+        try {
+            if (State.user) {
+                const notifications = await this.services.data.getNotifications(State.user.id);
+                State.notifications = notifications;
+                this.updateNotificationBadge();
+                
+                if (State.currentView === 'notifications') {
+                    this.renderView('notifications', true);
+                }
+                
+                this.showToast('Notifications refreshed! 🔄');
+            }
+        } catch (error) {
+            console.error('Error refreshing notifications:', error);
+            this.showToast('Failed to refresh notifications', 'error');
+        }
+    }
+
     updateNotificationBadge() {
         const badge = document.getElementById('notif-badge');
         if (badge && State.notifications) {
@@ -945,7 +1077,7 @@ class VibeApp {
         this.showToast('Donation feature coming soon!');
     }
 
-    handlePostVideo(input) {
+    async handlePostVideo(input) {
         const file = input.files[0];
         if (!file) return;
         
@@ -959,21 +1091,141 @@ class VibeApp {
         if (preview) {
             const url = URL.createObjectURL(file);
             
-            // Check video duration constraint (max 30s)
+            // Check video duration and process with compression
             const video = document.createElement('video');
             video.src = url;
-            video.onloadedmetadata = () => {
+            video.onloadedmetadata = async () => {
                 if (video.duration > 30) {
-                    this.showToast('Timeline videos must be 30 seconds or less', 'error');
-                    this.clearMediaPreview();
-                    return;
+                    this.showToast('Optimizing video to 30 seconds...', 'info');
+                    try {
+                        const compressedVideo = await this.compressVideo(file, 30);
+                        this.showVideoPreview(compressedVideo, preview, clearBtn);
+                        
+                        const savings = ((file.size - compressedVideo.size) / file.size * 100).toFixed(1);
+                        this.showToast(`Video optimized! Saved ${savings}% space ✨`, 'success');
+                    } catch (error) {
+                        console.error('Video compression failed:', error);
+                        this.showToast('Video optimization failed, using original', 'error');
+                        this.clearMediaPreview();
+                    }
+                } else {
+                    // Video is already under 30 seconds, still compress for optimization
+                    this.showToast('Optimizing video...', 'info');
+                    try {
+                        const compressedVideo = await this.compressVideo(file, video.duration);
+                        this.showVideoPreview(compressedVideo, preview, clearBtn);
+                        
+                        const savings = ((file.size - compressedVideo.size) / file.size * 100).toFixed(1);
+                        this.showToast(`Video optimized! Saved ${savings}% space ✨`, 'success');
+                    } catch (error) {
+                        console.error('Video compression failed:', error);
+                        // Fallback to original video
+                        this.showVideoPreview(file, preview, clearBtn);
+                    }
                 }
-                preview.innerHTML = `<video src="${url}" controls style="max-height:200px;border-radius:8px;margin-top:8px;width:100%;"></video>`;
-                this._pendingMediaFile = file;
-                this._pendingMediaType = 'video';
-                if (clearBtn) clearBtn.style.display = 'inline-flex';
             };
         }
+    }
+
+    showVideoPreview(videoFile, preview, clearBtn) {
+        const url = URL.createObjectURL(videoFile);
+        preview.innerHTML = `<video src="${url}" controls style="max-height:200px;border-radius:8px;margin-top:8px;width:100%;"></video>`;
+        this._pendingMediaFile = videoFile;
+        this._pendingMediaType = 'video';
+        if (clearBtn) clearBtn.style.display = 'inline-flex';
+    }
+
+    async compressVideo(file, maxDuration = 30) {
+        // Check if FFmpeg.wasm is loaded
+        if (!window.FFmpeg) {
+            await this.loadFFmpeg();
+        }
+
+        return new Promise((resolve, reject) => {
+            const video = document.createElement('video');
+            video.src = URL.createObjectURL(file);
+            video.onloadedmetadata = async () => {
+                try {
+                    const ffmpeg = window.FFmpeg;
+                    await ffmpeg.load();
+                    
+                    // Write input file to FFmpeg virtual file system
+                    const inputFileName = `input_${Date.now()}.mp4`;
+                    const outputFileName = `output_${Date.now()}.mp4`;
+                    
+                    await ffmpeg.writeFile(inputFileName, new Uint8Array(await this.fileToArrayBuffer(file)));
+                    
+                    // Calculate target duration
+                    const targetDuration = Math.min(video.duration, maxDuration);
+                    
+                    // Build FFmpeg command for compression and trimming
+                    const ffmpegCommand = [
+                        '-i', inputFileName,
+                        '-t', targetDuration.toString(),
+                        '-c:v', 'libx264',
+                        '-preset', 'medium',
+                        '-crf', '28',
+                        '-c:a', 'aac',
+                        '-b:a', '128k',
+                        '-vf', 'scale=1280:720', // Limit to 720p for size
+                        '-r', '30', // 30fps
+                        outputFileName
+                    ];
+                    
+                    // Run FFmpeg command
+                    await ffmpeg.exec(ffmpegCommand);
+                    
+                    // Read the compressed video
+                    const outputData = await ffmpeg.readFile(outputFileName);
+                    const compressedBlob = new Blob([outputData.buffer], { type: 'video/mp4' });
+                    const compressedFile = new File([compressedBlob], this.generateOptimizedFilename(file.name, 'mp4'), {
+                        type: 'video/mp4',
+                        lastModified: Date.now()
+                    });
+                    
+                    // Clean up virtual files
+                    await ffmpeg.deleteFile(inputFileName);
+                    await ffmpeg.deleteFile(outputFileName);
+                    
+                    resolve(compressedFile);
+                } catch (error) {
+                    console.error('FFmpeg compression error:', error);
+                    reject(error);
+                }
+            };
+            video.onerror = () => reject(new Error('Failed to load video metadata'));
+        });
+    }
+
+    async loadFFmpeg() {
+        return new Promise((resolve, reject) => {
+            // Load FFmpeg.wasm script if not already loaded
+            if (window.FFmpeg) {
+                resolve();
+                return;
+            }
+
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js';
+            script.onload = () => {
+                // Initialize FFmpeg
+                window.FFmpeg.createFFmpeg({ log: true }).then(ffmpeg => {
+                    window.FFmpeg = ffmpeg;
+                    resolve();
+                }).catch(reject);
+            };
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    }
+
+    async fileToArrayBuffer(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsArrayBuffer(file);
+        });
     }
 
     handlePostImage(input) {
@@ -988,52 +1240,100 @@ class VibeApp {
         const preview = document.getElementById('media-preview');
         const clearBtn = document.getElementById('clear-media-btn');
         if (preview) {
+            this.showToast('Optimizing image...', 'info');
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 const img = new Image();
-                img.onload = () => {
-                    // Compress image using canvas
-                    const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 1200;
-                    const MAX_HEIGHT = 1200;
-                    let width = img.width;
-                    let height = img.height;
-
-                    if (width > height) {
-                        if (width > MAX_WIDTH) {
-                            height *= MAX_WIDTH / width;
-                            width = MAX_WIDTH;
-                        }
-                    } else {
-                        if (height > MAX_HEIGHT) {
-                            width *= MAX_HEIGHT / height;
-                            height = MAX_HEIGHT;
-                        }
-                    }
-
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
-
-                    // Convert to blob
-                    canvas.toBlob((blob) => {
-                        // Create a new File object with the compressed blob
-                        const compressedFile = new File([blob], file.name, {
-                            type: 'image/jpeg',
-                            lastModified: Date.now()
-                        });
-                        
-                        preview.innerHTML = `<img src="${URL.createObjectURL(compressedFile)}" style="max-height:200px;border-radius:8px;margin-top:8px;width:100%;object-fit:cover;">`;
-                        this._pendingMediaFile = compressedFile;
-                        this._pendingMediaType = 'image';
-                        if (clearBtn) clearBtn.style.display = 'inline-flex';
-                    }, 'image/jpeg', 0.8); // 80% quality
+                img.onload = async () => {
+                    // Enhanced image compression
+                    const compressedFile = await this.compressImageAdvanced(img, file);
+                    
+                    preview.innerHTML = `<img src="${URL.createObjectURL(compressedFile)}" style="max-height:200px;border-radius:8px;margin-top:8px;width:100%;object-fit:cover;">`;
+                    this._pendingMediaFile = compressedFile;
+                    this._pendingMediaType = 'image';
+                    if (clearBtn) clearBtn.style.display = 'inline-flex';
+                    
+                    // Show compression savings
+                    const savings = ((file.size - compressedFile.size) / file.size * 100).toFixed(1);
+                    this.showToast(`Image optimized! Saved ${savings}% space`, 'success');
                 };
                 img.src = e.target.result;
             };
             reader.readAsDataURL(file);
         }
+    }
+
+    compressImageAdvanced(img, originalFile) {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 1200;
+        let width = img.width;
+        let height = img.height;
+
+        // Calculate optimal dimensions
+        if (width > height) {
+            if (width > MAX_WIDTH) {
+                height *= MAX_WIDTH / width;
+                width = MAX_WIDTH;
+            }
+        } else {
+            if (height > MAX_HEIGHT) {
+                width *= MAX_HEIGHT / height;
+                height = MAX_HEIGHT;
+            }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        
+        // Enable image smoothing for better quality
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Smart quality and format determination
+        const originalSize = originalFile.size;
+        let quality = this.calculateOptimalQuality(originalSize, width, height);
+        let format = this.determineBestFormat(originalFile.type);
+
+        return new Promise((resolve) => {
+            canvas.toBlob((blob) => {
+                const compressedFile = new File([blob], this.generateOptimizedFilename(originalFile.name, format), {
+                    type: `image/${format}`,
+                    lastModified: Date.now()
+                });
+                resolve(compressedFile);
+            }, `image/${format}`, quality);
+        });
+    }
+
+    calculateOptimalQuality(originalSize, width, height) {
+        const pixelCount = width * height;
+        
+        // Smart quality based on image size and pixel count
+        if (originalSize > 5 * 1024 * 1024) { // Large files
+            return pixelCount > 1000000 ? 0.65 : 0.75;
+        } else if (originalSize > 1 * 1024 * 1024) { // Medium files
+            return pixelCount > 500000 ? 0.75 : 0.85;
+        } else { // Small files
+            return pixelCount > 200000 ? 0.85 : 0.9;
+        }
+    }
+
+    determineBestFormat(originalType) {
+        // Prefer WebP for better compression, fallback to JPEG
+        const supportsWebP = document.createElement('canvas').toDataURL('image/webp').indexOf('data:image/webp') === 0;
+        
+        if (supportsWebP && (originalType === 'image/jpeg' || originalType === 'image/png')) {
+            return 'webp';
+        }
+        return 'jpeg';
+    }
+
+    generateOptimizedFilename(originalName, format) {
+        const nameWithoutExt = originalName.replace(/\.[^/.]+$/, '');
+        return `${nameWithoutExt}_optimized.${format}`;
     }
 
     clearMediaPreview() {
@@ -1344,13 +1644,13 @@ class VibeApp {
                 modal.remove();
                 stream.getTracks().forEach(track => track.stop());
                 this.showCommentModal(postId);
-                this.showToast("Audio comment posted! 🎤");
+                this.showToast("Audio comment posted! ");
             };
 
             mediaRecorder.start();
         } catch (err) {
             console.error("Audio recording failed:", err);
-            let msg = "Microphone access failed.";
+            let msg = "Microphone access denied. Please allow it in device settings.";
             if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
                 msg = "Microphone access denied. Please allow it in device settings.";
             } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
@@ -1360,84 +1660,14 @@ class VibeApp {
         }
     }
 
-    async startVideoComment(postId) {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            const video = document.createElement('video');
-            video.srcObject = stream;
-            video.autoplay = true;
-            video.muted = true;
-            video.style.width = '100%';
-            
-            const modal = document.createElement('div');
-            modal.className = 'modal-overlay';
-            modal.innerHTML = `
-                <div class="glass-panel" style="max-width:400px; margin:auto; padding:20px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                        <h3>Recording Video...</h3>
-                        <div id="video-timer" style="font-size:1.5rem; font-weight:bold; color:var(--primary-orange);">15</div>
-                    </div>
-                    <div id="video-preview"></div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-            document.getElementById('video-preview').appendChild(video);
-
-            const mediaRecorder = new MediaRecorder(stream);
-            const chunks = [];
-            mediaRecorder.ondataavailable = e => chunks.push(e.data);
-            
-            let timeLeft = 15;
-            const timerInterval = setInterval(() => {
-                timeLeft--;
-                const timerEl = document.getElementById('video-timer');
-                if (timerEl) timerEl.innerText = timeLeft;
-                if (timeLeft <= 0) {
-                    clearInterval(timerInterval);
-                    if (mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-                }
-            }, 1000);
-
-            mediaRecorder.onstop = async () => {
-                clearInterval(timerInterval);
-                const blob = new Blob(chunks, { type: 'video/webm' });
-                this.showToast("Uploading video...");
-                const result = await this.services.data.media.uploadVideo(blob);
-                const videoUrl = result?.url;
-                
-                await this.services.data.addComment(postId, {
-                    userId: State.user?.username || 'guest',
-                    displayName: State.user?.displayName || 'Guest',
-                    type: 'video',
-                    videoUrl: videoUrl
-                });
-                
-                modal.remove();
-                stream.getTracks().forEach(track => track.stop());
-                this.showCommentModal(postId);
-                this.showToast("Video reply posted! 🎥");
-            };
-
-            mediaRecorder.start();
-        } catch (err) {
-            console.error("Video recording failed:", err);
-            let msg = "Camera/Microphone access failed.";
-            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                msg = "Permission denied. Check device settings for Camera/Mic.";
-            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-                msg = "No camera or microphone found.";
-            }
-            this.showToast(msg, 'error');
-        }
-    }
-
     async handleVideoCommentUpload(input, postId) {
         const file = input.files[0];
         if (!file) return;
         
-        this.showToast("Uploading video comment...");
+        this.showToast("Optimizing video comment...");
         try {
-            const result = await this.services.data.media.uploadVideo(file);
+            const compressedVideo = await this.compressVideo(file, 15); // 15 second max for comments
+            const result = await this.services.data.media.uploadVideo(compressedVideo);
             const videoUrl = result?.url;
             
             if (videoUrl) {
@@ -1448,10 +1678,29 @@ class VibeApp {
                     videoUrl: videoUrl
                 });
                 this.showCommentModal(postId);
-                this.showToast("Video comment uploaded! 🎥");
+                this.showToast("Video comment uploaded! ");
             }
         } catch (err) {
-            this.showToast("Upload failed: " + err.message, 'error');
+            console.error('Video compression failed:', err);
+            // Fallback to original
+            this.showToast("Uploading original video...");
+            try {
+                const result = await this.services.data.media.uploadVideo(file);
+                const videoUrl = result?.url;
+                
+                if (videoUrl) {
+                    await this.services.data.addComment(postId, {
+                        userId: State.user?.username || 'guest',
+                        displayName: State.user?.displayName || 'Guest',
+                        type: 'video',
+                        videoUrl: videoUrl
+                    });
+                    this.showCommentModal(postId);
+                    this.showToast("Video comment uploaded! ");
+                }
+            } catch (fallbackErr) {
+                this.showToast("Upload failed: " + fallbackErr.message, 'error');
+            }
         }
     }
 
@@ -2527,14 +2776,24 @@ class VibeApp {
         }
         if (saveBtn) {
             saveBtn.disabled = true;
-            saveBtn.innerHTML = '<span class="spinner-mini"></span> Uploading...';
+            saveBtn.innerHTML = '<span class="spinner-mini"></span> Optimizing...';
         }
 
         try {
-            this.showToast(`Uploading ${type}...`, 'info');
+            this.showToast(`Optimizing ${type}...`, 'info');
+            
+            // Process and optimize the image
+            let optimizedFile;
+            if (type === 'banner') {
+                optimizedFile = await this.autoFitBanner(file);
+            } else {
+                // Avatar optimization with square dimensions
+                optimizedFile = await this.optimizeAvatar(file);
+            }
+            
             // Folder mapping for ImageKit (avatar or banner)
             const folder = type === 'avatar' ? 'profiles/avatars' : 'profiles/banners';
-            const result = await this.services.data.media.uploadImage(file, folder);
+            const result = await this.services.data.media.uploadImage(optimizedFile, folder);
             
             if (result && result.url) {
                 document.getElementById(hiddenInputId).value = result.url;
@@ -2543,7 +2802,10 @@ class VibeApp {
                     previewImg.style.opacity = '1';
                     previewImg.style.filter = 'none';
                 }
-                this.showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} vibe captured! ✨`, 'success');
+                
+                // Show optimization savings
+                const savings = ((file.size - optimizedFile.size) / file.size * 100).toFixed(1);
+                this.showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} optimized! Saved ${savings}% space ✨`, 'success');
             } else {
                 throw new Error('Upload returned no URL');
             }
@@ -2560,6 +2822,98 @@ class VibeApp {
                 saveBtn.innerText = 'Sync Profile';
             }
         }
+    }
+
+    async autoFitBanner(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    
+                    // Banner dimensions (16:5 aspect ratio)
+                    const BANNER_WIDTH = 1500;
+                    const BANNER_HEIGHT = 500;
+                    
+                    // Calculate crop and resize
+                    const sourceAspect = img.width / img.height;
+                    const targetAspect = BANNER_WIDTH / BANNER_HEIGHT;
+                    
+                    let sourceX = 0, sourceY = 0, sourceWidth = img.width, sourceHeight = img.height;
+                    
+                    if (sourceAspect > targetAspect) {
+                        // Image is wider - crop sides
+                        sourceWidth = img.height * targetAspect;
+                        sourceX = (img.width - sourceWidth) / 2;
+                    } else {
+                        // Image is taller - crop top/bottom
+                        sourceHeight = img.width / targetAspect;
+                        sourceY = (img.height - sourceHeight) / 2;
+                    }
+                    
+                    canvas.width = BANNER_WIDTH;
+                    canvas.height = BANNER_HEIGHT;
+                    const ctx = canvas.getContext('2d');
+                    
+                    // High quality rendering
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, BANNER_WIDTH, BANNER_HEIGHT);
+                    
+                    // Convert to optimized blob
+                    canvas.toBlob((blob) => {
+                        const optimizedFile = new File([blob], this.generateOptimizedFilename(file.name, 'jpeg'), {
+                            type: 'image/jpeg',
+                            lastModified: Date.now()
+                        });
+                        resolve(optimizedFile);
+                    }, 'image/jpeg', 0.85);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    async optimizeAvatar(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    
+                    // Avatar dimensions (square)
+                    const AVATAR_SIZE = 400;
+                    
+                    // Calculate crop and resize
+                    const size = Math.min(img.width, img.height);
+                    const sourceX = (img.width - size) / 2;
+                    const sourceY = (img.height - size) / 2;
+                    
+                    canvas.width = AVATAR_SIZE;
+                    canvas.height = AVATAR_SIZE;
+                    const ctx = canvas.getContext('2d');
+                    
+                    // High quality rendering
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    ctx.drawImage(img, sourceX, sourceY, size, size, 0, 0, AVATAR_SIZE, AVATAR_SIZE);
+                    
+                    // Convert to optimized blob
+                    canvas.toBlob((blob) => {
+                        const optimizedFile = new File([blob], this.generateOptimizedFilename(file.name, 'jpeg'), {
+                            type: 'image/jpeg',
+                            lastModified: Date.now()
+                        });
+                        resolve(optimizedFile);
+                    }, 'image/jpeg', 0.9);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
     }
 
     async saveProfile() {
@@ -2632,27 +2986,160 @@ class VibeApp {
         }
     }
 
+    async openDM(userId, username) {
+        if (!State.user) {
+            this.showToast('Please login to send messages', 'error');
+            return;
+        }
+        
+        // Navigate to messages and open conversation with this user
+        this.navigate('messages');
+        
+        // Wait for messages view to load, then open conversation
+        setTimeout(() => {
+            this.startConversation(userId, username);
+        }, 500);
+    }
+
+    async startConversation(userId, username) {
+        if (!State.user) return;
+        
+        try {
+            // Create or get existing conversation
+            const conversationId = [State.user.id, userId].sort().join('_');
+            
+            // Check if conversation already exists by trying to fetch messages
+            const existingMessages = await this.services.chat.getMessages(conversationId);
+            
+            // Display conversation view
+            this.showConversationView(userId, username, existingMessages || []);
+        } catch (error) {
+            console.error('Error starting conversation:', error);
+            this.showToast('Failed to start conversation', 'error');
+        }
+    }
+
+    showConversationView(userId, username, messages) {
+        const container = document.getElementById('view-container');
+        if (!container) return;
+        
+        container.innerHTML = `
+            <div class="conversation-view glass-panel" style="height: calc(100vh - 120px); display: flex; flex-direction: column;">
+                <div class="conversation-header" style="padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 10px;">
+                    <button class="btn-secondary" onclick="window.App.navigate('messages')" style="padding: 5px 10px;">← Back</button>
+                    <img src="https://i.pravatar.cc/100?u=${userId}" style="width: 40px; height: 40px; border-radius: 50%;">
+                    <div>
+                        <div style="font-weight: bold;">${username}</div>
+                        <div style="font-size: 0.8rem; color: var(--text-dim);">Direct Message</div>
+                    </div>
+                </div>
+                
+                <div class="conversation-messages" id="conversation-messages" style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px;">
+                    ${messages.map(msg => this.renderMessage(msg)).join('')}
+                </div>
+                
+                <div class="conversation-input" style="padding: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="dm-input" class="login-input" placeholder="Type a message..." style="flex: 1;" onkeypress="if(event.key==='Enter') window.App.sendDirectMessage('${userId}', '${username}')">
+                        <button class="btn-primary" onclick="window.App.sendDirectMessage('${userId}', '${username}')" style="padding: 10px 20px;">Send</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Scroll to bottom
+        const messagesContainer = document.getElementById('conversation-messages');
+        if (messagesContainer) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+    }
+
+    renderMessage(message) {
+        const isOwn = State.user && message.sender_id === State.user.id;
+        const time = new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        return `
+            <div class="message-bubble ${isOwn ? 'sent' : 'received'}" style="
+                display: flex;
+                ${isOwn ? 'justify-content: flex-end;' : 'justify-content: flex-start;'}
+                margin-bottom: 10px;
+            ">
+                <div style="
+                    max-width: 70%;
+                    padding: 10px 15px;
+                    border-radius: 18px;
+                    background: ${isOwn ? 'var(--primary-purple)' : 'rgba(255,255,255,0.1)'};
+                    color: white;
+                    word-wrap: break-word;
+                ">
+                    <div>${message.text}</div>
+                    <div style="font-size: 0.7rem; opacity: 0.7; margin-top: 5px;">${time}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    async sendDirectMessage(userId, username) {
+        const input = document.getElementById('dm-input');
+        const text = input?.value.trim();
+        
+        if (!text || !State.user) return;
+        
+        try {
+            const message = await this.services.chat.sendMessage(userId, text, State.user);
+            if (message) {
+                // Add message to conversation view
+                const messagesContainer = document.getElementById('conversation-messages');
+                if (messagesContainer) {
+                    const messageHTML = this.renderMessage({
+                        ...message,
+                        sender_id: State.user.id
+                    });
+                    messagesContainer.insertAdjacentHTML('beforeend', messageHTML);
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }
+                
+                // Clear input
+                input.value = '';
+                
+                this.showToast('Message sent! ✨');
+            } else {
+                this.showToast('Failed to send message', 'error');
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+            this.showToast('Failed to send message', 'error');
+        }
+    }
+
     generateBadges(user) {
         const badges = [];
-        const totalReactions = user.reactionScore || 0;
-        const capCount = user.reactions?.cap || 0;
-        const wildCount = user.reactions?.wild || 0;
-        const heatCount = user.reactions?.heat || 0;
-        const admireCount = user.reactions?.admire || 0;
-        const likeCount = user.reactions?.like || 0;
-
-        if (capCount >= 500) badges.push({ label: 'Cap Detector', class: 'badge-truth' });
-        if (wildCount >= 500) badges.push({ label: 'Wild Card', class: 'badge-wild' });
-        if (heatCount >= 500) badges.push({ label: 'Heat Magnet', class: 'badge-heat' });
-        if (admireCount >= 500) badges.push({ label: 'Respected', class: 'badge-admired' });
-        if (likeCount >= 500) badges.push({ label: 'Vibe King', class: 'badge-gold' });
         
-        const vibeBoosts = user.vibeBoosts || 0;
-        if (vibeBoosts >= 200) badges.push({ label: 'Vibe Master', class: 'badge-wild' });
-        if (vibeBoosts >= 500) badges.push({ label: 'Aura of Light', class: 'badge-heat' });
+        // Use the same logic as DataService.calculateUserBadges for consistency
+        if (user.verified) badges.push({ label: 'Verified', class: 'badge-verified' });
         
-        if (user.postCount > 20) badges.push({ label: 'Truth Detector', class: 'badge-truth' });
-        if (user.followersCount > 1000) badges.push({ label: 'Admired Creator', class: 'badge-admired' });
+        // Calculate from reaction stats
+        const statsStr = user.reaction_stats || '{"given": {}, "received": {}}';
+        let stats = { given: {}, received: {} };
+        try { stats = typeof statsStr === 'string' ? JSON.parse(statsStr) : statsStr; } catch(e) {}
+        let totalReceived = Object.values(stats.received || {}).reduce((sum, val) => sum + (val || 0), 0);
+        const vibeLikesCount = user.vibe_likes?.length || (user.vibe_likes_count || 0);
+        const totalVibeScore = totalReceived + vibeLikesCount;
+        
+        // Award badges based on thresholds
+        if (totalVibeScore >= 1000) badges.push({ label: 'Vibe Legend', class: 'badge-legend' });
+        else if (totalVibeScore >= 500) badges.push({ label: 'Vibe Master', class: 'badge-master' });
+        else if (vibeLikesCount >= 50) badges.push({ label: 'Viber', class: 'badge-viber' });
+        
+        if (user.role === 'admin' || user.is_admin) badges.push({ label: 'Admin', class: 'badge-admin' });
+        
+        // Additional achievement badges
+        const postCount = user.postCount || 0;
+        const followersCount = user.followersCount || 0;
+        
+        if (postCount >= 50) badges.push({ label: 'Content Creator', class: 'badge-creator' });
+        if (followersCount >= 100) badges.push({ label: 'Popular', class: 'badge-popular' });
+        if (followersCount >= 1000) badges.push({ label: 'Influencer', class: 'badge-influencer' });
         
         return badges.length > 0 ? badges.map(b => `<span class="user-badge ${b.class}">${b.label}</span>`).join(' ') : '<span class="text-dim">No badges yet</span>';
     }

@@ -168,7 +168,7 @@ export class DataService {
                         users: userMap[p.user_id] || null
                     }));
 
-                    let posts = this.mapPosts(joinedData);
+                    let posts = await this.mapPosts(joinedData);
                     await this.cache.cachePosts(cacheKey, posts);
                     return posts;
                 }
@@ -184,15 +184,41 @@ export class DataService {
         }
     }
 
-    mapPosts(data) {
-        return (data || []).map(post => {
-            const user = post.users || {};
+    async mapPosts(data) {
+        if (!data || data.length === 0) return [];
+        
+        // Get all unique user IDs from posts
+        const userIds = [...new Set(data.map(p => p.user_id))].filter(id => !!id);
+        
+        // Fetch current user data for all posts
+        let userData = [];
+        try {
+            const { data: users } = await window.supabaseClient
+                .from('users')
+                .select('id, avatar_url, name, username, vibe_score, reaction_stats')
+                .in('id', userIds);
+            userData = users || [];
+        } catch (error) {
+            console.error('Error fetching user data for posts:', error);
+        }
+        
+        // Create user lookup map
+        const userMap = userData.reduce((acc, user) => {
+            acc[user.id] = user;
+            return acc;
+        }, {});
+        
+        return data.map(post => {
+            // CRITICAL FIX: Always use fresh user data, never cached post avatar
+            const user = userMap[post.user_id] || {};
+            const avatar = user.avatar_url || `https://i.pravatar.cc/150?u=${post.user_id}`;
+            
             return {
                 id: post.id,
                 userId: post.user_id,
                 displayName: user.name || post.username,
                 handle: user.username || post.username,
-                avatar: post.user_avatar || user.avatar_url || `https://i.pravatar.cc/150?u=${post.user_id}`,
+                avatar: avatar,
                 content: post.text,
                 media: post.media_url,
                 mediaType: post.media_type,
@@ -440,11 +466,45 @@ export class DataService {
         } catch (error) { return null; }
     }
 
-    async createNotification(userId, message, type = 'info') {
+    async createNotification(userId, message, type = 'info', relatedId = null) {
         if (!userId || !window.supabaseClient) return;
         try {
-            await window.supabaseClient.from('notifications').insert([{ user_id: userId, message, type, read: false }]);
-        } catch (error) {}
+            const notificationData = {
+                user_id: userId,
+                message,
+                type,
+                read: false,
+                created_at: new Date().toISOString()
+            };
+            
+            if (relatedId) {
+                notificationData.related_id = relatedId;
+            }
+            
+            const { data, error } = await window.supabaseClient
+                .from('notifications')
+                .insert([notificationData])
+                .select();
+                
+            if (!error && data) {
+                return data[0];
+            }
+        } catch (error) {
+            console.error('Error creating notification:', error);
+        }
+        return null;
+    }
+
+    async markNotificationRead(notificationId) {
+        if (!notificationId || !window.supabaseClient) return;
+        try {
+            await window.supabaseClient
+                .from('notifications')
+                .update({ read: true })
+                .eq('id', notificationId);
+        } catch (error) {
+            console.error('Error marking notification as read:', error);
+        }
     }
 
     calculateVibeMatch(user1, user2) {
@@ -465,7 +525,7 @@ export class DataService {
                 action = 'removed';
             } else {
                 likes.push(fromUserId);
-                await this.createNotification(targetUserId, 'Someone boosted your vibe! ✨', 'vibe');
+                await this.createNotification(targetUserId, 'Someone boosted your vibe! ✨', 'vibe_boost');
             }
             
             await window.supabaseClient.from('users').update({ vibe_likes: likes }).eq('id', targetUserId);

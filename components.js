@@ -230,7 +230,7 @@ export const Components = {
                     
                     <div style="display:flex; gap:12px; margin-top:25px; justify-content:center;">
                         <button class="btn-primary" onclick="window.App.handleFollow('${user.id}')" style="min-width:120px;">Link Up</button>
-                        <button class="btn-secondary" onclick="window.App.navigate('messages')" style="min-width:120px;">Signal</button>
+                        <button class="btn-secondary" onclick="window.App.openDM('${user.id}', '${user.username}')" style="min-width:120px;">Signal</button>
                     </div>
                 </div>
                 
@@ -494,7 +494,7 @@ export const Views = {
                                     <button class="btn-primary" onclick="window.App.boostVibe('${user.id}')" style="background:linear-gradient(135deg, var(--primary-purple), var(--accent-magenta)); border:none; min-width:140px;">
                                         I Like Your Vibe ✨
                                     </button>
-                                    <button class="btn-secondary" onclick="window.App.navigate('messages')" style="min-width:100px;">Message</button>
+                                    <button class="btn-secondary" onclick="window.App.openDM('${user.id}', '${user.username}')" style="min-width:100px;">Message</button>
                                 `
                             }
                         </div>
@@ -630,21 +630,62 @@ export const Views = {
         return `
             <div class="view-header">
                 <h1 class="view-title">Notifications</h1>
-                <p class="text-dim">Neural updates for your link.</p>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button class="btn-secondary" onclick="window.App.markAllNotificationsRead()" style="padding: 5px 15px; font-size: 0.8rem;">Mark All Read</button>
+                    <button class="btn-secondary" onclick="window.App.refreshNotifications()" style="padding: 5px 15px; font-size: 0.8rem;">Refresh</button>
+                    <span class="text-dim" style="font-size: 0.8rem;">${notifications.filter(n => !n.read).length} unread</span>
+                </div>
             </div>
             <div class="notifications-list" style="margin-top:20px; display:flex; flex-direction:column; gap:12px;">
                 ${notifications && notifications.length > 0 ? notifications.map(n => `
-                    <div class="notification-card glass-panel ${n.read ? '' : 'unread'}" style="display:flex; gap:15px; align-items:center; cursor:pointer;" onclick="window.App.handleNotificationClick('${n.id}', '${n.type}', '${n.related_id}')">
-                        <div class="notif-icon" style="font-size:1.5rem;">${n.type === 'like' ? '❤️' : n.type === 'comment' ? '💬' : n.type === 'follow' ? '👤' : '✨'}</div>
-                        <div style="flex:1;">
-                            <p style="margin:0; font-size:0.95rem;">${n.content}</p>
-                            <span class="text-dim" style="font-size:0.75rem;">${n.time || 'just now'}</span>
+                    <div class="notification-card glass-panel ${n.read ? '' : 'unread'}" style="display:flex; gap:15px; align-items:center; cursor:pointer; position: relative;" onclick="window.App.handleNotificationClick('${n.id}', '${n.type}', '${n.related_id || ''}')">
+                        <div class="notif-icon" style="font-size:1.5rem;">${n.type === 'like' ? '❤️' : n.type === 'comment' ? '💬' : n.type === 'follow' ? '👤' : n.type === 'vibe_boost' ? '✨' : n.type === 'mention' ? '📢' : '🔔'}</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; margin-bottom: 4px; color: var(--text-main);">${Components.getNotificationTitle(n.type, n.from_username || 'Someone')}</div>
+                                    <p style="margin:0; font-size:0.95rem; line-height: 1.4; word-break: break-word;">${n.content}</p>
+                                    <span class="text-dim" style="font-size:0.75rem;">${Components.formatNotificationTime(n.created_at)}</span>
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 5px;">
+                                    ${!n.read ? '<div style="width:8px; height:8px; border-radius:50%; background:var(--primary-orange);"></div>' : ''}
+                                    <button class="notification-delete" onclick="event.stopPropagation(); window.App.deleteNotification('${n.id}')" style="background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 5px; border-radius: 4px; font-size: 1.2rem;" title="Delete notification">🗑️</button>
+                                </div>
+                            </div>
                         </div>
-                        ${!n.read ? '<div style="width:8px; height:8px; border-radius:50%; background:var(--primary-orange);"></div>' : ''}
                     </div>
-                `).join('') : '<p class="text-dim" style="padding:40px; text-align:center;">No notifications yet.</p>'}
+                `).join('') : '<p class="text-dim" style="padding:40px; text-align:center;">No notifications yet. Start vibing to get updates!</p>'}
             </div>
         `;
+    },
+
+    getNotificationTitle(type, fromUsername) {
+        const titles = {
+            like: `${fromUsername} liked your vibe`,
+            comment: `${fromUsername} commented on your post`,
+            follow: `${fromUsername} started following you`,
+            vibe_boost: `${fromUsername} boosted your vibe`,
+            mention: `${fromUsername} mentioned you`,
+            default: 'New notification'
+        };
+        return titles[type] || titles.default;
+    }
+
+    formatNotificationTime(timestamp) {
+        if (!timestamp) return 'just now';
+        
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        
+        if (diffMins < 1) return 'just now';
+        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        if (diffDays < 7) return `${diffDays}d ago`;
+        return date.toLocaleDateString();
     },
 
     broadcastMode: (topic) => {
