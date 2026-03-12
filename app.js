@@ -120,6 +120,10 @@ class VibeApp {
 
             this.enableRealTimeSubscriptions();
             this.initializeLiveSub();
+            
+            // Initialize Mood Glow for persisted user
+            this.initMoodGlow();
+            
             this.navigate('home', true);
         } else {
             console.log("No session found, transitioning to login.");
@@ -180,6 +184,9 @@ class VibeApp {
             this.enableRealTimeSubscriptions();
             this.initializeLiveSub();
             
+            // Initialize Mood Glow for logged in user
+            this.initMoodGlow();
+            
             // Clear any stale/empty posts cache from the disconnected state
             if (this.services.data && this.services.data.cache) {
                 this.services.data.cache.clearPostsCache();
@@ -196,6 +203,9 @@ class VibeApp {
             State.user = null;
             this._lastLoginId = null; // Reset so re-login works
             this.disableRealTimeSubscriptions();
+            
+            // Remove Mood Glow when logging out
+            this.removeMoodGlow();
             
             // Properly hide the app shell and show the original login screen
             const appElem = document.getElementById('app');
