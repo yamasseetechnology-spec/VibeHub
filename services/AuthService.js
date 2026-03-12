@@ -414,6 +414,11 @@ export class AuthService {
                     };
                     this.persistSession(this.user);
                     window.dispatchEvent(new CustomEvent('user-logged-in', { detail: this.user }));
+                    
+                    // Clear post cache to ensure timeline shows updated avatar
+                    if (window.App && window.App.services && window.App.services.data && window.App.services.data.cache) {
+                        await window.App.services.data.cache.clearPostsCache();
+                    }
                 }
             } catch (e) {
                 console.error('Profile update error:', e);

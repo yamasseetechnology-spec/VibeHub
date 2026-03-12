@@ -2611,18 +2611,22 @@ class VibeApp {
                 
                 // Refresh view if on profile
                 if (State.currentView === 'profile') {
-                    this.renderView('profile', false);
+                    this.renderView('profile', true);
                 }
-            } else {
-                throw new Error('Sync returned null user');
+                
+                // If we are on a feed view, refresh the posts to show updated avatars
+                const feedViews = ['home', 'trending', 'we-vibin', 'friends'];
+                if (feedViews.includes(State.currentView)) {
+                    this.renderView(State.currentView, true);
+                }
             }
-        } catch (err) {
-            console.error('Profile sync error:', err);
-            this.showToast('Sync failed: ' + err.message, 'error');
+        } catch (e) {
+            console.error('Profile sync error:', e);
+            this.showToast('Profile sync failed. Check connection.', 'error');
         } finally {
             if (saveBtn) {
                 saveBtn.disabled = false;
-                saveBtn.innerText = 'Sync Profile';
+                saveBtn.innerHTML = 'Sync Profile';
             }
         }
     }

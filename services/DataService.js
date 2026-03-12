@@ -246,12 +246,26 @@ export class DataService {
             if (isRemoving) {
                 await window.supabaseClient.from('post_reactions').delete().match({ post_id: postId, user_id: userId, reaction_type: reactionType });
             } else {
-                await window.supabaseClient.from('post_reactions').insert({ post_id: postId, user_id: user_id, reaction_type: reactionType });
+                await window.supabaseClient.from('post_reactions').insert({ post_id: postId, user_id: userId, reaction_type: reactionType });
             }
             return { success: true };
         } catch (error) {
             console.error('Error in addReaction:', error);
             return { success: false, error: error.message };
+        }
+    }
+
+    async updateTop8(userId, top8Ids) {
+        if (!userId || !Array.isArray(top8Ids) || !window.supabaseClient) return false;
+        try {
+            await window.supabaseClient
+                .from('users')
+                .update({ top_8_friends: top8Ids })
+                .eq('id', userId);
+            return true;
+        } catch (error) {
+            console.error('updateTop8 failed:', error);
+            return false;
         }
     }
 
