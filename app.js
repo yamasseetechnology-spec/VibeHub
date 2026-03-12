@@ -1099,6 +1099,7 @@ class VibeApp {
             displayName: State.user.displayName,
             handle: State.user.username,
             avatar: State.user.profilePhoto,
+            user_avatar: State.user.profilePhoto,
             content: text || '',
             mediaFile: mediaFile,
             mediaType: mediaType,
