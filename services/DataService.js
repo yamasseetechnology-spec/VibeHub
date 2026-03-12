@@ -231,19 +231,28 @@ export class DataService {
             const { data: post, error: fetchError } = await window.supabaseClient.from('posts').select('likes, dislikes, reactions, user_id').eq('id', postId).single();
             if (fetchError) throw fetchError;
             let isRemoving = false;
+            let reactions = post.reactions || { cap: [], relate: [], wild: [], facts: [], heat: [] };
             if (reactionType === 'like' || reactionType === 'dislike') {
                 const field = reactionType === 'like' ? 'likes' : 'dislikes';
                 let list = post[field] || [];
                 if (list.includes(userId)) { list = list.filter(id => id !== userId); isRemoving = true; } else { list.push(userId); }
                 await window.supabaseClient.from('posts').update({ [field]: list }).eq('id', postId);
             } else {
-                let reactions = post.reactions || { cap: [], relate: [], wild: [], facts: [], heat: [] };
                 if (!reactions[reactionType]) reactions[reactionType] = [];
                 if (reactions[reactionType].includes(userId)) { reactions[reactionType] = reactions[reactionType].filter(id => id !== userId); isRemoving = true; } else { reactions[reactionType].push(userId); }
                 await window.supabaseClient.from('posts').update({ reactions }).eq('id', postId);
             }
+            // Sync with post_reactions table for uniqueness and realtime
+            if (isRemoving) {
+                await window.supabaseClient.from('post_reactions').delete().match({ post_id: postId, user_id: userId, reaction_type: reactionType });
+            } else {
+                await window.supabaseClient.from('post_reactions').insert({ post_id: postId, user_id: user_id, reaction_type: reactionType });
+            }
             return { success: true };
-        } catch (error) { return { success: false, error: error.message }; }
+        } catch (error) {
+            console.error('Error in addReaction:', error);
+            return { success: false, error: error.message };
+        }
     }
 
     async getComments(postId) {
