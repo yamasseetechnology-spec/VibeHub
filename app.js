@@ -2173,6 +2173,10 @@ class VibeApp {
         // Update Bottom Nav Highlighting Silent
         document.querySelectorAll('.mobile-bottom-nav').forEach(nav => nav.classList.remove('active'));
         const activeNav = document.querySelector(`.mobile-bottom-nav[data-view="${view}"]`);
+        if (activeNav) activeNav.classList.add('active');
+        
+        this.renderView(view, false);
+    }
 
     async renderView(view, updateNav = true) {
         State.currentView = view;

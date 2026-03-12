@@ -719,7 +719,7 @@ export const Views = {
             default: 'New notification'
         };
         return titles[type] || titles.default;
-    }
+    },
 
     formatNotificationTime(timestamp) {
         if (!timestamp) return 'just now';
