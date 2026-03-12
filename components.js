@@ -56,38 +56,38 @@ export const Components = {
                     </div>
                 ` : ''}
                 
-                <div class="post-stats" style="display:flex; flex-direction:column; gap:4px; padding:8px 0; border-top:1px solid var(--border-light);">
-                    <div class="reactions-row-1" style="display:flex; gap:3px; flex-wrap:wrap; justify-content:space-between;">
-                        <button onclick="window.App.handleReaction('${post.id}', 'like')" class="reaction-btn ${post.reactions.like > 0 ? 'active' : ''}" data-type="like" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                <div class="post-stats" style="display:flex; flex-direction:column; gap:6px; padding:10px 0; border-top:1px solid var(--border-light);">
+                    <div class="reactions-row-1" style="display:flex; gap:5px; flex-wrap:wrap; justify-content:space-between;">
+                        <button onclick="window.App.handleReaction('${post.id}', 'like')" class="reaction-btn ${post.reactions.like > 0 ? 'active' : ''}" data-type="like" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:4px 8px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
                             ❤️ ${post.reactions.like || 0}
                         </button>
-                        <button onclick="window.App.handleReaction('${post.id}', 'dislike')" class="reaction-btn ${post.reactions.dislike > 0 ? 'active' : ''}" data-type="dislike" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                        <button onclick="window.App.handleReaction('${post.id}', 'dislike')" class="reaction-btn ${post.reactions.dislike > 0 ? 'active' : ''}" data-type="dislike" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:4px 8px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
                             👎 ${post.reactions.dislike || 0}
                         </button>
-                        <button onclick="window.App.handleReaction('${post.id}', 'heat')" class="reaction-btn ${post.reactions.heat > 0 ? 'active' : ''}" data-type="heat" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                        <button onclick="window.App.handleReaction('${post.id}', 'heat')" class="reaction-btn ${post.reactions.heat > 0 ? 'active' : ''}" data-type="heat" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:4px 8px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
                             🌶️ ${post.reactions.heat || 0}
                         </button>
-                        <button onclick="window.App.handleReaction('${post.id}', 'wild')" class="reaction-btn ${post.reactions.wild > 0 ? 'active' : ''}" data-type="wild" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                        <button onclick="window.App.handleReaction('${post.id}', 'wild')" class="reaction-btn ${post.reactions.wild > 0 ? 'active' : ''}" data-type="wild" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:4px 8px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
                             🤪 ${post.reactions.wild || 0}
                         </button>
-                        <button onclick="window.App.handleReaction('${post.id}', 'admire')" class="reaction-btn ${post.reactions.admire > 0 ? 'active' : ''}" data-type="admire" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                        <button onclick="window.App.handleReaction('${post.id}', 'admire')" class="reaction-btn ${post.reactions.admire > 0 ? 'active' : ''}" data-type="admire" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:4px 8px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
                             🤩 ${post.reactions.admire || 0}
                         </button>
                     </div>
-                    <div class="reactions-row-2" style="display:flex; gap:3px; flex-wrap:wrap; justify-content:space-between;">
-                        <button onclick="window.App.handleReaction('${post.id}', 'gross')" class="reaction-btn ${post.reactions.gross > 0 ? 'active' : ''}" data-type="gross" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                    <div class="reactions-row-2" style="display:flex; gap:5px; flex-wrap:wrap; justify-content:space-between;">
+                        <button onclick="window.App.handleReaction('${post.id}', 'gross')" class="reaction-btn ${post.reactions.gross > 0 ? 'active' : ''}" data-type="gross" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:4px 8px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
                             🤢 ${post.reactions.gross || 0}
                         </button>
-                        <button onclick="window.App.handleReaction('${post.id}', 'wtf')" class="reaction-btn ${post.reactions.wtf > 0 ? 'active' : ''}" data-type="wtf" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                        <button onclick="window.App.handleReaction('${post.id}', 'wtf')" class="reaction-btn ${post.reactions.wtf > 0 ? 'active' : ''}" data-type="wtf" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:4px 8px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
                             😱 ${post.reactions.wtf || 0}
                         </button>
-                        <button onclick="window.App.handleReaction('${post.id}', 'dope')" class="reaction-btn ${post.reactions.dope > 0 ? 'active' : ''}" data-type="dope" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                        <button onclick="window.App.handleReaction('${post.id}', 'dope')" class="reaction-btn ${post.reactions.dope > 0 ? 'active' : ''}" data-type="dope" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:4px 8px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
                             🔥 ${post.reactions.dope || 0}
                         </button>
-                        <button onclick="window.App.handleReaction('${post.id}', 'cap')" class="reaction-btn ${post.reactions.cap > 0 ? 'active' : ''}" data-type="cap" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                        <button onclick="window.App.handleReaction('${post.id}', 'cap')" class="reaction-btn ${post.reactions.cap > 0 ? 'active' : ''}" data-type="cap" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:4px 8px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
                             🧢 ${post.reactions.cap || 0}
                         </button>
-                        <button onclick="window.App.showCommentModal('${post.id}')" class="reaction-btn" style="background:none; border:1px solid var(--border-light); border-radius:12px; padding:2px 5px; cursor:pointer; font-size:0.65rem; white-space:nowrap;">
+                        <button onclick="window.App.showCommentModal('${post.id}')" class="reaction-btn" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:4px 8px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
                             💬 ${post.commentCount || 0}
                         </button>
                     </div>
@@ -900,42 +900,9 @@ export const Views = {
     },
 
     settings() {
-        const moodGlowEnabled = localStorage.getItem('moodGlow_enabled') === 'true';
-        
         return `
             <div class="view-header"><h1 class="view-title">⚙️ Settings</h1></div>
             <div class="settings-grid" style="display:flex; flex-direction:column; gap:20px;">
-                
-                <div class="glass-panel" style="padding:20px;">
-                    <h3 style="margin:0 0 15px 0; color:var(--text-main);">🌟 Mood Glow</h3>
-                    <p style="margin:0 0 15px 0; color:var(--text-dim); font-size:0.9rem;">
-                        Enable Mood Glow to see your emotional state reflected in the app's ambient lighting.
-                    </p>
-                    
-                    <div class="setting-item" style="display:flex; justify-content:space-between; align-items:center; padding:15px 0; border-bottom:1px solid var(--border-light);">
-                        <div>
-                            <div style="font-weight:600; color:var(--text-main); margin-bottom:5px;">Enable Mood Glow</div>
-                            <div style="color:var(--text-dim); font-size:0.9rem;">Show emotional ambiance around screen edges</div>
-                        </div>
-                        <label class="toggle-switch" style="position:relative; display:inline-block; width:60px; height:34px;">
-                            <input type="checkbox" id="mood-glow-toggle" ${moodGlowEnabled ? 'checked' : ''} style="opacity:0; width:0; height:0;" onchange="window.App.toggleMoodGlow(this.checked)">
-                            <span class="toggle-slider" style="position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background-color:var(--border-light); transition:0.4s; border-radius:34px;">
-                                <span class="toggle-slider:before" style="position:absolute; content:''; height:26px; width:26px; left:4px; bottom:4px; background-color:white; transition:0.4s; border-radius:50%;"></span>
-                            </span>
-                        </label>
-                    </div>
-                    
-                    <div style="margin-top:15px; padding:15px; background:var(--bg-glass); border-radius:8px;">
-                        <div style="font-weight:600; color:var(--text-main); margin-bottom:10px;">How Mood Glow Works</div>
-                        <div style="color:var(--text-dim); font-size:0.85rem; line-height:1.4;">
-                            <p style="margin:0 0 8px 0;">🧠 <strong>Language Analysis:</strong> Words carry emotional fingerprints</p>
-                            <p style="margin:0 0 8px 0;">📊 <strong>Posting Patterns:</strong> When and how often you post</p>
-                            <p style="margin:0 0 8px 0;">🤝 <strong>Engagement Style:</strong> How you interact with others</p>
-                            <p style="margin:0 0 8px 0;">💭 <strong>Topic Patterns:</strong> Themes reveal mood shifts</p>
-                            <p style="margin:0;">🔮 <strong>Probabilistic:</strong> 70%+ accuracy based on research</p>
-                        </div>
-                    </div>
-                </div>
                 
                 <div class="glass-panel" style="padding:20px;">
                     <h3>Support Vibehub Development</h3>

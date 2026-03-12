@@ -928,7 +928,6 @@ export class DataService {
                     reactions: reactionSignal,
                     topics: topicSignal
                 },
-                glowColor: this.getMoodGlowColor(moodScore.mood),
                 intensity: moodScore.intensity,
                 timeframe,
                 analyzedAt: new Date().toISOString()

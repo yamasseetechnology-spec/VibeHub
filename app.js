@@ -121,9 +121,6 @@ class VibeApp {
             this.enableRealTimeSubscriptions();
             this.initializeLiveSub();
             
-            // Initialize Mood Glow for persisted user
-            this.initMoodGlow();
-            
             this.navigate('home', true);
         } else {
             console.log("No session found, transitioning to login.");
@@ -184,9 +181,6 @@ class VibeApp {
             this.enableRealTimeSubscriptions();
             this.initializeLiveSub();
             
-            // Initialize Mood Glow for logged in user
-            this.initMoodGlow();
-            
             // Clear any stale/empty posts cache from the disconnected state
             if (this.services.data && this.services.data.cache) {
                 this.services.data.cache.clearPostsCache();
@@ -203,9 +197,6 @@ class VibeApp {
             State.user = null;
             this._lastLoginId = null; // Reset so re-login works
             this.disableRealTimeSubscriptions();
-            
-            // Remove Mood Glow when logging out
-            this.removeMoodGlow();
             
             // Properly hide the app shell and show the original login screen
             const appElem = document.getElementById('app');
@@ -1492,7 +1483,6 @@ class VibeApp {
         if (State.user) {
             this.showToast('Welcome back to VibeHub! ', 'success');
             this.services.data.cache.clearPostsCache();
-            this.initMoodGlow(); // Initialize Mood Glow
         } else {
             this.navigate('home', true);
         }
@@ -4360,231 +4350,6 @@ class VibeApp {
                 break;
             default:
                 response(`Error: Command '${cmd}' not found.`);
-        }
-    }
-
-    // --- MOOD GLOW EMOTIONAL INTELLIGENCE SYSTEM ---
-    
-    async initMoodGlow() {
-        if (!State.user) return;
-        
-        // Check if user has enabled Mood Glow (default to enabled for new users)
-        const moodGlowSetting = localStorage.getItem('moodGlow_enabled');
-        const moodGlowEnabled = moodGlowSetting === 'false' ? false : true; // Default to true
-        
-        if (!moodGlowEnabled) {
-            console.log('Mood Glow is disabled in settings');
-            return;
-        }
-        
-        console.log('🌟 Initializing Mood Glow for user:', State.user.username);
-        
-        // Create the glow element
-        this.createMoodGlowElement();
-        
-        // Calculate initial mood
-        await this.updateMoodGlow();
-        
-        // Set up periodic updates (every 30 minutes)
-        this.moodGlowInterval = setInterval(() => {
-            this.updateMoodGlow();
-        }, 30 * 60 * 1000);
-        
-        // Set up triggers for real-time updates
-        this.setupMoodGlowTriggers();
-    }
-    
-    createMoodGlowElement() {
-        // Remove existing glow if present
-        const existing = document.getElementById('mood-glow');
-        if (existing) existing.remove();
-        
-        // Create glow element
-        const glowElement = document.createElement('div');
-        glowElement.id = 'mood-glow';
-        glowElement.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            pointer-events: none;
-            z-index: 9999;
-            opacity: 0.4;
-            transition: all 2s cubic-bezier(0.4, 0, 0.2, 1);
-            background: linear-gradient(45deg, 
-                rgba(255, 215, 0, 0.4), 
-                rgba(255, 165, 0, 0.4), 
-                rgba(255, 99, 71, 0.4));
-            animation: moodGlowPulse 4s ease-in-out infinite;
-            box-shadow: inset 0 0 100px rgba(255, 215, 0, 0.2);
-        `;
-        
-        // Add mobile-specific styles
-        if (window.innerWidth <= 768) {
-            glowElement.style.opacity = '0.5';
-            glowElement.style.background = 'linear-gradient(45deg, rgba(255, 215, 0, 0.5), rgba(255, 165, 0, 0.5), rgba(255, 99, 71, 0.5))';
-        }
-        
-        // Add CSS animation with mobile optimizations
-        if (!document.getElementById('mood-glow-styles')) {
-            const style = document.createElement('style');
-            style.id = 'mood-glow-styles';
-            style.textContent = `
-                @keyframes moodGlowPulse {
-                    0%, 100% { 
-                        opacity: 0.3; 
-                        box-shadow: inset 0 0 50px rgba(255, 215, 0, 0.1);
-                    }
-                    50% { 
-                        opacity: 0.6; 
-                        box-shadow: inset 0 0 150px rgba(255, 215, 0, 0.3);
-                    }
-                }
-                @keyframes moodGlowShift {
-                    0%, 100% { transform: scale(1) rotate(0deg); }
-                    50% { transform: scale(1.02) rotate(180deg); }
-                }
-                @media (max-width: 768px) {
-                    #mood-glow {
-                        opacity: 0.5 !important;
-                        animation-duration: 3s !important;
-                    }
-                }
-            `;
-            document.head.appendChild(style);
-        }
-        
-        // Force the glow to be visible
-        document.body.appendChild(glowElement);
-        
-        // Force a reflow to ensure the element is rendered
-        glowElement.offsetHeight;
-        
-        console.log('✨ Mood Glow element created with enhanced visibility');
-        console.log('📱 Mobile detected:', window.innerWidth <= 768);
-        console.log('🎯 Glow element:', glowElement);
-    }
-    
-    async updateMoodGlow() {
-        if (!State.user || !document.getElementById('mood-glow')) return;
-        
-        try {
-            console.log('🧠 Calculating mood for:', State.user.username);
-            
-            // Calculate mood using DataService
-            const moodData = await this.services.data.calculateUserMood(State.user.id, '7d');
-            
-            if (!moodData) {
-                console.log('No mood data available');
-                return;
-            }
-            
-            console.log('🎨 Mood detected:', moodData.mood, 'Confidence:', moodData.confidence);
-            
-            // Update glow appearance
-            this.updateMoodGlowAppearance(moodData);
-            
-            // Store current mood for reference
-            this.currentMood = moodData;
-            
-        } catch (error) {
-            console.error('Error updating Mood Glow:', error);
-        }
-    }
-    
-    updateMoodGlowAppearance(moodData) {
-        const glowElement = document.getElementById('mood-glow');
-        if (!glowElement) return;
-        
-        const { mood, confidence, intensity, glowColor } = moodData;
-        
-        // Calculate opacity based on confidence
-        const opacity = Math.max(0.15, Math.min(0.8, confidence * intensity));
-        
-        // Apply mood-specific styling
-        glowElement.style.background = glowColor;
-        glowElement.style.opacity = opacity;
-        
-        // Adjust animation based on mood intensity
-        const animationDuration = intensity > 0.7 ? '2s' : intensity > 0.4 ? '4s' : '8s';
-        glowElement.style.animationDuration = animationDuration;
-        
-        // Add special effects for strong emotions
-        if (mood === 'anxious' && intensity > 0.6) {
-            glowElement.style.animation = `moodGlowPulse ${animationDuration} ease-in-out infinite, moodGlowShift ${animationDuration * 2} ease-in-out infinite`;
-        } else if (mood === 'emotional_flooding') {
-            glowElement.style.animation = `moodGlowPulse 1s ease-in-out infinite, moodGlowShift 3s ease-in-out infinite`;
-        } else {
-            glowElement.style.animation = `moodGlowPulse ${animationDuration} ease-in-out infinite`;
-        }
-        
-        console.log(`🌈 Glow updated: ${mood} (${Math.round(confidence * 100)}% confidence)`);
-    }
-    
-    setupMoodGlowTriggers() {
-        // Update mood after user posts
-        const originalPostHandler = this.handleCreatePost.bind(this);
-        this.handleCreatePost = async (...args) => {
-            const result = await originalPostHandler(...args);
-            setTimeout(() => this.updateMoodGlow(), 1000); // Update after post
-            return result;
-        };
-        
-        // Update mood after reactions
-        const originalReactionHandler = this.handleReaction.bind(this);
-        this.handleReaction = async (...args) => {
-            const result = await originalReactionHandler(...args);
-            setTimeout(() => this.updateMoodGlow(), 500); // Update after reaction
-            return result;
-        };
-        
-        // Update mood after comments
-        const originalCommentHandler = this.addComment.bind(this);
-        this.addComment = async (...args) => {
-            const result = await originalCommentHandler(...args);
-            setTimeout(() => this.updateMoodGlow(), 500); // Update after comment
-            return result;
-        };
-        
-        console.log('🎯 Mood Glow triggers set up');
-    }
-    
-    removeMoodGlow() {
-        console.log('🧹 Removing Mood Glow');
-        
-        // Clear interval
-        if (this.moodGlowInterval) {
-            clearInterval(this.moodGlowInterval);
-            this.moodGlowInterval = null;
-        }
-        
-        // Remove glow element
-        const glowElement = document.getElementById('mood-glow');
-        if (glowElement) {
-            glowElement.style.opacity = '0';
-            setTimeout(() => glowElement.remove(), 500);
-        }
-        
-        // Remove styles
-        const styles = document.getElementById('mood-glow-styles');
-        if (styles) styles.remove();
-        
-        // Clear current mood
-        this.currentMood = null;
-        
-        console.log('✅ Mood Glow removed');
-    }
-    
-    toggleMoodGlow(enabled) {
-        localStorage.setItem('moodGlow_enabled', enabled.toString());
-        
-        if (enabled && State.user) {
-            this.initMoodGlow();
-            this.showToast('Mood Glow enabled! 🌟', 'success');
-        } else {
-            this.removeMoodGlow();
-            this.showToast('Mood Glow disabled', 'info');
         }
     }
 }
