@@ -4021,7 +4021,18 @@ class VibeApp {
 
         // --- Premium Animation ---
         const popup = document.createElement('div');
-        const emojiMap = { cap: '🧢', wild: '🤯', like: '👍', dislike: '👎', heat: '🔥', admire: '🙏', relate: '🙏' }; // Added relate
+        const emojiMap = { 
+            cap: '🧢', 
+            wild: '🤯', 
+            like: '👍', 
+            dislike: '👎', 
+            heat: '🔥', 
+            admire: '🙏', 
+            relate: '🙏',
+            gross: '🤢',
+            wtf: '😱',
+            dope: '🔥'
+        };
         popup.innerHTML = emojiMap[type] || '✨';
         popup.style.cssText = `
             position: fixed;
