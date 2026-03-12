@@ -1480,7 +1480,259 @@ class VibeApp {
         }
         
         if (State.user) {
+            this.showToast('Welcome back to VibeHub! ', 'success');
+            this.services.data.cache.clearPostsCache();
+            this.initMoodGlow(); // Initialize Mood Glow
+        } else {
+            this.navigate('home', true);
+        }
+        
+        if (State.user) {
             this.services.data.notifications.requestPermission();
+        }
+    }
+
+    togglePostMenu(postId, event) {
+        event.stopPropagation();
+        
+        // Close all other post menus
+        document.querySelectorAll('.post-menu').forEach(menu => {
+            if (menu.id !== `post-menu-${postId}`) {
+                menu.style.display = 'none';
+            }
+        });
+        
+        // Toggle current menu
+        const menu = document.getElementById(`post-menu-${postId}`);
+        if (menu) {
+            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        // Close menu when clicking outside
+        const closeHandler = (e) => {
+            if (!e.target.closest('.post-actions')) {
+                if (menu) menu.style.display = 'none';
+                document.removeEventListener('click', closeHandler);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', closeHandler), 100);
+    }
+
+    async handleEditPost(postId) {
+        if (!State.user) {
+            this.showToast('Please login to edit posts', 'error');
+            return;
+        }
+        
+        try {
+            // Get current post data
+            const { data: post } = await window.supabaseClient
+                .from('posts')
+                .select('*')
+                .eq('id', postId)
+                .single();
+                
+            if (!post) {
+                this.showToast('Post not found', 'error');
+                return;
+            }
+            
+            // Verify user owns the post
+            if (post.user_id !== State.user.id && !State.user.isSuperAdmin) {
+                this.showToast('You can only edit your own posts', 'error');
+                return;
+            }
+            
+            // Show edit modal
+            this.showEditPostModal(post);
+        } catch (error) {
+            console.error('Error preparing post edit:', error);
+            this.showToast('Failed to load post for editing', 'error');
+        }
+    }
+
+    showEditPostModal(post) {
+        const modal = document.getElementById('modal-container');
+        const content = document.getElementById('modal-content');
+        if (!modal || !content) return;
+        
+        modal.classList.remove('hidden');
+        content.innerHTML = `
+            <div class="glass-panel" style="max-width: 600px; margin: 20px auto; padding: 30px;">
+                <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0; color: var(--text-main);">Edit Vibe</h2>
+                    <button onclick="window.App.closeEditPostModal()" style="background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer;">×</button>
+                </div>
+                
+                <div class="edit-post-form">
+                    <textarea id="edit-post-text" placeholder="Share your vibe..." style="width: 100%; min-height: 120px; background: var(--bg-glass); border: 1px solid var(--border-light); border-radius: 12px; padding: 15px; color: var(--text-main); resize: vertical; font-family: inherit; font-size: 1rem;">${post.text || ''}</textarea>
+                    
+                    <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; gap: 10px;">
+                            ${post.media_url ? `
+                                <div style="position: relative;">
+                                    ${post.media_type === 'image' ? 
+                                        `<img src="${post.media_url}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px;">` :
+                                        `<video src="${post.media_url}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 8px;"></video>`
+                                    }
+                                    <button onclick="window.App.removeEditMedia()" style="position: absolute; top: -5px; right: -5px; background: var(--accent-red); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-size: 12px;">×</button>
+                                </div>
+                            ` : ''}
+                            <input type="file" id="edit-post-media" accept="image/*,video/*" style="display: none;">
+                            <button onclick="document.getElementById('edit-post-media').click()" class="btn-secondary" style="padding: 8px 16px; font-size: 0.9rem;">📎 Add Media</button>
+                        </div>
+                        
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="window.App.closeEditPostModal()" class="btn-secondary">Cancel</button>
+                            <button onclick="window.App.saveEditedPost('${post.id}')" class="btn-primary">Save Changes</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Store current post data
+        this._editingPost = post;
+        this._editingMediaFile = null;
+        this._editingMediaType = null;
+        
+        // Setup media input handler
+        const mediaInput = document.getElementById('edit-post-media');
+        if (mediaInput) {
+            mediaInput.addEventListener('change', (e) => this.handleEditMediaChange(e));
+        }
+    }
+
+    handleEditMediaChange(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        // Validate file
+        if (file.size > 100 * 1024 * 1024) {
+            this.showToast('Media must be under 100MB', 'error');
+            return;
+        }
+        
+        this._editingMediaFile = file;
+        this._editingMediaType = file.type.includes('video') ? 'video' : 'image';
+        
+        // Show preview
+        const preview = document.querySelector('.edit-post-form .media-preview');
+        if (preview) preview.remove();
+        
+        const previewDiv = document.createElement('div');
+        previewDiv.className = 'media-preview';
+        previewDiv.style.cssText = 'margin-top: 15px; position: relative;';
+        previewDiv.innerHTML = `
+            ${this._editingMediaType === 'image' ? 
+                `<img src="${URL.createObjectURL(file)}" style="max-width: 200px; max-height: 200px; border-radius: 8px;">` :
+                `<video src="${URL.createObjectURL(file)}" style="max-width: 200px; max-height: 200px; border-radius: 8px;" controls></video>`
+            }
+            <button onclick="window.App.removeEditMedia()" style="position: absolute; top: -5px; right: -5px; background: var(--accent-red); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-size: 12px;">×</button>
+        `;
+        
+        document.querySelector('.edit-post-form').insertBefore(previewDiv, document.querySelector('.edit-post-form > div:last-child'));
+    }
+
+    removeEditMedia() {
+        this._editingMediaFile = null;
+        this._editingMediaType = null;
+        const preview = document.querySelector('.media-preview');
+        if (preview) preview.remove();
+        document.getElementById('edit-post-media').value = '';
+    }
+
+    async saveEditedPost(postId) {
+        const text = document.getElementById('edit-post-text').value;
+        
+        if (!text.trim() && !this._editingMediaFile && !this._editingPost.media_url) {
+            this.showToast('Post cannot be empty', 'error');
+            return;
+        }
+        
+        this.showToast('Saving changes...', 'info');
+        
+        try {
+            let mediaUrl = this._editingPost.media_url;
+            let mediaType = this._editingPost.media_type;
+            
+            // Handle new media upload
+            if (this._editingMediaFile) {
+                const uploadResult = this._editingMediaType === 'video' ? 
+                    await this.services.data.media.uploadVideo(this._editingMediaFile) :
+                    await this.services.data.media.uploadImage(this._editingMediaFile);
+                    
+                if (uploadResult) {
+                    mediaUrl = uploadResult.url;
+                    mediaType = this._editingMediaType;
+                }
+            }
+            
+            // Update the post
+            const result = await this.services.data.editPost(postId, text, mediaUrl, mediaType);
+            
+            if (result.success) {
+                this.showToast('Post updated successfully! ✨', 'success');
+                this.closeEditPostModal();
+                
+                // Refresh timeline if visible
+                if (State.currentView === 'home') {
+                    this.navigate('home', true);
+                }
+            } else {
+                this.showToast('Failed to update post: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error saving edited post:', error);
+            this.showToast('Failed to save changes', 'error');
+        }
+    }
+
+    closeEditPostModal() {
+        const modal = document.getElementById('modal-container');
+        if (modal) modal.classList.add('hidden');
+        this._editingPost = null;
+        this._editingMediaFile = null;
+        this._editingMediaType = null;
+    }
+
+    async handleDeletePost(postId) {
+        if (!State.user) {
+            this.showToast('Please login to delete posts', 'error');
+            return;
+        }
+        
+        // Confirm deletion
+        if (!confirm('Are you sure you want to delete this vibe? This action cannot be undone.')) {
+            return;
+        }
+        
+        try {
+            this.showToast('Deleting post...', 'info');
+            
+            const result = await this.services.data.deletePost(postId);
+            
+            if (result.success) {
+                this.showToast('Post deleted successfully', 'success');
+                
+                // Remove post from DOM if visible
+                const postElement = document.querySelector(`[data-post-id="${postId}"]`);
+                if (postElement) {
+                    postElement.style.opacity = '0';
+                    postElement.style.transform = 'translateY(-20px)';
+                    setTimeout(() => postElement.remove(), 300);
+                }
+                
+                // Refresh timeline if visible
+                if (State.currentView === 'home') {
+                    setTimeout(() => this.navigate('home', true), 500);
+                }
+            } else {
+                this.showToast('Failed to delete post: ' + result.error, 'error');
+            }
+        } catch (error) {
+            console.error('Error deleting post:', error);
+            this.showToast('Failed to delete post', 'error');
         }
     }
 
@@ -1911,10 +2163,6 @@ class VibeApp {
         // Update Bottom Nav Highlighting Silent
         document.querySelectorAll('.mobile-bottom-nav').forEach(nav => nav.classList.remove('active'));
         const activeNav = document.querySelector(`.mobile-bottom-nav[data-view="${view}"]`);
-        if (activeNav) activeNav.classList.add('active');
-        
-        this.renderView(view);
-    }
 
     async renderView(view, updateNav = true) {
         State.currentView = view;
@@ -1956,6 +2204,9 @@ class VibeApp {
                         }, 1000);
                     }
                     container.innerHTML = Views.home(this.interleaveAds(Array.isArray(postsData) ? postsData : [], adsData));
+                    break;
+                case 'explore':
+                    await this.renderExploreView();
                     break;
                 case 'vibestream':
                     const videos = await this.services.video.getVibeStream();
@@ -2007,14 +2258,6 @@ class VibeApp {
                 case 'communities':
                     const communities = await this.services.data.getCommunities();
                     container.innerHTML = Views.communities(communities);
-                    break;
-                case 'marketplace':
-                    const items = await this.services.data.getMarketplace();
-                    container.innerHTML = Views.marketplace(items);
-                    break;
-                case 'admin':
-                    const stats = await this.services.admin.getStats();
-                    container.innerHTML = Views.admin(stats);
                     break;
                 default:
                     container.innerHTML = `<div class="view-header"><h1 class="view-title">${view}</h1><p>Vibe missing. Error 404.</p></div>`;

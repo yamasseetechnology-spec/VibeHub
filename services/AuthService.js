@@ -295,8 +295,9 @@ export class AuthService {
         const fallbackPass = window.VIBEHUB_FALLBACK_ADMIN_PASS || 'citawoo789';
         
         if ((email === validAdminUser && password === adminPassword) || (email === fallbackEmail && password === fallbackPass)) {
-            // Step 1: Try to create a REAL Supabase Auth session using fallback admin email
-            // This ensures RLS queries work (timeline, posts, etc.)
+            // CRITICAL FIX: Ensure admin account is properly unified
+            
+            // Step 1: Authenticate with Supabase using fallback email
             let authData = null;
             if (window.supabaseClient) {
                 try {
@@ -315,37 +316,66 @@ export class AuthService {
                 }
             }
 
-            // Step 2: Fetch admin profile data from users table by USERNAME (not email)
+            // Step 2: Find or create admin user record with consistent ID
             let supabaseUser = null;
-            if (window.supabaseClient) {
+            if (window.supabaseClient && authData?.user) {
                 try {
-                    const { data } = await window.supabaseClient
+                    // First try to find existing admin record by username
+                    const { data: existingUser } = await window.supabaseClient
                         .from('users').select('*')
                         .eq('username', validAdminUser)
                         .limit(1).single();
-                    if (data) supabaseUser = data;
+                    
+                    if (existingUser) {
+                        // Update existing user to match auth ID if different
+                        if (existingUser.id !== authData.user.id) {
+                            console.log('🔄 Updating admin user ID to match auth session');
+                            await window.supabaseClient
+                                .from('users')
+                                .update({ id: authData.user.id })
+                                .eq('id', existingUser.id);
+                            
+                            // Re-fetch after update
+                            const { data: updatedUser } = await window.supabaseClient
+                                .from('users').select('*')
+                                .eq('id', authData.user.id)
+                                .limit(1).single();
+                            supabaseUser = updatedUser;
+                        } else {
+                            supabaseUser = existingUser;
+                        }
+                    } else {
+                        // Create admin user record with auth ID
+                        console.log('🆕 Creating admin user record');
+                        const adminUserData = {
+                            id: authData.user.id,
+                            username: validAdminUser,
+                            name: 'King Kool',
+                            email: fallbackEmail,
+                            avatar_url: 'https://i.ibb.co/6P01wJvq/vibehubadmin.jpg',
+                            banner_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
+                            bio: 'Platform Administrator',
+                            role: 'admin',
+                            created_at: new Date().toISOString()
+                        };
+                        
+                        const { data: createdUser } = await window.supabaseClient
+                            .from('users')
+                            .insert([adminUserData])
+                            .select()
+                            .single();
+                        supabaseUser = createdUser;
+                    }
                 } catch(e) {
-                    console.warn('Admin profile fetch by username skipped:', e);
+                    console.warn('Admin user setup error:', e);
                 }
             }
 
-            // If we successfully logged into Supabase Auth but didn't find the username, fetch by auth ID
-            if (!supabaseUser && authData?.user) {
-                try {
-                    const { data } = await window.supabaseClient
-                        .from('users').select('*')
-                        .eq('id', authData.user.id)
-                        .limit(1).single();
-                    if (data) supabaseUser = data;
-                } catch(e) {
-                    console.warn('Failed to fetch admin profile by ID:', e);
-                }
-            }
-
+            // Step 3: Create unified admin session
             const finalAdminAvatar = supabaseUser?.avatar_url || 'https://i.ibb.co/6P01wJvq/vibehubadmin.jpg';
             const user = {
                 id: supabaseUser?.id || authData?.user?.id || `admin_${Date.now()}`,
-                username: supabaseUser?.username || 'KingKool23',
+                username: supabaseUser?.username || validAdminUser,
                 displayName: supabaseUser?.name || 'King Kool',
                 email: fallbackEmail,
                 avatar: finalAdminAvatar,
@@ -359,6 +389,11 @@ export class AuthService {
                 songLink: supabaseUser?.song_link || null,
                 createdAt: supabaseUser?.created_at || new Date().toISOString()
             };
+            
+            // CRITICAL FIX: Synchronize existing admin posts
+            if (window.supabaseClient && supabaseUser?.id) {
+                this.syncAdminPosts(supabaseUser.id, validAdminUser);
+            }
             
             this.user = user;
             this.persistSession(user);
@@ -376,6 +411,40 @@ export class AuthService {
         this.clearSession();
     }
 
+    async syncAdminPosts(adminUserId, adminUsername) {
+        if (!window.supabaseClient || !adminUserId) return;
+        
+        try {
+            // Find posts with mismatched user_id or username
+            const { data: mismatchedPosts } = await window.supabaseClient
+                .from('posts')
+                .select('*')
+                .or(`user_id.neq.${adminUserId},username.neq.${adminUsername}`)
+                .eq('username', adminUsername);
+            
+            if (mismatchedPosts && mismatchedPosts.length > 0) {
+                console.log(`🔄 Synchronizing ${mismatchedPosts.length} admin posts...`);
+                
+                // Update all posts to use correct user_id
+                const { error: updateError } = await window.supabaseClient
+                    .from('posts')
+                    .update({ 
+                        user_id: adminUserId,
+                        username: adminUsername
+                    })
+                    .eq('username', adminUsername);
+                
+                if (updateError) {
+                    console.error('Error syncing admin posts:', updateError);
+                } else {
+                    console.log(`✅ Successfully synchronized ${mismatchedPosts.length} admin posts`);
+                }
+            }
+        } catch (error) {
+            console.error('Error in syncAdminPosts:', error);
+        }
+    }
+
     async updateProfile(updates) {
         if (!this.user || !this.user.id) return null;
 
@@ -389,6 +458,12 @@ export class AuthService {
             updated_at: new Date().toISOString()
         };
 
+        // Add admin-specific fields if applicable
+        if (this.user.isSuperAdmin) {
+            if (updates.verified !== undefined) supabasePayload.verified = updates.verified;
+            if (updates.role !== undefined) supabasePayload.role = updates.role;
+        }
+
         if (window.supabaseClient) {
             try {
                 const { data, error } = await window.supabaseClient
@@ -400,6 +475,7 @@ export class AuthService {
 
                 if (error) throw error;
                 if (data) {
+                    // CRITICAL FIX: Update local session with fresh data
                     this.user = {
                         ...this.user,
                         displayName: data.name,
@@ -407,12 +483,14 @@ export class AuthService {
                         profilePhoto: data.avatar_url,
                         bio: data.bio,
                         bannerImage: data.banner_url,
-                        songLink: data.song_link
+                        songLink: data.song_link,
+                        verified: data.verified,
+                        role: data.role
                     };
                     this.persistSession(this.user);
                     window.dispatchEvent(new CustomEvent('user-logged-in', { detail: this.user }));
                     
-                    // CRITICAL FIX: Clear posts cache when profile updated
+                    // Clear posts cache when profile updated
                     // This ensures timeline shows updated avatar immediately
                     if (window.App && window.App.services && window.App.services.data && window.App.services.data.cache) {
                         await window.App.services.data.cache.clearPostsCache();
@@ -422,6 +500,7 @@ export class AuthService {
                 }
             } catch (e) {
                 console.error('Profile update error:', e);
+                this.showToast('Failed to update profile', 'error');
             }
         }
         return !!window.supabaseClient;

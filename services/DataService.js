@@ -507,6 +507,917 @@ export class DataService {
         }
     }
 
+    async editPost(postId, newContent, newMediaUrl = null, newMediaType = null) {
+        if (!postId || !window.supabaseClient) return { success: false, error: 'Invalid parameters' };
+        
+        try {
+            // Verify user owns the post
+            const { data: post, error: fetchError } = await window.supabaseClient
+                .from('posts')
+                .select('user_id')
+                .eq('id', postId)
+                .single();
+                
+            if (fetchError || !post) {
+                return { success: false, error: 'Post not found' };
+            }
+            
+            // Build update data
+            const updateData = {
+                text: newContent,
+                updated_at: new Date().toISOString(),
+                edited: true
+            };
+            
+            // Update media if provided
+            if (newMediaUrl && newMediaType) {
+                updateData.media_url = newMediaUrl;
+                updateData.media_type = newMediaType;
+            }
+            
+            // Update the post
+            const { data, error } = await window.supabaseClient
+                .from('posts')
+                .update(updateData)
+                .eq('id', postId)
+                .select()
+                .single();
+                
+            if (error) throw error;
+            
+            // Clear cache to ensure fresh data
+            await this.cache.clearPostsCache();
+            
+            return { success: true, data };
+        } catch (error) {
+            console.error('Error editing post:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    async deletePost(postId) {
+        if (!postId || !window.supabaseClient) return { success: false, error: 'Invalid parameters' };
+        
+        try {
+            // Verify user owns the post or is admin
+            const { data: post, error: fetchError } = await window.supabaseClient
+                .from('posts')
+                .select('user_id')
+                .eq('id', postId)
+                .single();
+                
+            if (fetchError || !post) {
+                return { success: false, error: 'Post not found' };
+            }
+            
+            // Delete the post
+            const { error } = await window.supabaseClient
+                .from('posts')
+                .delete()
+                .eq('id', postId);
+                
+            if (error) throw error;
+            
+            // Clear cache to ensure fresh data
+            await this.cache.clearPostsCache();
+            
+            return { success: true };
+        } catch (error) {
+            console.error('Error deleting post:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    async getTrendingPosts(timeframe = '24h', limit = 20) {
+        if (!window.supabaseClient) return [];
+        
+        try {
+            // Calculate timeframe
+            const timeframes = {
+                '1h': 1 * 60 * 60 * 1000,
+                '6h': 6 * 60 * 60 * 1000,
+                '24h': 24 * 60 * 60 * 1000,
+                '7d': 7 * 24 * 60 * 60 * 1000,
+                '30d': 30 * 24 * 60 * 60 * 1000
+            };
+            
+            const timeframeMs = timeframes[timeframe] || timeframes['24h'];
+            const since = new Date(Date.now() - timeframeMs);
+            
+            // Fetch posts within timeframe
+            const { data: posts, error } = await window.supabaseClient
+                .from('posts')
+                .select('*, users(*)')
+                .gte('created_at', since.toISOString())
+                .order('created_at', { ascending: false })
+                .limit(limit * 2); // Get more to calculate trending
+            
+            if (error) throw error;
+            
+            // Calculate engagement scores
+            const postsWithScores = (posts || []).map(post => {
+                const user = post.users || {};
+                
+                // Calculate engagement score
+                const reactions = {
+                    like: post.likes?.length || 0,
+                    heat: post.reactions?.heat?.length || 0,
+                    wild: post.reactions?.wild?.length || 0,
+                    cap: post.reactions?.cap?.length || 0,
+                    admire: post.reactions?.admire?.length || 0,
+                    relate: post.reactions?.relate?.length || 0
+                };
+                
+                const totalReactions = Object.values(reactions).reduce((sum, count) => sum + count, 0);
+                const commentScore = (post.comment_count || 0) * 2; // Comments worth more
+                const userScore = user.vibe_score || 0;
+                
+                // Time decay (newer posts get slight boost)
+                const ageInHours = (Date.now() - new Date(post.created_at).getTime()) / (1000 * 60 * 60);
+                const timeMultiplier = Math.max(0.5, 1 - (ageInHours / 48)); // Decay over 48 hours
+                
+                // Final trending score
+                const trendingScore = (totalReactions + commentScore + userScore) * timeMultiplier;
+                
+                return {
+                    ...post,
+                    trendingScore,
+                    totalReactions,
+                    commentCount: post.comment_count || 0
+                };
+            });
+            
+            // Sort by trending score and limit
+            const trendingPosts = postsWithScores
+                .sort((a, b) => b.trendingScore - a.trendingScore)
+                .slice(0, limit);
+            
+            return await this.mapPosts(trendingPosts);
+        } catch (error) {
+            console.error('Error fetching trending posts:', error);
+            return [];
+        }
+    }
+
+    async getExplorePosts(tab = 'trending', timeframe = '24h') {
+        switch (tab) {
+            case 'trending':
+                return await this.getTrendingPosts(timeframe);
+            case 'new':
+                return await this.getPosts('all', null); // All posts, newest first
+            case 'top':
+                return await this.getTopPosts(timeframe);
+            default:
+                return await this.getPosts('all', null);
+        }
+    }
+
+    async getTopPosts(timeframe = '24h', limit = 20) {
+        if (!window.supabaseClient) return [];
+        
+        try {
+            const timeframes = {
+                '1h': 1 * 60 * 60 * 1000,
+                '6h': 6 * 60 * 60 * 1000,
+                '24h': 24 * 60 * 60 * 1000,
+                '7d': 7 * 24 * 60 * 60 * 1000,
+                '30d': 30 * 24 * 60 * 60 * 1000
+            };
+            
+            const timeframeMs = timeframes[timeframe] || timeframes['24h'];
+            const since = new Date(Date.now() - timeframeMs);
+            
+            // Fetch posts with highest engagement
+            const { data: posts, error } = await window.supabaseClient
+                .from('posts')
+                .select('*, users(*)')
+                .gte('created_at', since.toISOString())
+                .order('likes', { ascending: false })
+                .limit(limit);
+            
+            if (error) throw error;
+            
+            return await this.mapPosts(posts || []);
+        } catch (error) {
+            console.error('Error fetching top posts:', error);
+            return [];
+        }
+    }
+
+    async getUserAnalytics(userId, timeframe = '30d') {
+        if (!window.supabaseClient || !userId) return null;
+        
+        try {
+            const timeframes = {
+                '7d': 7 * 24 * 60 * 60 * 1000,
+                '30d': 30 * 24 * 60 * 60 * 1000,
+                '90d': 90 * 24 * 60 * 60 * 1000
+            };
+            
+            const timeframeMs = timeframes[timeframe] || timeframes['30d'];
+            const since = new Date(Date.now() - timeframeMs);
+            
+            // Fetch user's posts within timeframe
+            const { data: posts, error: postsError } = await window.supabaseClient
+                .from('posts')
+                .select('*')
+                .eq('user_id', userId)
+                .gte('created_at', since.toISOString());
+                
+            if (postsError) throw postsError;
+            
+            // Calculate metrics
+            const totalPosts = posts?.length || 0;
+            const totalReactions = posts?.reduce((sum, post) => {
+                const reactions = post.likes?.length || 0;
+                const heat = post.reactions?.heat?.length || 0;
+                const wild = post.reactions?.wild?.length || 0;
+                const cap = post.reactions?.cap?.length || 0;
+                const admire = post.reactions?.admire?.length || 0;
+                const relate = post.reactions?.relate?.length || 0;
+                return sum + reactions + heat + wild + cap + admire + relate;
+            }, 0) || 0;
+            
+            const totalComments = posts?.reduce((sum, post) => sum + (post.comment_count || 0), 0) || 0;
+            
+            // Daily activity breakdown
+            const dailyActivity = {};
+            for (let i = 0; i < 30; i++) {
+                const date = new Date(Date.now() - (i * 24 * 60 * 60 * 1000));
+                const dateKey = date.toISOString().split('T')[0];
+                dailyActivity[dateKey] = {
+                    posts: 0,
+                    reactions: 0,
+                    comments: 0
+                };
+            }
+            
+            posts?.forEach(post => {
+                const dateKey = new Date(post.created_at).toISOString().split('T')[0];
+                if (dailyActivity[dateKey]) {
+                    dailyActivity[dateKey].posts += 1;
+                    dailyActivity[dateKey].reactions += post.likes?.length || 0;
+                    dailyActivity[dateKey].comments += post.comment_count || 0;
+                }
+            });
+            
+            // Top performing posts
+            const topPosts = posts?.sort((a, b) => {
+                const scoreA = (a.likes?.length || 0) + (a.comment_count || 0) * 2;
+                const scoreB = (b.likes?.length || 0) + (b.comment_count || 0) * 2;
+                return scoreB - scoreA;
+            }).slice(0, 5) || [];
+            
+            // Engagement rate
+            const engagementRate = totalPosts > 0 ? (totalReactions / totalPosts) : 0;
+            
+            return {
+                timeframe,
+                summary: {
+                    totalPosts,
+                    totalReactions,
+                    totalComments,
+                    engagementRate: Math.round(engagementRate * 100) / 100
+                },
+                dailyActivity,
+                topPosts,
+                averagePostsPerDay: Math.round((totalPosts / (timeframeMs / (24 * 60 * 60 * 1000))) * 10) / 10
+            };
+        } catch (error) {
+            console.error('Error fetching user analytics:', error);
+            return null;
+        }
+    }
+
+    async getPlatformAnalytics(timeframe = '30d') {
+        if (!window.supabaseClient) return null;
+        
+        try {
+            const timeframes = {
+                '7d': 7 * 24 * 60 * 60 * 1000,
+                '30d': 30 * 24 * 60 * 60 * 1000,
+                '90d': 90 * 24 * 60 * 60 * 1000
+            };
+            
+            const timeframeMs = timeframes[timeframe] || timeframes['30d'];
+            const since = new Date(Date.now() - timeframeMs);
+            
+            // Fetch platform-wide stats
+            const { data: posts, error: postsError } = await window.supabaseClient
+                .from('posts')
+                .select('*')
+                .gte('created_at', since.toISOString());
+                
+            if (postsError) throw postsError;
+            
+            const { data: users, error: usersError } = await window.supabaseClient
+                .from('users')
+                .select('created_at')
+                .gte('created_at', since.toISOString());
+                
+            if (usersError) throw usersError;
+            
+            // Calculate metrics
+            const totalPosts = posts?.length || 0;
+            const newUsers = users?.length || 0;
+            const totalReactions = posts?.reduce((sum, post) => {
+                return sum + (post.likes?.length || 0) + (post.comment_count || 0);
+            }, 0) || 0;
+            
+            // Daily platform activity
+            const dailyActivity = {};
+            for (let i = 0; i < 30; i++) {
+                const date = new Date(Date.now() - (i * 24 * 60 * 60 * 1000));
+                const dateKey = date.toISOString().split('T')[0];
+                dailyActivity[dateKey] = {
+                    posts: 0,
+                    users: 0,
+                    reactions: 0
+                };
+            }
+            
+            posts?.forEach(post => {
+                const dateKey = new Date(post.created_at).toISOString().split('T')[0];
+                if (dailyActivity[dateKey]) {
+                    dailyActivity[dateKey].posts += 1;
+                    dailyActivity[dateKey].reactions += (post.likes?.length || 0) + (post.comment_count || 0);
+                }
+            });
+            
+            users?.forEach(user => {
+                const dateKey = new Date(user.created_at).toISOString().split('T')[0];
+                if (dailyActivity[dateKey]) {
+                    dailyActivity[dateKey].users += 1;
+                }
+            });
+            
+            return {
+                timeframe,
+                summary: {
+                    totalPosts,
+                    newUsers,
+                    totalReactions,
+                    averagePostsPerDay: Math.round((totalPosts / (timeframeMs / (24 * 60 * 60 * 1000))) * 10) / 10,
+                    averageUsersPerDay: Math.round((newUsers / (timeframeMs / (24 * 60 * 60 * 1000))) * 10) / 10
+                },
+                dailyActivity
+            };
+        } catch (error) {
+            console.error('Error fetching platform analytics:', error);
+            return null;
+        }
+    }
+
+    // --- MOOD GLOW EMOTIONAL INTELLIGENCE SYSTEM ---
+    
+    async calculateUserMood(userId, timeframe = '7d') {
+        if (!window.supabaseClient || !userId) return null;
+        
+        try {
+            const timeframes = {
+                '24h': 24 * 60 * 60 * 1000,
+                '3d': 3 * 24 * 60 * 60 * 1000,
+                '7d': 7 * 24 * 60 * 60 * 1000,
+                '14d': 14 * 24 * 60 * 60 * 1000,
+                '30d': 30 * 24 * 60 * 60 * 1000
+            };
+            
+            const timeframeMs = timeframes[timeframe] || timeframes['7d'];
+            const since = new Date(Date.now() - timeframeMs);
+            
+            // Gather all user data for analysis
+            const [posts, interactions, reactions] = await Promise.all([
+                this.getUserPostsForMoodAnalysis(userId, since),
+                this.getUserInteractionsForMoodAnalysis(userId, since),
+                this.getUserReactionsForMoodAnalysis(userId, since)
+            ]);
+            
+            // Calculate mood signals
+            const languageSignal = this.analyzeLanguageSignals(posts);
+            const behaviorSignal = this.analyzePostingBehavior(posts, timeframeMs);
+            const engagementSignal = this.analyzeEngagementStyle(interactions);
+            const reactionSignal = this.analyzeReactionPatterns(reactions);
+            const topicSignal = this.analyzeTopicDrift(posts);
+            
+            // Combine signals with weighted algorithm
+            const moodScore = this.calculateMoodScore({
+                language: languageSignal,
+                behavior: behaviorSignal,
+                engagement: engagementSignal,
+                reactions: reactionSignal,
+                topics: topicSignal
+            });
+            
+            return {
+                mood: moodScore.mood,
+                confidence: moodScore.confidence,
+                signals: {
+                    language: languageSignal,
+                    behavior: behaviorSignal,
+                    engagement: engagementSignal,
+                    reactions: reactionSignal,
+                    topics: topicSignal
+                },
+                glowColor: this.getMoodGlowColor(moodScore.mood),
+                intensity: moodScore.intensity,
+                timeframe,
+                analyzedAt: new Date().toISOString()
+            };
+        } catch (error) {
+            console.error('Error calculating user mood:', error);
+            return null;
+        }
+    }
+    
+    analyzeLanguageSignals(posts) {
+        if (!posts || posts.length === 0) return { mood: 'neutral', confidence: 0, signals: {} };
+        
+        // Emotional word dictionaries based on computational linguistics research
+        const positiveWords = [
+            'grateful', 'thank', 'excited', 'amazing', 'wonderful', 'love', 'happy', 'great',
+            'awesome', 'fantastic', 'beautiful', 'blessed', 'joy', 'celebrate', 'growth',
+            'goals', 'future', 'hope', 'optimistic', 'proud', 'accomplished', 'success'
+        ];
+        
+        const negativeWords = [
+            'exhausted', 'tired', 'frustrated', 'lonely', 'sad', 'angry', 'hate',
+            'stressed', 'overwhelmed', 'anxious', 'depressed', 'confused', 'lost',
+            'worried', 'disappointed', 'hurt', 'pain', 'struggle', 'difficult'
+        ];
+        
+        const anxietyWords = [
+            'insomnia', 'sleep', 'night', 'can\'t', 'worried', 'anxious', 'panic',
+            'racing', 'mind', 'overthinking', 'stress', 'pressure', 'overwhelmed'
+        ];
+        
+        const withdrawalWords = [
+            'alone', 'isolated', 'quiet', 'silent', 'away', 'disappeared', 'gone',
+            'withdrawn', 'distant', 'separate', 'apart'
+        ];
+        
+        let positiveCount = 0;
+        let negativeCount = 0;
+        let anxietyCount = 0;
+        let withdrawalCount = 0;
+        let pronounICount = 0;
+        let totalWords = 0;
+        
+        posts.forEach(post => {
+            const text = (post.text || '').toLowerCase();
+            const words = text.split(/\s+/);
+            
+            words.forEach(word => {
+                totalWords++;
+                if (positiveWords.includes(word)) positiveCount++;
+                if (negativeWords.includes(word)) negativeCount++;
+                if (anxietyWords.includes(word)) anxietyCount++;
+                if (withdrawalWords.includes(word)) withdrawalCount++;
+                if (word === 'i' || word === 'me' || word === 'my' || word === 'myself') pronounICount++;
+            });
+        });
+        
+        // Calculate emotional ratios
+        const positiveRatio = totalWords > 0 ? positiveCount / totalWords : 0;
+        const negativeRatio = totalWords > 0 ? negativeCount / totalWords : 0;
+        const anxietyRatio = totalWords > 0 ? anxietyCount / totalWords : 0;
+        const withdrawalRatio = totalWords > 0 ? withdrawalCount / totalWords : 0;
+        const selfFocusRatio = totalWords > 0 ? pronounICount / totalWords : 0;
+        
+        // Determine mood based on patterns
+        let mood = 'neutral';
+        let confidence = 0;
+        
+        if (selfFocusRatio > 0.15 && (negativeRatio > 0.05 || anxietyRatio > 0.03)) {
+            mood = 'depressive';
+            confidence = Math.min(0.8, selfFocusRatio * 3);
+        } else if (anxietyRatio > 0.04) {
+            mood = 'anxious';
+            confidence = Math.min(0.8, anxietyRatio * 4);
+        } else if (withdrawalRatio > 0.03) {
+            mood = 'withdrawn';
+            confidence = Math.min(0.7, withdrawalRatio * 3);
+        } else if (positiveRatio > 0.06 && negativeRatio < 0.02) {
+            mood = 'positive';
+            confidence = Math.min(0.8, positiveRatio * 3);
+        } else if (negativeRatio > 0.06) {
+            mood = 'negative';
+            confidence = Math.min(0.8, negativeRatio * 3);
+        }
+        
+        return {
+            mood,
+            confidence,
+            signals: {
+                positiveRatio,
+                negativeRatio,
+                anxietyRatio,
+                withdrawalRatio,
+                selfFocusRatio,
+                totalWords,
+                postCount: posts.length
+            }
+        };
+    }
+    
+    analyzePostingBehavior(posts, timeframeMs) {
+        if (!posts || posts.length === 0) return { mood: 'neutral', confidence: 0, signals: {} };
+        
+        const now = Date.now();
+        const postsByHour = {};
+        const postingTimes = posts.map(p => new Date(p.created_at).getTime());
+        
+        // Analyze posting patterns
+        postingTimes.forEach(time => {
+            const hour = new Date(time).getHours();
+            postsByHour[hour] = (postsByHour[hour] || 0) + 1;
+        });
+        
+        // Calculate metrics
+        const totalPosts = posts.length;
+        const avgPostsPerDay = totalPosts / (timeframeMs / (24 * 60 * 60 * 1000));
+        const lateNightPosts = postsByHour[0] + postsByHour[1] + postsByHour[2] + postsByHour[22] + postsByHour[23];
+        const lateNightRatio = totalPosts > 0 ? lateNightPosts / totalPosts : 0;
+        
+        // Calculate posting regularity (consistency)
+        const days = new Set(postingTimes.map(time => new Date(time).toDateString()));
+        const regularity = days.size / Math.min(7, timeframeMs / (24 * 60 * 60 * 1000));
+        
+        // Look for sudden bursts or long silences
+        const sortedTimes = postingTimes.sort((a, b) => a - b);
+        let longestGap = 0;
+        for (let i = 1; i < sortedTimes.length; i++) {
+            const gap = sortedTimes[i] - sortedTimes[i-1];
+            longestGap = Math.max(longestGap, gap);
+        }
+        
+        // Determine mood signals
+        let mood = 'neutral';
+        let confidence = 0;
+        
+        if (lateNightRatio > 0.4 && avgPostsPerDay > 2) {
+            mood = 'anxious';
+            confidence = Math.min(0.7, lateNightRatio * 1.5);
+        } else if (avgPostsPerDay < 0.5 && regularity < 0.3) {
+            mood = 'withdrawn';
+            confidence = Math.min(0.7, (1 - regularity) * 2);
+        } else if (avgPostsPerDay > 5 && longestGap < 24 * 60 * 60 * 1000) {
+            mood = 'emotional_flooding';
+            confidence = Math.min(0.6, avgPostsPerDay / 10);
+        } else if (regularity > 0.7 && avgPostsPerDay >= 1 && avgPostsPerDay <= 3) {
+            mood = 'stable';
+            confidence = Math.min(0.6, regularity);
+        }
+        
+        return {
+            mood,
+            confidence,
+            signals: {
+                avgPostsPerDay,
+                regularity,
+                lateNightRatio,
+                longestGap: longestGap / (24 * 60 * 60 * 1000), // in days
+                totalPosts
+            }
+        };
+    }
+    
+    analyzeEngagementStyle(interactions) {
+        if (!interactions || interactions.length === 0) return { mood: 'neutral', confidence: 0, signals: {} };
+        
+        const comments = interactions.filter(i => i.type === 'comment').length;
+        const reactions = interactions.filter(i => i.type === 'reaction').length;
+        const replies = interactions.filter(i => i.type === 'reply').length;
+        const totalInteractions = comments + reactions + replies;
+        
+        // Calculate engagement ratios
+        const commentRatio = totalInteractions > 0 ? comments / totalInteractions : 0;
+        const reactionRatio = totalInteractions > 0 ? reactions / totalInteractions : 0;
+        const replyRatio = totalInteractions > 0 ? replies / totalInteractions : 0;
+        
+        // Analyze interaction patterns over time
+        const now = Date.now();
+        const recentInteractions = interactions.filter(i => 
+            now - new Date(i.created_at).getTime() < 3 * 24 * 60 * 60 * 1000
+        ).length;
+        
+        const interactionTrend = recentInteractions > (totalInteractions * 0.5) ? 'increasing' : 'decreasing';
+        
+        // Determine mood
+        let mood = 'neutral';
+        let confidence = 0;
+        
+        if (totalInteractions === 0) {
+            mood = 'withdrawn';
+            confidence = 0.5;
+        } else if (commentRatio < 0.2 && reactionRatio > 0.8) {
+            mood = 'passive';
+            confidence = Math.min(0.6, reactionRatio);
+        } else if (commentRatio > 0.5 && replyRatio > 0.3) {
+            mood = 'engaged';
+            confidence = Math.min(0.7, commentRatio + replyRatio);
+        } else if (interactionTrend === 'decreasing') {
+            mood = 'social_retreat';
+            confidence = 0.5;
+        }
+        
+        return {
+            mood,
+            confidence,
+            signals: {
+                totalInteractions,
+                commentRatio,
+                reactionRatio,
+                replyRatio,
+                interactionTrend
+            }
+        };
+    }
+    
+    analyzeReactionPatterns(reactions) {
+        if (!reactions || reactions.length === 0) return { mood: 'neutral', confidence: 0, signals: {} };
+        
+        // Categorize reactions by emotional valence
+        const positiveReactions = reactions.filter(r => 
+            ['like', 'admire', 'relate'].includes(r.type)
+        ).length;
+        
+        const negativeReactions = reactions.filter(r => 
+            ['dislike'].includes(r.type)
+        ).length;
+        
+        const intenseReactions = reactions.filter(r => 
+            ['heat', 'wild', 'cap'].includes(r.type)
+        ).length;
+        
+        const totalReactions = reactions.length;
+        
+        // Analyze content resonance patterns
+        const positiveRatio = totalReactions > 0 ? positiveReactions / totalReactions : 0;
+        const negativeRatio = totalReactions > 0 ? negativeReactions / totalReactions : 0;
+        const intenseRatio = totalReactions > 0 ? intenseReactions / totalReactions : 0;
+        
+        // Determine mood congruent attention
+        let mood = 'neutral';
+        let confidence = 0;
+        
+        if (negativeRatio > 0.3) {
+            mood = 'negative_congruence';
+            confidence = Math.min(0.6, negativeRatio * 2);
+        } else if (intenseRatio > 0.4) {
+            mood = 'intense_resonance';
+            confidence = Math.min(0.6, intenseRatio * 1.5);
+        } else if (positiveRatio > 0.7) {
+            mood = 'positive_congruence';
+            confidence = Math.min(0.6, positiveRatio);
+        }
+        
+        return {
+            mood,
+            confidence,
+            signals: {
+                totalReactions,
+                positiveRatio,
+                negativeRatio,
+                intenseRatio
+            }
+        };
+    }
+    
+    analyzeTopicDrift(posts) {
+        if (!posts || posts.length === 0) return { mood: 'neutral', confidence: 0, signals: {} };
+        
+        // Topic analysis based on keywords
+        const exhaustionTopics = ['tired', 'exhausted', 'burnout', 'overwhelmed', 'stress', 'busy'];
+        const growthTopics = ['growth', 'goals', 'progress', 'learning', 'improving', 'future', 'plan'];
+        const gratitudeTopics = ['grateful', 'thank', 'blessed', 'appreciate', 'lucky', 'thankful'];
+        const uncertaintyTopics = ['confused', 'lost', 'unsure', 'uncertain', 'question', 'wonder'];
+        const socialTopics = ['friends', 'family', 'together', 'people', 'community', 'connection'];
+        
+        let topicCounts = {
+            exhaustion: 0,
+            growth: 0,
+            gratitude: 0,
+            uncertainty: 0,
+            social: 0
+        };
+        
+        posts.forEach(post => {
+            const text = (post.text || '').toLowerCase();
+            
+            Object.keys(topicCounts).forEach(topic => {
+                const keywords = {
+                    exhaustion: exhaustionTopics,
+                    growth: growthTopics,
+                    gratitude: gratitudeTopics,
+                    uncertainty: uncertaintyTopics,
+                    social: socialTopics
+                }[topic];
+                
+                keywords.forEach(keyword => {
+                    if (text.includes(keyword)) {
+                        topicCounts[topic]++;
+                    }
+                });
+            });
+        });
+        
+        const totalTopicMentions = Object.values(topicCounts).reduce((sum, count) => sum + count, 0);
+        
+        // Calculate dominant themes
+        let dominantTopic = 'neutral';
+        let confidence = 0;
+        
+        if (totalTopicMentions > 0) {
+            const maxCount = Math.max(...Object.values(topicCounts));
+            const dominantTopics = Object.keys(topicCounts).filter(topic => topicCounts[topic] === maxCount);
+            
+            if (dominantTopics.includes('exhaustion')) {
+                dominantTopic = 'strain';
+                confidence = Math.min(0.7, topicCounts.exhaustion / totalTopicMentions * 2);
+            } else if (dominantTopics.includes('growth')) {
+                dominantTopic = 'growth';
+                confidence = Math.min(0.7, topicCounts.growth / totalTopicMentions * 2);
+            } else if (dominantTopics.includes('gratitude')) {
+                dominantTopic = 'gratitude';
+                confidence = Math.min(0.7, topicCounts.gratitude / totalTopicMentions * 2);
+            } else if (dominantTopics.includes('uncertainty')) {
+                dominantTopic = 'uncertainty';
+                confidence = Math.min(0.6, topicCounts.uncertainty / totalTopicMentions * 2);
+            } else if (dominantTopics.includes('social')) {
+                dominantTopic = 'social';
+                confidence = Math.min(0.6, topicCounts.social / totalTopicMentions * 2);
+            }
+        }
+        
+        return {
+            mood: dominantTopic,
+            confidence,
+            signals: topicCounts
+        };
+    }
+    
+    calculateMoodScore(signals) {
+        // Weight different signals based on reliability
+        const weights = {
+            language: 0.3,
+            behavior: 0.25,
+            engagement: 0.2,
+            reactions: 0.15,
+            topics: 0.1
+        };
+        
+        // Map mood categories to numerical values
+        const moodValues = {
+            'positive': 1.0,
+            'stable': 0.8,
+            'engaged': 0.7,
+            'social': 0.6,
+            'growth': 0.8,
+            'gratitude': 0.9,
+            'neutral': 0.5,
+            'uncertainty': 0.3,
+            'passive': 0.4,
+            'negative_congruence': 0.2,
+            'intense_resonance': 0.3,
+            'negative': 0.2,
+            'anxious': 0.2,
+            'withdrawn': 0.1,
+            'depressive': 0.0,
+            'social_retreat': 0.2,
+            'emotional_flooding': 0.3,
+            'strain': 0.2
+        };
+        
+        let weightedScore = 0;
+        let totalWeight = 0;
+        let overallConfidence = 0;
+        
+        Object.keys(signals).forEach(signalType => {
+            const signal = signals[signalType];
+            const moodValue = moodValues[signal.mood] || 0.5;
+            const weight = weights[signalType] * signal.confidence;
+            
+            weightedScore += moodValue * weight;
+            totalWeight += weight;
+            overallConfidence += signal.confidence * weights[signalType];
+        });
+        
+        const finalScore = totalWeight > 0 ? weightedScore / totalWeight : 0.5;
+        const finalConfidence = overallConfidence;
+        
+        // Map score back to mood categories
+        let finalMood = 'neutral';
+        if (finalScore >= 0.8) finalMood = 'positive';
+        else if (finalScore >= 0.7) finalMood = 'good';
+        else if (finalScore >= 0.6) finalMood = 'neutral_positive';
+        else if (finalScore >= 0.4) finalMood = 'neutral';
+        else if (finalScore >= 0.3) finalMood = 'neutral_negative';
+        else if (finalScore >= 0.2) finalMood = 'negative';
+        else finalMood = 'very_negative';
+        
+        return {
+            mood: finalMood,
+            confidence: finalConfidence,
+            intensity: Math.abs(finalScore - 0.5) * 2, // 0 = neutral, 1 = extreme
+            score: finalScore
+        };
+    }
+    
+    getMoodGlowColor(mood) {
+        const moodColors = {
+            'positive': 'linear-gradient(45deg, #FFD700, #FFA500, #FF6347)', // Gold to orange
+            'good': 'linear-gradient(45deg, #87CEEB, #98FB98)', // Sky blue to light green
+            'neutral_positive': 'linear-gradient(45deg, #E6E6FA, #F0E68C)', // Lavender to khaki
+            'neutral': 'linear-gradient(45deg, #D3D3D3, #A9A9A9)', // Light to dark gray
+            'neutral_negative': 'linear-gradient(45deg, #BC8F8F, #D2B48C)', // Rosy brown to tan
+            'negative': 'linear-gradient(45deg, #708090, #778899)', // Slate gray
+            'very_negative': 'linear-gradient(45deg, #483D8B, #696969)', // Dark slate to dim gray
+            'anxious': 'linear-gradient(45deg, #FF6347, #FF4500)', // Tomato to orange red
+            'withdrawn': 'linear-gradient(45deg, #708090, #2F4F4F)', // Slate to dark slate gray
+            'depressive': 'linear-gradient(45deg, #2F4F4F, #191970)', // Dark slate to midnight blue
+            'emotional_flooding': 'linear-gradient(45deg, #FF1493, #FF69B4)', // Deep pink to hot pink
+            'strain': 'linear-gradient(45deg, #8B4513, #A0522D)', // Saddle brown to sienna
+            'growth': 'linear-gradient(45deg, #32CD32, #00FF00)', // Lime green to green
+            'gratitude': 'linear-gradient(45deg, #FFD700, #FFA500)', // Gold to orange
+            'social': 'linear-gradient(45deg, #87CEEB, #00BFFF)', // Sky blue to deep sky blue
+            'uncertainty': 'linear-gradient(45deg, #DDA0DD, #DA70D6)', // Plum to orchid
+            'default': 'linear-gradient(45deg, #E6E6FA, #D3D3D3)' // Lavender to light gray
+        };
+        
+        return moodColors[mood] || moodColors['default'];
+    }
+
+    async getUserPostsForMoodAnalysis(userId, since) {
+        if (!window.supabaseClient) return [];
+        
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('posts')
+                .select('*')
+                .eq('user_id', userId)
+                .gte('created_at', since.toISOString())
+                .order('created_at', { ascending: false });
+                
+            return data || [];
+        } catch (error) {
+            console.error('Error fetching posts for mood analysis:', error);
+            return [];
+        }
+    }
+    
+    async getUserInteractionsForMoodAnalysis(userId, since) {
+        if (!window.supabaseClient) return [];
+        
+        try {
+            const interactions = [];
+            
+            // Get comments
+            const { data: comments } = await window.supabaseClient
+                .from('comments')
+                .select('*')
+                .eq('user_id', userId)
+                .gte('created_at', since.toISOString());
+                
+            if (comments) {
+                comments.forEach(c => interactions.push({ ...c, type: 'comment' }));
+            }
+            
+            // Get reactions to posts (outgoing engagement)
+            const { data: reactions } = await window.supabaseClient
+                .from('post_reactions')
+                .select('*')
+                .eq('user_id', userId)
+                .gte('created_at', since.toISOString());
+                
+            if (reactions) {
+                reactions.forEach(r => interactions.push({ ...r, type: 'reaction' }));
+            }
+            
+            return interactions;
+        } catch (error) {
+            console.error('Error fetching interactions for mood analysis:', error);
+            return [];
+        }
+    }
+    
+    async getUserReactionsForMoodAnalysis(userId, since) {
+        if (!window.supabaseClient) return [];
+        
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('post_reactions')
+                .select('*')
+                .eq('user_id', userId)
+                .gte('created_at', since.toISOString())
+                .order('created_at', { ascending: false });
+                
+            return data || [];
+        } catch (error) {
+            console.error('Error fetching reactions for mood analysis:', error);
+            return [];
+        }
+    }
+
     calculateVibeMatch(user1, user2) {
         if (!user1 || !user2) return 100;
         // Simple mock calculation for now

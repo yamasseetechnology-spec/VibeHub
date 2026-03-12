@@ -5,42 +5,69 @@
 
 // --- COMPONENTS OBJECT ---
 export const Components = {
-    post: (post) => {
-        const isOwn = State.user && post.userId === State.user.id;
-        const reactions = post.reactions || { like: 0, heat: 0, wild: 0, cap: 0, admire: 0, dislike: 0 };
+    post(post) {
+        const isOwner = State.user && (post.userId === State.user.id || State.user.isSuperAdmin);
+        const timeAgo = post.timestamp || 'Just now';
+        
         return `
-            <div class="post-card glass-panel animate-fade" data-id="${post.id}" id="post-${post.id}">
-                <div class="post-header">
-                    <img src="${post.avatar || 'https://i.pravatar.cc/100?u=' + post.userId}" class="post-avatar" alt="${post.displayName}" onclick="window.App.viewUserProfile('${post.userId}', '${post.handle}')">
-                    <div class="post-user-info" onclick="window.App.viewUserProfile('${post.userId}', '${post.handle}')">
-                        <span class="post-display-name">${post.displayName}</span>
-                        <span class="post-handle">@${post.handle}</span>
-                    </div>
-                    <div class="post-more" onclick="window.App.showPostMenu('${post.id}', event)">•••</div>
-                </div>
-                <div class="post-content">
-                    <p>${post.content}</p>
-                    ${post.media ? (post.mediaType === 'video' ? 
-                        `<video src="${post.media}" controls class="post-media"></video>` : 
-                        `<img src="${post.media}" class="post-media" loading="lazy">`) : ''}
-                </div>
-                <div class="post-actions">
-                    <div class="action-item action-comment" onclick="window.App.showCommentModal('${post.id}')">
-                        <span>💬</span> ${post.commentCount || 0}
-                    </div>
-                    <div class="action-item action-react" onmouseenter="window.App.showReactionMenu('${post.id}', this)" onmouseleave="window.App.hideReactionMenu('${post.id}')">
-                        <div class="reaction-buttons" style="display: flex; gap: 8px;">
-                            <button class="reaction-btn ${post.userReaction === 'like' ? 'active' : ''}" onclick="window.App.handleReaction('${post.id}', 'like')" data-type="like">⚡ <span class="count">${reactions.like || 0}</span></button>
-                            <button class="reaction-btn ${post.userReaction === 'dislike' ? 'active' : ''}" onclick="window.App.handleReaction('${post.id}', 'dislike')" data-type="dislike">👎 <span class="count">${reactions.dislike || 0}</span></button>
-                            <button class="reaction-btn ${post.userReaction === 'heat' ? 'active' : ''}" onclick="window.App.handleReaction('${post.id}', 'heat')" data-type="heat">🔥 <span class="count">${reactions.heat || 0}</span></button>
-                            <button class="reaction-btn ${post.userReaction === 'admire' ? 'active' : ''}" onclick="window.App.handleReaction('${post.id}', 'admire')" data-type="admire">✨ <span class="count">${reactions.admire || 0}</span></button>
-                            <button class="reaction-btn ${post.userReaction === 'cap' ? 'active' : ''}" onclick="window.App.handleReaction('${post.id}', 'cap')" data-type="cap">🧢 <span class="count">${reactions.cap || 0}</span></button>
-                            <button class="reaction-btn ${post.userReaction === 'wild' ? 'active' : ''}" onclick="window.App.handleReaction('${post.id}', 'wild')" data-type="wild">😲 <span class="count">${reactions.wild || 0}</span></button>
+            <div class="post-card glass-panel animate-fade" data-post-id="${post.id}" style="margin-bottom:15px;">
+                <div class="post-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <div class="post-author" style="display:flex; align-items:center; gap:12px; cursor:pointer;" onclick="window.App.viewUserProfile('${post.userId}', '${post.handle}')">
+                        <div class="author-avatar" style="width:45px; height:45px; border-radius:50%; background:var(--bg-glass); border:2px solid var(--border-light); overflow:hidden;">
+                            <img src="${post.avatar}" style="width:100%; height:100%; object-fit:cover;">
+                        </div>
+                        <div>
+                            <div class="author-name" style="font-weight:600; color:var(--text-main);">${post.displayName}</div>
+                            <div class="author-handle" style="font-size:0.85rem; color:var(--text-dim);">@${post.handle}</div>
                         </div>
                     </div>
-                    <div class="action-item action-share" onclick="window.App.copyPostLink('${post.id}')">
-                        <span>🔗</span>
+                    <div class="post-meta" style="display:flex; align-items:center; gap:10px;">
+                        <span class="post-time" style="font-size:0.75rem; color:var(--text-dim);">${timeAgo}</span>
+                        ${post.edited ? '<span class="edited-indicator" style="font-size:0.7rem; color:var(--text-dim);">• edited</span>' : ''}
+                        ${isOwner ? `
+                            <div class="post-actions" style="position:relative;">
+                                <button onclick="window.App.togglePostMenu('${post.id}', event)" class="btn-icon" style="background:none; border:none; color:var(--text-muted); cursor:pointer; padding:5px;">
+                                    ⋮
+                                </button>
+                                <div id="post-menu-${post.id}" class="post-menu" style="display:none; position:absolute; right:0; top:100%; background:var(--bg-card); border:1px solid var(--border-light); border-radius:8px; padding:5px; min-width:120px; z-index:100;">
+                                    <button onclick="window.App.handleEditPost('${post.id}')" class="menu-item" style="display:block; width:100%; text-align:left; padding:8px 12px; background:none; border:none; color:var(--text-main); cursor:pointer; font-size:0.9rem;">✏️ Edit</button>
+                                    <button onclick="window.App.handleDeletePost('${post.id}')" class="menu-item" style="display:block; width:100%; text-align:left; padding:8px 12px; background:none; border:none; color:var(--accent-red); cursor:pointer; font-size:0.9rem;">🗑️ Delete</button>
+                                </div>
+                            </div>
+                        ` : ''}
                     </div>
+                </div>
+                
+                <div class="post-content" style="margin-bottom:15px;">
+                    <p style="margin:0; line-height:1.5; color:var(--text-main); white-space:pre-wrap;">${post.content}</p>
+                </div>
+                
+                ${post.media ? `
+                    <div class="post-media" style="margin-bottom:15px;">
+                        ${post.mediaType === 'image' ? 
+                            `<img src="${post.media}" style="width:100%; max-height:500px; object-fit:cover; border-radius:12px;">` :
+                            post.mediaType === 'video' ?
+                            `<video src="${post.media}" controls style="width:100%; max-height:500px; border-radius:12px;"></video>` :
+                            ''
+                        }
+                    </div>
+                ` : ''}
+                
+                <div class="post-stats" style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-top:1px solid var(--border-light);">
+                    <div class="reactions" style="display:flex; gap:15px;">
+                        <button onclick="window.App.handleReaction('${post.id}', 'like')" class="reaction-btn ${post.reactions.like > 0 ? 'active' : ''}" data-type="like" style="background:none; border:1px solid var(--border-light); border-radius:20px; padding:5px 12px; cursor:pointer; font-size:0.9rem; transition:all 0.3s;">
+                            ❤️ ${post.reactions.like || 0}
+                        </button>
+                        <button onclick="window.App.toggleReactionPicker('${post.id}', event)" class="reaction-btn" style="background:none; border:1px solid var(--border-light); border-radius:20px; padding:5px 12px; cursor:pointer; font-size:0.9rem; transition:all 0.3s;">
+                            ✨ ${post.reactions.heat + post.reactions.wild + post.reactions.cap + post.reactions.admire}
+                        </button>
+                        <button onclick="window.App.showCommentModal('${post.id}')" class="reaction-btn" style="background:none; border:1px solid var(--border-light); border-radius:20px; padding:5px 12px; cursor:pointer; font-size:0.9rem; transition:all 0.3s;">
+                            💬 ${post.commentCount || 0}
+                        </button>
+                    </div>
+                    <button onclick="window.App.sharePost('${post.id}')" class="reaction-btn" style="background:none; border:1px solid var(--border-light); border-radius:20px; padding:5px 12px; cursor:pointer; font-size:0.9rem; transition:all 0.3s;">
+                        🔄 Share
+                    </button>
                 </div>
             </div>
         `;
@@ -850,23 +877,74 @@ export const Views = {
     },
 
     settings() {
+        const moodGlowEnabled = localStorage.getItem('moodGlow_enabled') === 'true';
+        
         return `
-            <div class="view-header"><h1 class="view-title">Settings</h1></div>
+            <div class="view-header"><h1 class="view-title">⚙️ Settings</h1></div>
             <div class="settings-grid" style="display:flex; flex-direction:column; gap:20px;">
+                
+                <div class="glass-panel" style="padding:20px;">
+                    <h3 style="margin:0 0 15px 0; color:var(--text-main);">🌟 Mood Glow</h3>
+                    <p style="margin:0 0 15px 0; color:var(--text-dim); font-size:0.9rem;">
+                        Enable Mood Glow to see your emotional state reflected in the app's ambient lighting.
+                    </p>
+                    
+                    <div class="setting-item" style="display:flex; justify-content:space-between; align-items:center; padding:15px 0; border-bottom:1px solid var(--border-light);">
+                        <div>
+                            <div style="font-weight:600; color:var(--text-main); margin-bottom:5px;">Enable Mood Glow</div>
+                            <div style="color:var(--text-dim); font-size:0.9rem;">Show emotional ambiance around screen edges</div>
+                        </div>
+                        <label class="toggle-switch" style="position:relative; display:inline-block; width:60px; height:34px;">
+                            <input type="checkbox" id="mood-glow-toggle" ${moodGlowEnabled ? 'checked' : ''} style="opacity:0; width:0; height:0;" onchange="window.App.toggleMoodGlow(this.checked)">
+                            <span class="toggle-slider" style="position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background-color:var(--border-light); transition:0.4s; border-radius:34px;">
+                                <span class="toggle-slider:before" style="position:absolute; content:''; height:26px; width:26px; left:4px; bottom:4px; background-color:white; transition:0.4s; border-radius:50%;"></span>
+                            </span>
+                        </label>
+                    </div>
+                    
+                    <div style="margin-top:15px; padding:15px; background:var(--bg-glass); border-radius:8px;">
+                        <div style="font-weight:600; color:var(--text-main); margin-bottom:10px;">How Mood Glow Works</div>
+                        <div style="color:var(--text-dim); font-size:0.85rem; line-height:1.4;">
+                            <p style="margin:0 0 8px 0;">🧠 <strong>Language Analysis:</strong> Words carry emotional fingerprints</p>
+                            <p style="margin:0 0 8px 0;">📊 <strong>Posting Patterns:</strong> When and how often you post</p>
+                            <p style="margin:0 0 8px 0;">🤝 <strong>Engagement Style:</strong> How you interact with others</p>
+                            <p style="margin:0 0 8px 0;">💭 <strong>Topic Patterns:</strong> Themes reveal mood shifts</p>
+                            <p style="margin:0;">🔮 <strong>Probabilistic:</strong> 70%+ accuracy based on research</p>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="glass-panel" style="padding:20px;">
                     <h3>Support Vibehub Development</h3>
                     <p class="text-dim" style="margin-top:5px;">Help us link more minds. Secure via Square.</p>
                     <button class="btn-primary" style="margin-top:15px;" onclick="window.App.handleDonation()">Donate to Vibe Evolution</button>
                 </div>
+                
                 <div class="glass-panel" style="padding:20px;">
                     <h3>Community</h3>
                     <button class="btn-secondary" style="margin-top:10px; width:100%;" onclick="window.App.navigate('guidelines')">Community Guidelines</button>
                 </div>
+                
                 <div class="glass-panel" style="padding:20px;">
                     <h3>Account Security</h3>
                     <button class="btn-secondary" style="margin-top:10px; width:100%;">Update Passlink</button>
                 </div>
+                
                 <button class="btn-secondary" style="color:var(--accent-pink); border-color:var(--accent-pink);" onclick="window.App.services.auth.logout()">Disconnect Session</button>
+                
+                <style>
+                    .toggle-switch input:checked + .toggle-slider {
+                        background-color: var(--primary-orange);
+                    }
+                    
+                    .toggle-switch input:focus + .toggle-slider {
+                        box-shadow: 0 0 1px var(--primary-orange);
+                    }
+                    
+                    .toggle-switch input:checked + .toggle-slider:before {
+                        transform: translateX(26px);
+                    }
+                </style>
             </div>
         `;
     },
