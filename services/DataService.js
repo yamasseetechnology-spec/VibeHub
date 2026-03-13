@@ -288,41 +288,195 @@ export class DataService {
             // Mark these as ads
             return (data || []).map(post => ({ ...post, is_ad: true }));
         } catch (error) {
-            // Silent fail - no console spam
+            console.error('Error getting ads:', error);
             return [];
         }
     }
 
+    // --- ENHANCED REAL-TIME SYNCHRONIZATION ---
+    
     subscribeToPosts(callback) {
         if (!window.supabaseClient) return null;
-        return window.supabaseClient.channel('public:posts').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload) => {
-            if (callback) callback({ type: 'new_post', data: payload.new });
-        }).subscribe();
+        
+        const channel = window.supabaseClient.channel('public:posts')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload) => {
+                if (callback) callback({ type: 'new_post', data: payload.new });
+            })
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'posts' }, (payload) => {
+                if (callback) callback({ type: 'post_updated', data: payload.new, old: payload.old });
+            })
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, (payload) => {
+                if (callback) callback({ type: 'post_deleted', data: payload.old });
+            });
+        
+        channel.subscribe((status) => {
+            console.log('Posts subscription status:', status);
+        });
+        
+        return channel;
+    }
+    
+    subscribeToReactions(callback) {
+        if (!window.supabaseClient) return null;
+        
+        const channel = window.supabaseClient.channel('public:reactions')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'post_reactions' }, (payload) => {
+                if (callback) callback({ type: 'new_reaction', data: payload.new });
+            })
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'post_reactions' }, (payload) => {
+                if (callback) callback({ type: 'reaction_removed', data: payload.old });
+            });
+        
+        channel.subscribe((status) => {
+            console.log('Reactions subscription status:', status);
+        });
+        
+        return channel;
+    }
+    
+    subscribeToUserUpdates(callback) {
+        if (!window.supabaseClient) return null;
+        
+        const channel = window.supabaseClient.channel('public:users')
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users' }, (payload) => {
+                if (callback) callback({ type: 'user_updated', data: payload.new, old: payload.old });
+            });
+        
+        channel.subscribe((status) => {
+            console.log('User updates subscription status:', status);
+        });
+        
+        return channel;
+    }
+    
+    subscribeToTop8Updates(callback) {
+        if (!window.supabaseClient) return null;
+        
+        const channel = window.supabaseClient.channel('public:top8')
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users' }, (payload) => {
+                // Check if top_8_friends changed
+                const newTop8 = payload.new.top_8_friends || [];
+                const oldTop8 = payload.old.top_8_friends || [];
+                
+                if (JSON.stringify(newTop8) !== JSON.stringify(oldTop8)) {
+                    if (callback) callback({ 
+                        type: 'top8_updated', 
+                        userId: payload.new.id,
+                        data: payload.new,
+                        oldTop8,
+                        newTop8
+                    });
+                }
+            });
+        
+        channel.subscribe((status) => {
+            console.log('Top 8 updates subscription status:', status);
+        });
+        
+        return channel;
+    }
+    
+    subscribeToComments(callback) {
+        if (!window.supabaseClient) return null;
+        
+        const channel = window.supabaseClient.channel('public:comments')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, (payload) => {
+                if (callback) callback({ type: 'new_comment', data: payload.new });
+            })
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'comments' }, (payload) => {
+                if (callback) callback({ type: 'comment_updated', data: payload.new });
+            });
+        
+        channel.subscribe((status) => {
+            console.log('Comments subscription status:', status);
+        });
+        
+        return channel;
+    }
+    
+    subscribeToVibeBoosts(callback) {
+        if (!window.supabaseClient) return null;
+        
+        const channel = window.supabaseClient.channel('public:vibe_boosts')
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users' }, (payload) => {
+                // Check if vibe_likes changed
+                const newVibeLikes = payload.new.vibe_likes || [];
+                const oldVibeLikes = payload.old.vibe_likes || [];
+                
+                if (JSON.stringify(newVibeLikes) !== JSON.stringify(oldVibeLikes)) {
+                    if (callback) callback({ 
+                        type: 'vibe_boost_updated', 
+                        userId: payload.new.id,
+                        data: payload.new,
+                        oldVibeLikes,
+                        newVibeLikes
+                    });
+                }
+            });
+        
+        channel.subscribe((status) => {
+            console.log('Vibe boosts subscription status:', status);
+        });
+        
+        return channel;
     }
 
     async addReaction(postId, userId, reactionType) {
-        if (!window.supabaseClient) return { success: true };
+        if (!postId || !userId || !reactionType || !window.supabaseClient) {
+            return { success: false, error: 'Invalid parameters' };
+        }
+        
         try {
-            const { data: post, error: fetchError } = await window.supabaseClient.from('posts').select('likes, dislikes, reactions, user_id').eq('id', postId).single();
-            if (fetchError) throw fetchError;
+            // Get current post data
+            const { data: post } = await window.supabaseClient
+                .from('posts')
+                .select('*')
+                .eq('id', postId)
+                .single();
+                
+            if (!post) {
+                return { success: false, error: 'Post not found' };
+            }
+            
             let isRemoving = false;
             let reactions = post.reactions || { cap: [], relate: [], wild: [], facts: [], heat: [], gross: [], wtf: [], dope: [] };
+            
             if (reactionType === 'like' || reactionType === 'dislike') {
                 const field = reactionType === 'like' ? 'likes' : 'dislikes';
                 let list = post[field] || [];
-                if (list.includes(userId)) { list = list.filter(id => id !== userId); isRemoving = true; } else { list.push(userId); }
+                if (list.includes(userId)) { 
+                    list = list.filter(id => id !== userId); 
+                    isRemoving = true; 
+                } else { 
+                    list.push(userId); 
+                }
                 await window.supabaseClient.from('posts').update({ [field]: list }).eq('id', postId);
             } else {
                 if (!reactions[reactionType]) reactions[reactionType] = [];
-                if (reactions[reactionType].includes(userId)) { reactions[reactionType] = reactions[reactionType].filter(id => id !== userId); isRemoving = true; } else { reactions[reactionType].push(userId); }
+                if (reactions[reactionType].includes(userId)) { 
+                    reactions[reactionType] = reactions[reactionType].filter(id => id !== userId); 
+                    isRemoving = true; 
+                } else { 
+                    reactions[reactionType].push(userId); 
+                }
                 await window.supabaseClient.from('posts').update({ reactions }).eq('id', postId);
             }
+            
             // Sync with post_reactions table for uniqueness and realtime
             if (isRemoving) {
-                await window.supabaseClient.from('post_reactions').delete().match({ post_id: postId, user_id: userId, reaction_type: reactionType });
+                await window.supabaseClient.from('post_reactions').delete().match({ 
+                    post_id: postId, 
+                    user_id: userId, 
+                    reaction_type: reactionType 
+                });
             } else {
-                await window.supabaseClient.from('post_reactions').insert({ post_id: postId, user_id: userId, reaction_type: reactionType });
+                await window.supabaseClient.from('post_reactions').insert({ 
+                    post_id: postId, 
+                    user_id: userId, 
+                    reaction_type: reactionType 
+                });
             }
+            
             return { success: true };
         } catch (error) {
             console.error('Error in addReaction:', error);
@@ -782,6 +936,155 @@ export class DataService {
             default:
                 return await this.getPosts('all', null);
         }
+    }
+
+    // --- ADVANCED ENGAGEMENT RANKING ALGORITHM ---
+    
+    calculateEngagementScore(post, userContext = null) {
+        if (!post) return 0;
+        
+        // 1. Reaction Weighting (different reactions have different weights)
+        const reactionWeights = {
+            like: 1.0,
+            admire: 1.5,      // Higher weight for admiration
+            heat: 2.0,        // High weight for excitement
+            wild: 1.8,        // High weight for surprise
+            cap: 0.8,         // Lower weight for disagreement
+            relate: 1.2       // Moderate weight for connection
+        };
+        
+        let reactionScore = 0;
+        if (post.reactions) {
+            Object.entries(post.reactions).forEach(([type, reactions]) => {
+                const weight = reactionWeights[type] || 1.0;
+                reactionScore += (reactions?.length || 0) * weight;
+            });
+        }
+        
+        // Legacy likes/dislikes support
+        if (post.likes) reactionScore += post.likes.length * 1.0;
+        if (post.dislikes) reactionScore += post.dislikes.length * 0.5;
+        
+        // 2. Comment Engagement (comments weighted higher than reactions)
+        const commentScore = (post.comment_count || 0) * 2.5;
+        
+        // 3. Top 8 Relationship Boost (posts from users in Top 8 get priority)
+        let top8Boost = 0;
+        if (userContext && userContext.top_8_friends && post.user_id) {
+            if (userContext.top_8_friends.includes(post.user_id)) {
+                top8Boost = 15; // Significant boost for Top 8 connections
+            }
+        }
+        
+        // 4. User Vibe Score Boost (users with higher vibe scores get more visibility)
+        const vibeScore = (post.vibeScore || 0) * 0.1;
+        
+        // 5. Time Decay (newer content gets boost, but very old content gets penalty)
+        const timeDecay = this.calculateTimeDecay(post.created_at);
+        
+        // 6. User Interaction History (boost content from users you interact with)
+        let userHistoryScore = 0;
+        if (userContext && post.user_id) {
+            userHistoryScore = this.calculateUserInteractionScore(post.user_id, userContext);
+        }
+        
+        // 7. Content Quality Signals
+        let contentQualityScore = 0;
+        if (post.text && post.text.length > 50) contentQualityScore += 2; // Substantive content
+        if (post.media_url) contentQualityScore += 3; // Media content
+        if (post.tags && post.tags.length > 0) contentQualityScore += 1; // Tagged content
+        
+        // Calculate final score
+        const baseScore = reactionScore + commentScore + contentQualityScore;
+        const socialBoost = top8Boost + vibeScore + userHistoryScore;
+        
+        return (baseScore + socialBoost) * timeDecay;
+    }
+    
+    calculateTimeDecay(createdAt) {
+        if (!createdAt) return 0.5; // Penalty for posts without timestamps
+        
+        const now = Date.now();
+        const postTime = new Date(createdAt).getTime();
+        const hoursOld = (now - postTime) / (1000 * 60 * 60);
+        
+        // Optimal window: 0-6 hours gets boost, 6-24 hours neutral, >24 hours decay
+        if (hoursOld <= 6) {
+            return 1.2; // Fresh content boost
+        } else if (hoursOld <= 24) {
+            return 1.0; // Neutral
+        } else if (hoursOld <= 72) {
+            return Math.max(0.7, 1.0 - (hoursOld - 24) * 0.01); // Gradual decay
+        } else {
+            return Math.max(0.3, 0.5 - (hoursOld - 72) * 0.005); // Heavy decay for old content
+        }
+    }
+    
+    calculateUserInteractionScore(targetUserId, userContext) {
+        // Simple implementation - can be enhanced with actual interaction data
+        if (!userContext.interaction_history) return 0;
+        
+        const interactions = userContext.interaction_history[targetUserId] || {};
+        const recentInteractions = interactions.reactions || 0;
+        const commentInteractions = interactions.comments || 0;
+        
+        return (recentInteractions * 0.5) + (commentInteractions * 1.5);
+    }
+    
+    async getRankedPosts(tab = 'all', communityId = null, userContext = null) {
+        try {
+            // Get base posts
+            const posts = await this.getPosts(tab, communityId);
+            
+            if (!posts || posts.length === 0) return [];
+            
+            // Calculate engagement scores for all posts
+            const postsWithScores = posts.map(post => ({
+                ...post,
+                engagementScore: this.calculateEngagementScore(post, userContext),
+                rankSignals: {
+                    reactionCount: this.getTotalReactions(post),
+                    commentCount: post.comment_count || 0,
+                    hasMedia: !!post.media_url,
+                    contentLength: post.text?.length || 0,
+                    hoursOld: this.getHoursSinceCreation(post.created_at)
+                }
+            }));
+            
+            // Sort by engagement score (highest first)
+            const rankedPosts = postsWithScores
+                .sort((a, b) => b.engagementScore - a.engagementScore);
+            
+            return rankedPosts;
+        } catch (error) {
+            console.error('Error getting ranked posts:', error);
+            return [];
+        }
+    }
+    
+    getTotalReactions(post) {
+        let total = 0;
+        
+        // Count reactions from reactions object
+        if (post.reactions) {
+            Object.values(post.reactions).forEach(reactions => {
+                total += reactions?.length || 0;
+            });
+        }
+        
+        // Legacy support
+        if (post.likes) total += post.likes.length;
+        if (post.dislikes) total += post.dislikes.length;
+        
+        return total;
+    }
+    
+    getHoursSinceCreation(createdAt) {
+        if (!createdAt) return 999; // Very old for posts without timestamps
+        
+        const now = Date.now();
+        const postTime = new Date(createdAt).getTime();
+        return (now - postTime) / (1000 * 60 * 60);
     }
 
     async getTopPosts(timeframe = '24h', limit = 20) {
@@ -1555,10 +1858,267 @@ export class DataService {
         }
     }
 
-    calculateVibeMatch(user1, user2) {
-        if (!user1 || !user2) return 100;
-        // Simple mock calculation for now
-        return 85 + Math.floor(Math.random() * 15);
+    // --- ADVANCED VIBE MATCHING SYSTEM ---
+    
+    async calculateVibeMatch(user1, user2) {
+        if (!user1 || !user2 || user1.id === user2.id) return 0;
+        
+        try {
+            // 1. Reaction Pattern Similarity (30% weight)
+            const reactionOverlap = await this.calculateReactionPatternSimilarity(user1.id, user2.id);
+            
+            // 2. Top 8 Connection Overlap (40% weight) - Strongest signal
+            const top8Overlap = this.calculateTop8Overlap(user1, user2);
+            
+            // 3. Interaction Frequency (20% weight)
+            const interactionFreq = await this.calculateInteractionFrequency(user1.id, user2.id);
+            
+            // 4. Content Preference Similarity (10% weight)
+            const contentSimilarity = await this.calculateContentPreferenceSimilarity(user1.id, user2.id);
+            
+            // Calculate weighted score
+            const vibeScore = (reactionOverlap * 0.3) + (top8Overlap * 0.4) + 
+                           (interactionFreq * 0.2) + (contentSimilarity * 0.1);
+            
+            return Math.round(Math.min(100, Math.max(0, vibeScore)));
+        } catch (error) {
+            console.error('Error calculating vibe match:', error);
+            return 50; // Fallback to neutral score
+        }
+    }
+    
+    async calculateReactionPatternSimilarity(user1Id, user2Id) {
+        try {
+            // Get recent reactions for both users
+            const timeWindow = 30 * 24 * 60 * 60 * 1000; // 30 days
+            const cutoffTime = new Date(Date.now() - timeWindow).toISOString();
+            
+            const { data: user1Reactions } = await window.supabaseClient
+                .from('post_reactions')
+                .select('post_id, reaction_type, created_at')
+                .eq('user_id', user1Id)
+                .gte('created_at', cutoffTime);
+                
+            const { data: user2Reactions } = await window.supabaseClient
+                .from('post_reactions')
+                .select('post_id, reaction_type, created_at')
+                .eq('user_id', user2Id)
+                .gte('created_at', cutoffTime);
+            
+            if (!user1Reactions?.length || !user2Reactions?.length) return 0;
+            
+            // Find posts both users reacted to
+            const user1PostIds = new Set(user1Reactions.map(r => r.post_id));
+            const user2PostIds = new Set(user2Reactions.map(r => r.post_id));
+            const commonPosts = [...user1PostIds].filter(postId => user2PostIds.has(postId));
+            
+            if (commonPosts.length === 0) return 0;
+            
+            // Calculate reaction similarity on common posts
+            let similarityScore = 0;
+            commonPosts.forEach(postId => {
+                const user1Reaction = user1Reactions.find(r => r.post_id === postId)?.reaction_type;
+                const user2Reaction = user2Reactions.find(r => r.post_id === postId)?.reaction_type;
+                
+                if (user1Reaction === user2Reaction) {
+                    similarityScore += 100; // Perfect match
+                } else if (this.areReactionsCompatible(user1Reaction, user2Reaction)) {
+                    similarityScore += 50; // Partial match
+                }
+            });
+            
+            return similarityScore / commonPosts.length;
+        } catch (error) {
+            console.error('Error calculating reaction pattern similarity:', error);
+            return 0;
+        }
+    }
+    
+    calculateTop8Overlap(user1, user2) {
+        const user1Top8 = new Set(user1.top_8_friends || []);
+        const user2Top8 = new Set(user2.top_8_friends || []);
+        
+        // If they're in each other's Top 8, maximum score
+        if (user1Top8.has(user2.id) && user2Top8.has(user1.id)) {
+            return 100;
+        }
+        
+        // If one is in the other's Top 8, high score
+        if (user1Top8.has(user2.id) || user2Top8.has(user1.id)) {
+            return 75;
+        }
+        
+        // Calculate overlap in their Top 8 lists
+        const overlap = [...user1Top8].filter(id => user2Top8.has(id)).length;
+        const maxOverlap = Math.min(user1Top8.size, user2Top8.size);
+        
+        if (maxOverlap === 0) return 0;
+        return (overlap / maxOverlap) * 50; // Max 50 points for Top 8 overlap
+    }
+    
+    async calculateInteractionFrequency(user1Id, user2Id) {
+        try {
+            // Count interactions: reactions to each other's posts, comments, follows
+            const timeWindow = 30 * 24 * 60 * 60 * 1000; // 30 days
+            const cutoffTime = new Date(Date.now() - timeWindow).toISOString();
+            
+            // Get posts from both users
+            const { data: user1Posts } = await window.supabaseClient
+                .from('posts')
+                .select('id')
+                .eq('user_id', user1Id)
+                .gte('created_at', cutoffTime);
+                
+            const { data: user2Posts } = await window.supabaseClient
+                .from('posts')
+                .select('id')
+                .eq('user_id', user2Id)
+                .gte('created_at', cutoffTime);
+            
+            if (!user1Posts?.length || !user2Posts?.length) return 0;
+            
+            const user1PostIds = user1Posts.map(p => p.id);
+            const user2PostIds = user2Posts.map(p => p.id);
+            
+            // Count reactions to each other's posts
+            const { data: reactionsToUser1 } = await window.supabaseClient
+                .from('post_reactions')
+                .select('user_id')
+                .in('post_id', user1PostIds)
+                .eq('user_id', user2Id);
+                
+            const { data: reactionsToUser2 } = await window.supabaseClient
+                .from('post_reactions')
+                .select('user_id')
+                .in('post_id', user2PostIds)
+                .eq('user_id', user1Id);
+            
+            const reactionCount = (reactionsToUser1?.length || 0) + (reactionsToUser2?.length || 0);
+            
+            // Base score on interaction frequency
+            if (reactionCount >= 10) return 100;
+            if (reactionCount >= 5) return 75;
+            if (reactionCount >= 2) return 50;
+            if (reactionCount >= 1) return 25;
+            return 0;
+        } catch (error) {
+            console.error('Error calculating interaction frequency:', error);
+            return 0;
+        }
+    }
+    
+    async calculateContentPreferenceSimilarity(user1Id, user2Id) {
+        try {
+            // Analyze content preferences through tags, topics, and engagement patterns
+            const timeWindow = 30 * 24 * 60 * 60 * 1000; // 30 days
+            const cutoffTime = new Date(Date.now() - timeWindow).toISOString();
+            
+            // Get posts with tags from both users
+            const { data: user1Posts } = await window.supabaseClient
+                .from('posts')
+                .select('tags')
+                .eq('user_id', user1Id)
+                .gte('created_at', cutoffTime)
+                .not('tags', 'is', null);
+                
+            const { data: user2Posts } = await window.supabaseClient
+                .from('posts')
+                .select('tags')
+                .eq('user_id', user2Id)
+                .gte('created_at', cutoffTime)
+                .not('tags', 'is', null);
+            
+            if (!user1Posts?.length || !user2Posts?.length) return 0;
+            
+            // Extract all tags from both users
+            const user1Tags = new Set();
+            const user2Tags = new Set();
+            
+            user1Posts.forEach(post => {
+                if (post.tags && Array.isArray(post.tags)) {
+                    post.tags.forEach(tag => user1Tags.add(tag.toLowerCase()));
+                }
+            });
+            
+            user2Posts.forEach(post => {
+                if (post.tags && Array.isArray(post.tags)) {
+                    post.tags.forEach(tag => user2Tags.add(tag.toLowerCase()));
+                }
+            });
+            
+            if (user1Tags.size === 0 || user2Tags.size === 0) return 0;
+            
+            // Calculate tag overlap
+            const commonTags = [...user1Tags].filter(tag => user2Tags.has(tag));
+            const totalUniqueTags = new Set([...user1Tags, ...user2Tags]).size;
+            
+            return (commonTags.length / totalUniqueTags) * 100;
+        } catch (error) {
+            console.error('Error calculating content preference similarity:', error);
+            return 0;
+        }
+    }
+    
+    areReactionsCompatible(reaction1, reaction2) {
+        // Define compatible reaction pairs
+        const compatiblePairs = [
+            ['like', 'admire'],
+            ['heat', 'wild'],
+            ['relate', 'like'],
+            ['admire', 'relate']
+        ];
+        
+        return compatiblePairs.some(pair => 
+            (pair[0] === reaction1 && pair[1] === reaction2) ||
+            (pair[1] === reaction1 && pair[0] === reaction2)
+        );
+    }
+    
+    async getVibeMatches(userId, limit = 10) {
+        try {
+            // Get all users except the current user
+            const { data: allUsers } = await window.supabaseClient
+                .from('users')
+                .select('id, username, name, avatar_url, top_8_friends')
+                .neq('id', userId)
+                .limit(50);
+            
+            if (!allUsers?.length) return [];
+            
+            // Get current user data
+            const { data: currentUser } = await window.supabaseClient
+                .from('users')
+                .select('*')
+                .eq('id', userId)
+                .single();
+            
+            // Calculate vibe matches for all users
+            const matches = [];
+            for (const user of allUsers) {
+                const vibeScore = await this.calculateVibeMatch(currentUser, user);
+                matches.push({
+                    ...user,
+                    vibeScore,
+                    matchReason: this.getMatchReason(vibeScore)
+                });
+            }
+            
+            // Sort by vibe score and return top matches
+            return matches
+                .sort((a, b) => b.vibeScore - a.vibeScore)
+                .slice(0, limit);
+        } catch (error) {
+            console.error('Error getting vibe matches:', error);
+            return [];
+        }
+    }
+    
+    getMatchReason(vibeScore) {
+        if (vibeScore >= 80) return 'Perfect Vibe Match';
+        if (vibeScore >= 60) return 'Strong Vibe Connection';
+        if (vibeScore >= 40) return 'Similar Interests';
+        if (vibeScore >= 20) return 'Some Common Ground';
+        return 'New Vibe to Explore';
     }
 
     async boostUserVibe(targetUserId, fromUserId) {
