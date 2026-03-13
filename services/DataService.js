@@ -137,96 +137,67 @@ export class DataService {
         const cached = await this.cache.getCachedPosts(cacheKey);
         if (cached && Array.isArray(cached)) return cached;
         
+        // Skip join query entirely - always use simple queries due to missing foreign key relationships
         try {
-            // Attempt join query first - use specific columns to avoid errors with missing fields
-            let query = window.supabaseClient.from('posts').select('*, users(id, username, name, avatar_url, banner_url, bio)').order('created_at', { ascending: false });
-            if (communityId) query = query.eq('community_id', communityId);
+            let postsQuery = window.supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
+            if (communityId) postsQuery = postsQuery.eq('community_id', communityId);
             
-            const { data, error } = await query;
-            
-            if (error) {
-                // If it's the specific join error (PGRST200), fall back to dual-query
-                if (error.code === 'PGRST200' || error.message.includes('relationship')) {
-                    console.warn('⚠️ Supabase Relationship Missing (PGRST200). Falling back to dual-query fetch.');
-                    
-                    let fallbackQuery = window.supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
-                    if (communityId) fallbackQuery = fallbackQuery.eq('community_id', communityId);
-                    
-                    const { data: postsData, error: postsError } = await fallbackQuery;
-                    if (postsError) throw postsError;
-                    
-                    if (!postsData || postsData.length === 0) return [];
-
-                    // Fetch associated users
-                    // Filter only valid UUIDs (exclude usernames like "KingKool23")
-                    const isValidUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-                    const allUserIds = [...new Set(postsData.map(p => p.user_id))];
-                    const userIds = allUserIds.filter(id => !!id && isValidUUID(id));
-                    
-                    if (userIds.length === 0) {
-                        console.warn('No valid user IDs found in posts');
-                        return await this.mapPosts(postsData);
-                    }
-                    
-                    // Check if we have string-based usernames that need separate handling
-                    const stringUsernames = allUserIds.filter(id => !!id && !isValidUUID(id));
-                    
-                    // Fetch by UUID - only if we have valid UUIDs
-                    let userData = [];
-                    let userError = null;
-                    
-                    if (userIds.length > 0) {
-                        try {
-                            const { data: users, error: err } = await window.supabaseClient
-                                .from('users')
-                                .select('id, username, name, avatar_url, banner_url, bio')
-                                .in('id', userIds);
-                            userData = users || [];
-                            userError = err;
-                        } catch (e) {
-                            console.error('Error fetching users by ID:', e);
-                            userError = e;
-                        }
-                    }
-                    
-                    // Also fetch by username for string-based IDs
-                    if (stringUsernames.length > 0) {
-                        try {
-                            const { data: usersByName } = await window.supabaseClient
-                                .from('users')
-                                .select('id, username, name, avatar_url, banner_url, bio')
-                                .in('username', stringUsernames);
-                            if (usersByName) {
-                                userData = [...userData, ...usersByName];
-                            }
-                        } catch (e) {
-                            console.warn('Error fetching users by username:', e);
-                        }
-                    }
-                    
-                    if (userError) console.error('User fetch error in fallback:', userError);
-                    
-                    const userMap = (userData || []).reduce((acc, u) => {
-                        acc[u.id] = u;
-                        // Also map by username for string-based lookups
-                        if (u.username) acc[u.username] = u;
-                        return acc;
-                    }, {});
-
-                    // Manually join - handle both UUID and string usernames
-                    const joinedData = postsData.map(p => ({
-                        ...p,
-                        users: userMap[p.user_id] || userMap[p.username] || null
-                    }));
-
-                    let posts = await this.mapPosts(joinedData);
-                    await this.cache.cachePosts(cacheKey, posts);
-                    return posts;
-                }
-                throw error;
+            const { data: postsData, error: postsError } = await postsQuery;
+            if (postsError) {
+                console.error('Error fetching posts:', postsError);
+                return [];
             }
             
-            let posts = this.mapPosts(data);
+            if (!postsData || postsData.length === 0) return [];
+            
+            // Fetch associated users separately
+            const isValidUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+            const allUserIds = [...new Set(postsData.map(p => p.user_id))];
+            const userIds = allUserIds.filter(id => !!id && isValidUUID(id));
+            
+            let userData = [];
+            if (userIds.length > 0) {
+                try {
+                    const { data: users } = await window.supabaseClient
+                        .from('users')
+                        .select('id, avatar_url, name, username, bio, banner_url')
+                        .in('id', userIds);
+                    userData = users || [];
+                } catch (e) {
+                    console.warn('Error fetching users for posts:', e);
+                }
+            }
+            
+            // Also fetch by username for string-based IDs
+            const stringUsernames = allUserIds.filter(id => !!id && !isValidUUID(id));
+            if (stringUsernames.length > 0) {
+                try {
+                    const { data: usersByName } = await window.supabaseClient
+                        .from('users')
+                        .select('id, username, name, avatar_url, banner_url, bio')
+                        .in('username', stringUsernames);
+                    if (usersByName) {
+                        userData = [...userData, ...usersByName];
+                    }
+                } catch (e) {
+                    console.warn('Error fetching users by username:', e);
+                }
+            }
+            
+            // Create user lookup map
+            const userMap = userData.reduce((acc, user) => {
+                acc[user.id] = user;
+                if (user.username) acc[user.username] = user;
+                return acc;
+            }, {});
+            
+            // Map posts with user data
+            const postsWithUser = postsData.map(post => ({
+                ...post,
+                users: userMap[post.user_id] || userMap[post.username] || null
+            }));
+            
+            let posts = await this.mapPosts(postsWithUser);
             await this.cache.cachePosts(cacheKey, posts);
             return posts;
         } catch (error) { 
