@@ -104,7 +104,6 @@ export class DataService {
                 id: crypto.randomUUID(),
                 user_id: postObj.userId,
                 username: postObj.username || postObj.handle,
-                user_avatar: postObj.user_avatar || postObj.avatar,
                 text: postObj.content || postObj.text,
                 media_url: mediaUrl,
                 media_type: mediaType,
@@ -250,7 +249,7 @@ export class DataService {
             try {
                 const { data: users, error } = await window.supabaseClient
                     .from('users')
-                    .select('id, avatar_url, name, username, vibe_score, reaction_stats')
+                    .select('id, avatar_url, name, username, bio, banner_url')
                     .in('id', userIds);
                 if (error) {
                     console.warn('Error fetching user data:', error);
@@ -388,7 +387,7 @@ export class DataService {
         if (!allowed) return { error: 'rate_limit', message: 'You can only comment 2 times per minute' };
         if (!window.supabaseClient) return null;
         try {
-            const commentPayload = { post_id: postId, user_id: comment.userId, username: comment.displayName, user_avatar: comment.avatar, text: comment.text || '' };
+            const commentPayload = { post_id: postId, user_id: comment.userId, username: comment.displayName, text: comment.text || '' };
             let { data, error } = await window.supabaseClient.from('comments').insert([commentPayload]).select();
             if (!error && data) {
                 const { data: post } = await window.supabaseClient.from('posts').select('comment_count').eq('id', postId).single();
@@ -441,9 +440,25 @@ export class DataService {
     async getUserPosts(userId, username) {
         if (!window.supabaseClient) return [];
         try {
-            const { data } = await window.supabaseClient.from('posts').select('*, users(*)').eq('user_id', userId).order('created_at', { ascending: false });
-            return this.mapPosts(data);
-        } catch (error) { return []; }
+            // Simple query without join - fetch posts and user data separately
+            const { data } = await window.supabaseClient.from('posts').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+            
+            if (!data || data.length === 0) return [];
+            
+            // Fetch user data
+            const { data: userData } = await window.supabaseClient.from('users').select('id, username, name, avatar_url, banner_url, bio').eq('id', userId).maybeSingle();
+            
+            // Map posts with user data
+            const postsWithUser = data.map(post => ({
+                ...post,
+                users: userData || null
+            }));
+            
+            return this.mapPosts(postsWithUser);
+        } catch (error) { 
+            console.error('Error getting user posts:', error);
+            return []; 
+        }
     }
 
     async getNotifications(userId) {
@@ -467,9 +482,30 @@ export class DataService {
             const { data: friends } = await window.supabaseClient.from('friends').select('friend_id').eq('user_id', userId);
             const friendIds = (friends || []).map(f => f.friend_id);
             if (friendIds.length === 0) return [];
-            const { data } = await window.supabaseClient.from('posts').select('*, users(*)').in('user_id', friendIds).order('created_at', { ascending: false });
-            return this.mapPosts(data);
-        } catch (error) { return []; }
+            
+            // Simple query without join
+            const { data } = await window.supabaseClient.from('posts').select('*').in('user_id', friendIds).order('created_at', { ascending: false });
+            
+            if (!data || data.length === 0) return [];
+            
+            // Fetch all user data for these posts
+            const uniqueUserIds = [...new Set(data.map(p => p.user_id))];
+            const { data: usersData } = await window.supabaseClient.from('users').select('id, username, name, avatar_url, banner_url, bio').in('id', uniqueUserIds);
+            
+            const userMap = {};
+            (usersData || []).forEach(u => userMap[u.id] = u);
+            
+            // Map posts with user data
+            const postsWithUser = data.map(post => ({
+                ...post,
+                users: userMap[post.user_id] || null
+            }));
+            
+            return this.mapPosts(postsWithUser);
+        } catch (error) { 
+            console.error('Error getting friends posts:', error);
+            return []; 
+        }
     }
 
     async sendFriendRequest(fromId, toId) {
