@@ -4033,7 +4033,7 @@ class VibeApp {
             relate: '🙏',
             gross: '🤢',
             wtf: '😱',
-            dope: '🔥'
+            dope: '🧊'
         };
         popup.innerHTML = emojiMap[type] || '✨';
         popup.style.cssText = `
@@ -4073,7 +4073,7 @@ class VibeApp {
             relate: 'RELATE!',
             gross: 'GROSS!',
             wtf: 'WTF?!',
-            dope: 'DOPE!'
+            dope: 'COLD!'
         }; 
         const postCard = document.querySelector(`[data-post-id="${postId}"]`);
         if (postCard) {

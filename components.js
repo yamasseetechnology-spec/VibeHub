@@ -59,7 +59,7 @@ export const Components = {
                 <div class="post-stats" style="display:flex; flex-direction:column; gap:6px; padding:10px 0; border-top:1px solid var(--border-light);">
                     <div class="reactions-row-1" style="display:flex; gap:5px; flex-wrap:wrap; justify-content:space-between;">
                         <button onclick="window.App.handleReaction('${post.id}', 'like')" class="reaction-btn ${post.reactions.like > 0 ? 'active' : ''}" data-type="like" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:4px 8px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
-                            ❤️ ${post.reactions.like || 0}
+                            👍 ${post.reactions.like || 0}
                         </button>
                         <button onclick="window.App.handleReaction('${post.id}', 'dislike')" class="reaction-btn ${post.reactions.dislike > 0 ? 'active' : ''}" data-type="dislike" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:4px 8px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
                             👎 ${post.reactions.dislike || 0}
@@ -82,7 +82,7 @@ export const Components = {
                             😱 ${post.reactions.wtf || 0}
                         </button>
                         <button onclick="window.App.handleReaction('${post.id}', 'dope')" class="reaction-btn ${post.reactions.dope > 0 ? 'active' : ''}" data-type="dope" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:4px 8px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
-                            🔥 ${post.reactions.dope || 0}
+                            🧊 ${post.reactions.dope || 0}
                         </button>
                         <button onclick="window.App.handleReaction('${post.id}', 'cap')" class="reaction-btn ${post.reactions.cap > 0 ? 'active' : ''}" data-type="cap" style="background:none; border:1px solid var(--border-light); border-radius:15px; padding:4px 8px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
                             🧢 ${post.reactions.cap || 0}
