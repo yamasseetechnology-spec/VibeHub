@@ -3188,3 +3188,23 @@ body.keyboard-open #app-footer {
     object-fit: cover !important;
     flex-shrink: 0;
 }
+
+/* Mobile - larger reaction buttons */
+@media (max-width: 768px) {
+    .post-stats {
+        gap: 6px !important;
+        padding: 10px 0 !important;
+    }
+    .reactions-row-1, .reactions-row-2 {
+        gap: 5px !important;
+    }
+    .reactions-row-1 button, 
+    .reactions-row-2 button {
+        padding: 4px 8px !important;
+        font-size: 0.85rem !important;
+        border-radius: 15px !important;
+    }
+    .post-content p {
+        font-size: 1rem !important;
+    }
+}
