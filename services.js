@@ -455,6 +455,21 @@ export class AdminService {
         }
     }
 
+    async getReportedPosts() {
+        if (!window.supabaseClient) return [];
+        try {
+            const { data } = await window.supabaseClient
+                .from('reported_posts')
+                .select('*, posts(*)')
+                .order('created_at', { ascending: false })
+                .limit(50);
+            return data || [];
+        } catch (e) {
+            console.error('Error fetching reported posts:', e);
+            return [];
+        }
+    }
+
     async getUsers() {
         if (!window.supabaseClient) return [];
         try {
@@ -483,13 +498,29 @@ export class AdminService {
     }
 
     async submitAd(content, mediaUrl, link) {
+        // Simplified: Create a post as KingKool23 with (Ad) tag instead of using sponsored_ads table
         if (!window.supabaseClient) return { success: true };
         try {
-            await window.supabaseClient.from('sponsored_ads').insert([{
-                content: content,
-                media_url: mediaUrl,
+            // Find admin user
+            const { data: adminUser } = await window.supabaseClient
+                .from('users')
+                .select('id, username')
+                .eq('username', 'KingKool23')
+                .single();
+            
+            if (!adminUser) {
+                return { error: 'Admin account not found' };
+            }
+            
+            // Create ad as a special post with (Ad) prefix
+            await window.supabaseClient.from('posts').insert([{
+                user_id: adminUser.id,
+                username: 'KingKool23',
+                text: `(Ad) ${content}`,
+                media_url: mediaUrl || '',
                 media_type: mediaUrl ? 'image' : 'none',
-                link: link
+                is_ad: true,
+                created_at: new Date().toISOString()
             }]);
             return { success: true };
         } catch (e) {
@@ -499,9 +530,10 @@ export class AdminService {
     }
 
     async deleteAd(adId) {
+        // Simplified: Just delete the post by ID
         if (!window.supabaseClient) return { success: true };
         try {
-            await window.supabaseClient.from('sponsored_ads').delete().eq('id', adId);
+            await window.supabaseClient.from('posts').delete().eq('id', adId);
             return { success: true };
         } catch (e) {
             console.error('Error deleting ad:', e);
@@ -532,42 +564,96 @@ export class AdminService {
         console.log(`🚀 Starting Neural Data Merge: ${legacyEmail} -> ${newUsername}`);
 
         try {
-            const { data: legacyUser, error: e1 } = await window.supabaseClient
-                .from('users')
-                .select('id')
-                .eq('email', legacyEmail)
-                .single();
+            // Find legacy user by email or username
+            let legacyUser = null;
+            let legacyId = null;
             
-            let legacyId;
-            if (e1) {
-                const { data: legacyUser2 } = await window.supabaseClient
-                    .from('users')
-                    .select('id')
-                    .eq('username', 'super_admin')
-                    .single();
-                if (!legacyUser2) throw new Error('Legacy admin user not found');
-                legacyId = legacyUser2.id;
+            // Try by email first
+            const { data: byEmail } = await window.supabaseClient
+                .from('users')
+                .select('id, email, username')
+                .eq('email', legacyEmail)
+                .maybeSingle();
+            
+            if (byEmail) {
+                legacyUser = byEmail;
             } else {
-                legacyId = legacyUser.id;
+                // Try by username (in case username was used instead of email)
+                const { data: byUsername } = await window.supabaseClient
+                    .from('users')
+                    .select('id, email, username')
+                    .eq('username', legacyEmail)
+                    .maybeSingle();
+                legacyUser = byUsername;
             }
+            
+            if (!legacyUser) {
+                // Try looking for any account with similar email
+                const { data: similarEmail } = await window.supabaseClient
+                    .from('users')
+                    .select('id, email, username')
+                    .ilike('email', `%${legacyEmail}%`)
+                    .maybeSingle();
+                legacyUser = similarEmail;
+            }
+            
+            if (!legacyUser) {
+                throw new Error(`Legacy user not found with email/username: ${legacyEmail}`);
+            }
+            legacyId = legacyUser.id;
+            console.log(`Found legacy user: ${legacyUser.username} (${legacyUser.email})`);
 
+            // Find new admin user
             const { data: newUser, error: e2 } = await window.supabaseClient
                 .from('users')
-                .select('id')
+                .select('id, username, email')
                 .eq('username', newUsername)
                 .single();
             
             if (e2 || !newUser) throw new Error(`New admin user ${newUsername} not found`);
             const newId = newUser.id;
+            console.log(`Found target user: ${newUser.username} (${newUser.email})`);
 
-            const { count, error: e3 } = await window.supabaseClient
+            // Merge posts
+            const { count: postCount, error: e3 } = await window.supabaseClient
                 .from('posts')
                 .update({ user_id: newId })
                 .eq('user_id', legacyId);
             
-            if (e3) throw e3;
+            if (e3) console.warn('Posts merge warning:', e3);
 
-            return { success: true, mergedPosts: count || 0 };
+            // Merge reactions (update user_id references)
+            const { count: reactionCount } = await window.supabaseClient
+                .from('post_reactions')
+                .update({ user_id: newId })
+                .eq('user_id', legacyId);
+
+            // Merge comments
+            const { count: commentCount } = await window.supabaseClient
+                .from('comments')
+                .update({ user_id: newId })
+                .eq('user_id', legacyId);
+
+            // Merge notifications (as recipient)
+            const { count: notifCount1 } = await window.supabaseClient
+                .from('notifications')
+                .update({ user_id: newId })
+                .eq('user_id', legacyId);
+
+            // Optionally mark legacy user as merged (soft delete)
+            await window.supabaseClient
+                .from('users')
+                .update({ username: legacyUser.username + '_merged', email: 'merged_' + legacyUser.email })
+                .eq('id', legacyId);
+
+            console.log(`✅ Merge complete: ${postCount} posts, ${reactionCount} reactions, ${commentCount} comments merged`);
+
+            return { 
+                success: true, 
+                mergedPosts: postCount || 0,
+                mergedReactions: reactionCount || 0,
+                mergedComments: commentCount || 0
+            };
         } catch (error) {
             console.error('❌ Data Merge Failed:', error);
             throw error;

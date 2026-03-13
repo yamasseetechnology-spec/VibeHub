@@ -139,8 +139,8 @@ export class DataService {
         if (cached && Array.isArray(cached)) return cached;
         
         try {
-            // Attempt join query first
-            let query = window.supabaseClient.from('posts').select('*, users(*)').order('created_at', { ascending: false });
+            // Attempt join query first - use specific columns to avoid errors with missing fields
+            let query = window.supabaseClient.from('posts').select('*, users(id, username, name, avatar_url, banner_url, bio)').order('created_at', { ascending: false });
             if (communityId) query = query.eq('community_id', communityId);
             
             const { data, error } = await query;
@@ -161,27 +161,63 @@ export class DataService {
                     // Fetch associated users
                     // Filter only valid UUIDs (exclude usernames like "KingKool23")
                     const isValidUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-                    const userIds = [...new Set(postsData.map(p => p.user_id))].filter(id => !!id && isValidUUID(id));
+                    const allUserIds = [...new Set(postsData.map(p => p.user_id))];
+                    const userIds = allUserIds.filter(id => !!id && isValidUUID(id));
                     
                     if (userIds.length === 0) {
                         console.warn('No valid user IDs found in posts');
                         return await this.mapPosts(postsData);
                     }
                     
-                    const { data: userData, error: userError } = await window.supabaseClient
-                        .from('users').select('*').in('id', userIds);
+                    // Check if we have string-based usernames that need separate handling
+                    const stringUsernames = allUserIds.filter(id => !!id && !isValidUUID(id));
+                    
+                    // Fetch by UUID - only if we have valid UUIDs
+                    let userData = [];
+                    let userError = null;
+                    
+                    if (userIds.length > 0) {
+                        try {
+                            const { data: users, error: err } = await window.supabaseClient
+                                .from('users')
+                                .select('id, username, name, avatar_url, banner_url, bio')
+                                .in('id', userIds);
+                            userData = users || [];
+                            userError = err;
+                        } catch (e) {
+                            console.error('Error fetching users by ID:', e);
+                            userError = e;
+                        }
+                    }
+                    
+                    // Also fetch by username for string-based IDs
+                    if (stringUsernames.length > 0) {
+                        try {
+                            const { data: usersByName } = await window.supabaseClient
+                                .from('users')
+                                .select('id, username, name, avatar_url, banner_url, bio')
+                                .in('username', stringUsernames);
+                            if (usersByName) {
+                                userData = [...userData, ...usersByName];
+                            }
+                        } catch (e) {
+                            console.warn('Error fetching users by username:', e);
+                        }
+                    }
                     
                     if (userError) console.error('User fetch error in fallback:', userError);
                     
                     const userMap = (userData || []).reduce((acc, u) => {
                         acc[u.id] = u;
+                        // Also map by username for string-based lookups
+                        if (u.username) acc[u.username] = u;
                         return acc;
                     }, {});
 
-                    // Manually join
+                    // Manually join - handle both UUID and string usernames
                     const joinedData = postsData.map(p => ({
                         ...p,
-                        users: userMap[p.user_id] || null
+                        users: userMap[p.user_id] || userMap[p.username] || null
                     }));
 
                     let posts = await this.mapPosts(joinedData);
@@ -208,16 +244,22 @@ export class DataService {
         const isValidUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
         const userIds = [...new Set(data.map(p => p.user_id))].filter(id => !!id && isValidUUID(id));
         
-        // Fetch current user data for all posts
+        // Fetch current user data for all posts - only if we have valid UUIDs
         let userData = [];
-        try {
-            const { data: users } = await window.supabaseClient
-                .from('users')
-                .select('id, avatar_url, name, username, vibe_score, reaction_stats')
-                .in('id', userIds);
-            userData = users || [];
-        } catch (error) {
-            console.error('Error fetching user data for posts:', error);
+        if (userIds.length > 0) {
+            try {
+                const { data: users, error } = await window.supabaseClient
+                    .from('users')
+                    .select('id, avatar_url, name, username, vibe_score, reaction_stats')
+                    .in('id', userIds);
+                if (error) {
+                    console.warn('Error fetching user data:', error);
+                } else {
+                    userData = users || [];
+                }
+            } catch (error) {
+                console.error('Error fetching user data for posts:', error);
+            }
         }
         
         // Create user lookup map
@@ -263,27 +305,20 @@ export class DataService {
     }
 
     async getAds() {
+        // Simplified: Fetch posts from KingKool23 as "ads" instead of using sponsored_ads table
         if (!window.supabaseClient) return [];
         try {
-            const { data, error } = await window.supabaseClient.from('sponsored_ads').select('*').order('created_at', { ascending: false });
-            if (error) {
-                // If table doesn't exist (404), return empty array silently
-                if (error.code === '42P01' || error.message?.includes('does not exist')) {
-                    console.log('ℹ️ sponsored_ads table not found, skipping ads');
-                    return [];
-                }
-                throw error;
-            }
-            return data || [];
+            const { data, error } = await window.supabaseClient
+                .from('posts')
+                .select('*')
+                .eq('username', 'KingKool23')
+                .order('created_at', { ascending: false })
+                .limit(10);
+            if (error) throw error;
+            // Mark these as ads
+            return (data || []).map(post => ({ ...post, is_ad: true }));
         } catch (error) {
-            // Silently handle 404 or table not found errors
-            if (error.message?.includes('404') || 
-                error.message?.includes('does not exist') ||
-                error.code === '42P01') {
-                console.log('ℹ️ sponsored_ads table not available');
-                return [];
-            }
-            console.error('Error fetching ads:', error);
+            // Silent fail - no console spam
             return [];
         }
     }
@@ -1457,6 +1492,25 @@ export class DataService {
         } catch (error) {
             console.error('Error fetching reactions for mood analysis:', error);
             return [];
+        }
+    }
+
+    async updateTop8(userId, top8FriendIds) {
+        if (!window.supabaseClient || !userId) return false;
+        try {
+            const { error } = await window.supabaseClient
+                .from('users')
+                .update({ top_8_friends: top8FriendIds })
+                .eq('id', userId);
+            
+            if (error) {
+                console.error('Error updating Top 8:', error);
+                return false;
+            }
+            return true;
+        } catch (error) {
+            console.error('Error in updateTop8:', error);
+            return false;
         }
     }
 
