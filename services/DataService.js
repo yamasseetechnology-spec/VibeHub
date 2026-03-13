@@ -159,7 +159,15 @@ export class DataService {
                     if (!postsData || postsData.length === 0) return [];
 
                     // Fetch associated users
-                    const userIds = [...new Set(postsData.map(p => p.user_id))].filter(id => !!id);
+                    // Filter only valid UUIDs (exclude usernames like "KingKool23")
+                    const isValidUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+                    const userIds = [...new Set(postsData.map(p => p.user_id))].filter(id => !!id && isValidUUID(id));
+                    
+                    if (userIds.length === 0) {
+                        console.warn('No valid user IDs found in posts');
+                        return await this.mapPosts(postsData);
+                    }
+                    
                     const { data: userData, error: userError } = await window.supabaseClient
                         .from('users').select('*').in('id', userIds);
                     
@@ -196,7 +204,9 @@ export class DataService {
         if (!data || data.length === 0) return [];
         
         // Get all unique user IDs from posts
-        const userIds = [...new Set(data.map(p => p.user_id))].filter(id => !!id);
+        // Filter only valid UUIDs to prevent 400 errors
+        const isValidUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        const userIds = [...new Set(data.map(p => p.user_id))].filter(id => !!id && isValidUUID(id));
         
         // Fetch current user data for all posts
         let userData = [];
@@ -255,9 +265,24 @@ export class DataService {
     async getAds() {
         if (!window.supabaseClient) return [];
         try {
-            const { data } = await window.supabaseClient.from('sponsored_ads').select('*').order('created_at', { ascending: false });
+            const { data, error } = await window.supabaseClient.from('sponsored_ads').select('*').order('created_at', { ascending: false });
+            if (error) {
+                // If table doesn't exist (404), return empty array silently
+                if (error.code === '42P01' || error.message?.includes('does not exist')) {
+                    console.log('ℹ️ sponsored_ads table not found, skipping ads');
+                    return [];
+                }
+                throw error;
+            }
             return data || [];
         } catch (error) {
+            // Silently handle 404 or table not found errors
+            if (error.message?.includes('404') || 
+                error.message?.includes('does not exist') ||
+                error.code === '42P01') {
+                console.log('ℹ️ sponsored_ads table not available');
+                return [];
+            }
             console.error('Error fetching ads:', error);
             return [];
         }

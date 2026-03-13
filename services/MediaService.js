@@ -32,9 +32,20 @@ export class MediaService {
         if (window.ImageKit) {
             try {
                 let IK = window.ImageKit;
-                if (typeof IK !== 'function' && IK.default) IK = IK.default;
-                if (typeof IK !== 'function' && IK.ImageKit) IK = IK.ImageKit;
-                if (typeof IK !== 'function' && window.ImageKit && typeof window.ImageKit === 'function') IK = window.ImageKit;
+                
+                // Handle different SDK export formats
+                if (typeof IK !== 'function') {
+                    if (IK.default) IK = IK.default;
+                    else if (IK.ImageKit) IK = IK.ImageKit;
+                }
+                
+                // Try to find constructor in various locations
+                if (typeof IK !== 'function') {
+                    // Check if it's a module with ImageKit as property
+                    if (window.ImageKit.ImageKit && typeof window.ImageKit.ImageKit === 'function') {
+                        IK = window.ImageKit.ImageKit;
+                    }
+                }
 
                 if (typeof IK === 'function') {
                     this.imagekit = new IK({
@@ -43,7 +54,8 @@ export class MediaService {
                     });
                     console.log('✅ ImageKit SDK initialized');
                 } else {
-                    console.error('❌ ImageKit found but class constructor not found. IK Type:', typeof IK, 'window.ImageKit type:', typeof window.ImageKit);
+                    console.warn('⚠️ ImageKit SDK loaded but constructor not available. Type:', typeof IK);
+                    console.log('ImageKit object:', window.ImageKit);
                 }
             } catch (e) {
                 console.error('❌ ImageKit initialization error:', e);
