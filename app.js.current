@@ -2267,6 +2267,14 @@ class VibeApp {
                 case 'search':
                     container.innerHTML = Views.search();
                     break;
+                case 'admin':
+                    const adminStats = State.user && (State.user.role === 'admin' || State.user.is_admin) ? await this.services.admin.getStats() : null;
+                    if (adminStats) {
+                        container.innerHTML = Views.admin(adminStats);
+                    } else {
+                        container.innerHTML = `<div class="view-header"><h1 class="view-title">Access Denied</h1><p>Admin privileges required.</p></div>`;
+                    }
+                    break;
                 case 'communities':
                 case 'admin':
                     const adminStats = State.user && (State.user.role === 'admin' || State.user.is_admin) ? await this.services.admin.getStats() : null;
