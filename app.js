@@ -506,14 +506,22 @@ class VibeApp {
     }
 
     updateNotificationBadge() {
-        const badge = document.getElementById('notif-badge');
-        if (badge && State.notifications) {
-            const count = State.notifications.filter(n => !n.read).length;
+        if (!State.notifications) return;
+        const count = State.notifications.filter(n => !n.read).length;
+
+        // Update all notification badges (header + nav)
+        const badgeIds = ['nav-notif-badge', 'header-notif-badge'];
+        badgeIds.forEach(id => {
+            const badge = document.getElementById(id);
+            if (!badge) return;
             if (count > 0) {
                 badge.textContent = count > 9 ? '9+' : count;
                 badge.classList.remove('hidden');
+            } else {
+                badge.textContent = '';
+                badge.classList.add('hidden');
             }
-        }
+        });
     }
 
     showLoadingScreen() {

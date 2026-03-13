@@ -415,7 +415,9 @@ export class AuthService {
         if (!window.supabaseClient || !adminUserId) return;
         
         try {
-            // Find posts with mismatched user_id or username
+            const fallbackEmail = window.VIBEHUB_FALLBACK_ADMIN_USER || 'yamasseetechnology@gmail.com';
+            
+            // Step 1: Find and update posts with mismatched user_id for KingKool23
             const { data: mismatchedPosts } = await window.supabaseClient
                 .from('posts')
                 .select('*')
@@ -423,9 +425,8 @@ export class AuthService {
                 .eq('username', adminUsername);
             
             if (mismatchedPosts && mismatchedPosts.length > 0) {
-                console.log(`🔄 Synchronizing ${mismatchedPosts.length} admin posts...`);
+                console.log(`🔄 Synchronizing ${mismatchedPosts.length} KingKool23 posts...`);
                 
-                // Update all posts to use correct user_id
                 const { error: updateError } = await window.supabaseClient
                     .from('posts')
                     .update({ 
@@ -435,11 +436,61 @@ export class AuthService {
                     .eq('username', adminUsername);
                 
                 if (updateError) {
-                    console.error('Error syncing admin posts:', updateError);
+                    console.error('Error syncing KingKool23 posts:', updateError);
                 } else {
-                    console.log(`✅ Successfully synchronized ${mismatchedPosts.length} admin posts`);
+                    console.log(`✅ Synchronized ${mismatchedPosts.length} KingKool23 posts`);
                 }
             }
+            
+            // Step 2: Find posts from yamasseetechnology@gmail.com account and transfer to KingKool23
+            const { data: emailPosts } = await window.supabaseClient
+                .from('posts')
+                .select('*')
+                .eq('username', fallbackEmail);
+            
+            if (emailPosts && emailPosts.length > 0) {
+                console.log(`🔄 Transferring ${emailPosts.length} posts from ${fallbackEmail} to ${adminUsername}...`);
+                
+                const { error: transferError } = await window.supabaseClient
+                    .from('posts')
+                    .update({ 
+                        user_id: adminUserId,
+                        username: adminUsername
+                    })
+                    .eq('username', fallbackEmail);
+                
+                if (transferError) {
+                    console.error('Error transferring email account posts:', transferError);
+                } else {
+                    console.log(`✅ Transferred ${emailPosts.length} posts from ${fallbackEmail} to ${adminUsername}`);
+                }
+            }
+            
+            // Step 3: Also check for posts with null/incorrect user_id but matching admin patterns
+            const { data: orphanedPosts } = await window.supabaseClient
+                .from('posts')
+                .select('*')
+                .or(`user_id.is.null,user_id.eq.'',user_id.eq.'undefined'`)
+                .or(`username.eq.${adminUsername},username.eq.${fallbackEmail}`);
+            
+            if (orphanedPosts && orphanedPosts.length > 0) {
+                console.log(`🔄 Fixing ${orphanedPosts.length} orphaned admin posts...`);
+                
+                const { error: orphanError } = await window.supabaseClient
+                    .from('posts')
+                    .update({ 
+                        user_id: adminUserId,
+                        username: adminUsername
+                    })
+                    .or(`username.eq.${adminUsername},username.eq.${fallbackEmail}`);
+                
+                if (orphanError) {
+                    console.error('Error fixing orphaned posts:', orphanError);
+                } else {
+                    console.log(`✅ Fixed ${orphanedPosts.length} orphaned posts`);
+                }
+            }
+            
         } catch (error) {
             console.error('Error in syncAdminPosts:', error);
         }
@@ -476,18 +527,29 @@ export class AuthService {
                 if (error) throw error;
                 if (data) {
                     // CRITICAL FIX: Update local session with fresh data
-                    this.user = {
+                    const updatedUser = {
                         ...this.user,
-                        displayName: data.name,
-                        username: data.username,
-                        profilePhoto: data.avatar_url,
-                        bio: data.bio,
-                        bannerImage: data.banner_url,
-                        songLink: data.song_link,
-                        verified: data.verified,
-                        role: data.role
+                        displayName: data.name || this.user.displayName,
+                        username: data.username || this.user.username,
+                        profilePhoto: data.avatar_url || this.user.profilePhoto,
+                        bio: data.bio || this.user.bio,
+                        bannerImage: data.banner_url || this.user.bannerImage,
+                        songLink: data.song_link || this.user.songLink,
+                        verified: data.verified !== undefined ? data.verified : this.user.verified,
+                        role: data.role || this.user.role
                     };
+                    
+                    this.user = updatedUser;
+                    
+                    // PERSISTENCE FIX: Clear and re-save session to ensure it sticks
+                    this.clearSession();
                     this.persistSession(this.user);
+                    
+                    // Update State object if available
+                    if (typeof State !== 'undefined' && State.user) {
+                        State.user = this.user;
+                    }
+                    
                     window.dispatchEvent(new CustomEvent('user-logged-in', { detail: this.user }));
                     
                     // Clear posts cache when profile updated
@@ -497,12 +559,13 @@ export class AuthService {
                     }
                     
                     this.showToast('Profile updated successfully!', 'success');
+                    return updatedUser;
                 }
             } catch (e) {
                 console.error('Profile update error:', e);
                 this.showToast('Failed to update profile', 'error');
             }
         }
-        return !!window.supabaseClient;
+        return null;
     }
 }

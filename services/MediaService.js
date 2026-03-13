@@ -7,11 +7,13 @@ export class MediaService {
     constructor() {
         this.cloudinaryConfig = { cloudName: window.VIBEHUB_CLOUDINARY_CLOUD_NAME || '' };
         this.cloudinaryReady = !!window.cloudinary;
-        
-        // ImageKit Initialization
+
+        // ImageKit is currently not used in production.
+        // To avoid noisy console warnings in the live app, we treat it as disabled
+        // unless explicit runtime configuration is provided.
         this.imagekitConfig = {
-            publicKey: import.meta.env.VITE_IMAGEKIT_PUBLIC_KEY,
-            urlEndpoint: import.meta.env.VITE_IMAGEKIT_URL_ENDPOINT,
+            publicKey: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_IMAGEKIT_PUBLIC_KEY) || '',
+            urlEndpoint: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_IMAGEKIT_URL_ENDPOINT) || '',
         };
         this.imagekit = null;
         this.init();
@@ -28,40 +30,50 @@ export class MediaService {
             setTimeout(() => clearInterval(checkCloudinary), 10000);
         }
 
-        // Initialize ImageKit instance if SDK is available
-        if (window.ImageKit) {
-            try {
-                let IK = window.ImageKit;
-                
-                // Handle different SDK export formats
-                if (typeof IK !== 'function') {
-                    if (IK.default) IK = IK.default;
-                    else if (IK.ImageKit) IK = IK.ImageKit;
-                }
-                
-                // Try to find constructor in various locations
-                if (typeof IK !== 'function') {
-                    // Check if it's a module with ImageKit as property
-                    if (window.ImageKit.ImageKit && typeof window.ImageKit.ImageKit === 'function') {
-                        IK = window.ImageKit.ImageKit;
-                    }
-                }
+        // Initialize ImageKit instance only if we have explicit configuration.
+        // This keeps GitHub Pages / production builds clean when ImageKit is unused.
+        if (this.imagekitConfig.publicKey && this.imagekitConfig.urlEndpoint) {
+            this.initImageKit();
+        }
+    }
 
-                if (typeof IK === 'function') {
-                    this.imagekit = new IK({
-                        publicKey: this.imagekitConfig.publicKey,
-                        urlEndpoint: this.imagekitConfig.urlEndpoint
-                    });
-                    console.log('✅ ImageKit SDK initialized');
-                } else {
-                    console.warn('⚠️ ImageKit SDK loaded but constructor not available. Type:', typeof IK);
-                    console.log('ImageKit object:', window.ImageKit);
+    async initImageKit() {
+        // Wait up to 3 seconds for ImageKit to load
+        let attempts = 0;
+        while (!window.ImageKit && attempts < 30) {
+            await new Promise(r => setTimeout(r, 100));
+            attempts++;
+        }
+
+        if (!window.ImageKit) {
+            // ImageKit script not present; silently skip since it's optional.
+            return;
+        }
+
+        try {
+            let IK = window.ImageKit;
+
+            // ImageKit SDK v5.0+ may expose the constructor on a property.
+            if (typeof IK !== 'function') {
+                if (IK.ImageKit && typeof IK.ImageKit === 'function') {
+                    IK = IK.ImageKit;
+                } else if (IK.default && typeof IK.default === 'function') {
+                    IK = IK.default;
                 }
-            } catch (e) {
-                console.error('❌ ImageKit initialization error:', e);
             }
-        } else {
-            console.warn('⚠️ ImageKit SDK not found in window');
+
+            if (typeof IK === 'function') {
+                this.imagekit = new IK({
+                    publicKey: this.imagekitConfig.publicKey,
+                    urlEndpoint: this.imagekitConfig.urlEndpoint
+                });
+            } else {
+                // If the SDK shape is unexpected, just skip without spamming the console.
+                this.imagekit = null;
+            }
+        } catch (e) {
+            // Swallow ImageKit-specific errors; we can always fall back to Cloudinary.
+            this.imagekit = null;
         }
     }
 

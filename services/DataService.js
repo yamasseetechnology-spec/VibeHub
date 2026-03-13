@@ -380,9 +380,25 @@ export class DataService {
     async getFriends(userId) {
         if (!userId || !window.supabaseClient) return [];
         try {
-            const { data } = await window.supabaseClient.from('friends').select('friend_id, friend:friend_id(*)').eq('user_id', userId);
-            return (data || []).map(f => ({ id: f.friend_id, username: f.friend?.username || 'unknown', displayName: f.friend?.display_name || f.friend?.username || 'User', avatar: f.friend?.avatar_url || 'https://i.pravatar.cc/150?u=' + f.friend_id }));
-        } catch (error) { return []; }
+            // Skip join - fetch friends and user data separately
+            const { data: friends } = await window.supabaseClient.from('friends').select('friend_id').eq('user_id', userId);
+            if (!friends || friends.length === 0) return [];
+            
+            const friendIds = friends.map(f => f.friend_id);
+            
+            // Fetch user data for all friends
+            const { data: users } = await window.supabaseClient.from('users').select('id, username, name, avatar_url').in('id', friendIds);
+            
+            return (users || []).map(u => ({ 
+                id: u.id, 
+                username: u.username || 'unknown', 
+                displayName: u.name || u.username || 'User', 
+                avatar: u.avatar_url || 'https://i.pravatar.cc/150?u=' + u.id 
+            }));
+        } catch (error) { 
+            console.error('Error getting friends:', error);
+            return []; 
+        }
     }
 
     formatTimestamp(dateString) {
@@ -689,19 +705,30 @@ export class DataService {
             const timeframeMs = timeframes[timeframe] || timeframes['24h'];
             const since = new Date(Date.now() - timeframeMs);
             
-            // Fetch posts within timeframe
+            // Fetch posts within timeframe - no join
             const { data: posts, error } = await window.supabaseClient
                 .from('posts')
-                .select('*, users(*)')
+                .select('*')
                 .gte('created_at', since.toISOString())
                 .order('created_at', { ascending: false })
                 .limit(limit * 2); // Get more to calculate trending
             
             if (error) throw error;
+            if (!posts || posts.length === 0) return [];
+            
+            // Fetch user data separately
+            const userIds = [...new Set(posts.map(p => p.user_id).filter(id => !!id))];
+            let userData = [];
+            if (userIds.length > 0) {
+                const { data: users } = await window.supabaseClient.from('users').select('id, username, name, avatar_url, vibe_score').in('id', userIds);
+                userData = users || [];
+            }
+            const userMap = {};
+            userData.forEach(u => userMap[u.id] = u);
             
             // Calculate engagement scores
             const postsWithScores = (posts || []).map(post => {
-                const user = post.users || {};
+                const user = userMap[post.user_id] || {};
                 
                 // Calculate engagement score
                 const reactions = {
@@ -772,17 +799,24 @@ export class DataService {
             const timeframeMs = timeframes[timeframe] || timeframes['24h'];
             const since = new Date(Date.now() - timeframeMs);
             
-            // Fetch posts with highest engagement
+            // Fetch posts with highest engagement using a simple query.
+            // We avoid implicit joins here because the Supabase schema does not
+            // define a direct foreign-key relationship suitable for select('*, users(*)')
+            // and that can cause runtime errors in production.
             const { data: posts, error } = await window.supabaseClient
                 .from('posts')
-                .select('*, users(*)')
+                .select('*')
                 .gte('created_at', since.toISOString())
                 .order('likes', { ascending: false })
                 .limit(limit);
-            
+
             if (error) throw error;
-            
-            return await this.mapPosts(posts || []);
+
+            if (!posts || posts.length === 0) return [];
+
+            // Re‑use the existing mapping helper to attach user data and
+            // convert into the timeline-friendly shape.
+            return await this.mapPosts(posts);
         } catch (error) {
             console.error('Error fetching top posts:', error);
             return [];

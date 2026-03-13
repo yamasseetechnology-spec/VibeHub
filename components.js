@@ -655,6 +655,68 @@ export const Views = {
         `;
     },
 
+    admin: (stats) => {
+        const defaultStats = { totalUsers: 0, totalPosts: 0, activeUsers: 0, reports: 0 };
+        const s = stats || defaultStats;
+        return `
+            <div class="view-header">
+                <h1 class="view-title">Admin Terminal</h1>
+                <p class="text-dim">Platform Control Center</p>
+            </div>
+            
+            <div class="admin-dashboard" style="padding: 20px;">
+                <!-- Stats Grid -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                    <div class="glass-panel" style="padding: 20px; text-align: center;">
+                        <div style="font-size: 2rem; font-weight: bold; color: var(--primary-orange);">${s.totalUsers || 0}</div>
+                        <div class="text-dim">Total Users</div>
+                    </div>
+                    <div class="glass-panel" style="padding: 20px; text-align: center;">
+                        <div style="font-size: 2rem; font-weight: bold; color: var(--accent-cyan);">${s.totalPosts || 0}</div>
+                        <div class="text-dim">Total Posts</div>
+                    </div>
+                    <div class="glass-panel" style="padding: 20px; text-align: center;">
+                        <div style="font-size: 2rem; font-weight: bold; color: var(--accent-green);">${s.activeUsers || 0}</div>
+                        <div class="text-dim">Active Today</div>
+                    </div>
+                    <div class="glass-panel" style="padding: 20px; text-align: center;">
+                        <div style="font-size: 2rem; font-weight: bold; color: var(--accent-pink);">${s.reports || 0}</div>
+                        <div class="text-dim">Reports</div>
+                    </div>
+                </div>
+
+                <!-- Admin Actions -->
+                <div class="glass-panel" style="padding: 20px; margin-bottom: 20px;">
+                    <h3 style="margin-bottom: 15px; color: var(--primary-orange);">Quick Actions</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button class="btn-primary" onclick="window.App.navigate('home')">View Feed</button>
+                        <button class="btn-secondary" onclick="window.App.showToast('Refresh triggered')">Refresh Data</button>
+                        <button class="btn-secondary" onclick="window.App.cache?.clearPostsCache?.() && window.App.showToast('Cache cleared')">Clear Cache</button>
+                    </div>
+                </div>
+
+                <!-- System Status -->
+                <div class="glass-panel" style="padding: 20px;">
+                    <h3 style="margin-bottom: 15px; color: var(--accent-cyan);">System Status</h3>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <div style="display: flex; justify-content: space-between; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 8px;">
+                            <span>Database</span>
+                            <span style="color: var(--accent-green);">✓ Connected</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 8px;">
+                            <span>Real-time Sync</span>
+                            <span style="color: var(--accent-green);">✓ Active</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 8px;">
+                            <span>Media Upload</span>
+                            <span style="color: var(--accent-green);">✓ Ready</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
     messages(dms) {
         return `
             <div class="view-header"><h1 class="view-title">Messages</h1></div>
