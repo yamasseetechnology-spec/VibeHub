@@ -2263,6 +2263,14 @@ class VibeApp {
                     const communities = await this.services.data.getCommunities();
                     container.innerHTML = Views.communities(communities);
                     break;
+                case 'admin':
+                    if (State.user && (State.user.isSuperAdmin || State.user.username === 'KingKool23')) {
+                        const stats = await this.services.admin.getStats();
+                        container.innerHTML = Components.admin(stats);
+                    } else {
+                        container.innerHTML = '<div class="view-header"><h1 class="view-title">Access Denied</h1><p class="text-dim">Admin only.</p></div>';
+                    }
+                    break;
                 default:
                     container.innerHTML = `<div class="view-header"><h1 class="view-title">${view}</h1><p>Vibe missing. Error 404.</p></div>`;
             }
@@ -4055,8 +4063,19 @@ class VibeApp {
         // --- End Animation ---
 
         // Spawn dramatic floating reaction animation
-        const labelMap = { cap: 'CAP!', wild: 'WILD!', like: 'LIKED!', dislike: 'NAH!', heat: 'HEAT!', admire: 'RESPECT!', relate: 'RELATE!' }; // Added relate
-        const postCard = document.querySelector(`[data-id="${postId}"]`);
+        const labelMap = { 
+            cap: 'CAP!', 
+            wild: 'WILD!', 
+            like: 'LIKED!', 
+            dislike: 'NAH!', 
+            heat: 'HEAT!', 
+            admire: 'RESPECT!', 
+            relate: 'RELATE!',
+            gross: 'GROSS!',
+            wtf: 'WTF?!',
+            dope: 'DOPE!'
+        }; 
+        const postCard = document.querySelector(`[data-post-id="${postId}"]`);
         if (postCard) {
             const btn = postCard.querySelector(`[data-type="${type}"]`);
             const rect = btn ? btn.getBoundingClientRect() : postCard.getBoundingClientRect();
@@ -4073,12 +4092,17 @@ class VibeApp {
         if (result.success) {
             // Optimistically update the counter in the DOM
             if (postCard) {
-                const btn = postCard.querySelector(`[data-type="${type}"] span`);
+                const btn = postCard.querySelector(`[data-type="${type}"]`);
                 if (btn) {
-                    const currentCount = parseInt(btn.textContent || 0);
-                    const isRemoving = btn.parentElement.classList.contains('active');
-                    btn.textContent = isRemoving ? Math.max(0, currentCount - 1) : currentCount + 1;
-                    btn.parentElement.classList.toggle('active');
+                    // Extract current count from text content (format: "❤️ 5" or "❤️ 0")
+                    const textContent = btn.textContent.trim();
+                    const match = textContent.match(/(\d+)$/);
+                    const currentCount = match ? parseInt(match[1]) : 0;
+                    const isRemoving = btn.classList.contains('active');
+                    // Update the count in the text
+                    const emoji = textContent.replace(/\d+$/, '').trim();
+                    btn.textContent = `${emoji} ${isRemoving ? Math.max(0, currentCount - 1) : currentCount + 1}`;
+                    btn.classList.toggle('active');
                 }
             }
         }

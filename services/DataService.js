@@ -116,11 +116,19 @@ export class DataService {
                 created_at: new Date().toISOString(),
                 expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
             };
+            console.log('[DEBUG addPost] Attempting to insert post:', postData);
             const insertResult = await window.supabaseClient.from('posts').insert([postData]).select();
-            if (insertResult.error) throw insertResult.error;
+            if (insertResult.error) {
+                console.error('[DEBUG addPost] Supabase insert error:', insertResult.error);
+                throw insertResult.error;
+            }
+            console.log('[DEBUG addPost] Post inserted successfully:', insertResult.data);
             await this.cache.clearPostsCache();
             return insertResult.data ? insertResult.data[0] : postObj;
-        } catch (error) { console.error('Error saving post:', error); return null; }
+        } catch (error) { 
+            console.error('[DEBUG addPost] Error saving post:', error); 
+            return null; 
+        }
     }
 
     async getPosts(tab = 'all', communityId = null) {
