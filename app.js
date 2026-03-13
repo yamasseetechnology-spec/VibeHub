@@ -1038,7 +1038,9 @@ class VibeApp {
             // First get the post to find the exact author ID
             const { data: postData } = await window.supabaseClient.from('posts').select('user_id').eq('id', postId).single();
             if (postData && postData.user_id) {
-                await this.services.admin.banUser(postData.user_id);
+                if (this.services.admin?.banUser) {
+                    await this.services.admin.banUser(postData.user_id);
+                }
                 this.showToast('User has been banned.');
                 this.deletePost(postId); // Also remove the offending post
             } else {
@@ -2264,11 +2266,16 @@ class VibeApp {
                     container.innerHTML = Views.communities(communities);
                     break;
                 case 'admin':
-                    if (State.user && (State.user.isSuperAdmin || State.user.username === 'KingKool23')) {
-                        const stats = await this.services.admin.getStats();
-                        container.innerHTML = Components.admin(stats);
-                    } else {
-                        container.innerHTML = '<div class="view-header"><h1 class="view-title">Access Denied</h1><p class="text-dim">Admin only.</p></div>';
+                    try {
+                        if (State.user && (State.user.isSuperAdmin || State.user.username === 'KingKool23')) {
+                            const stats = this.services.admin?.getStats ? await this.services.admin.getStats() : { users: 0, posts: 0 };
+                            container.innerHTML = Components.admin(stats);
+                        } else {
+                            container.innerHTML = '<div class="view-header"><h1 class="view-title">Access Denied</h1><p class="text-dim">Admin only.</p></div>';
+                        }
+                    } catch (err) {
+                        console.error('Admin panel error:', err);
+                        container.innerHTML = '<div class="view-header"><h1 class="view-title">Admin Panel</h1><p>Loading...</p></div>';
                     }
                     break;
                 default:
@@ -3921,7 +3928,7 @@ class VibeApp {
     async handleDeleteAd(adId) {
         if (!confirm('Are you sure you want to pull this campaign?')) return;
         
-        const result = await this.services.admin.deleteAd(adId);
+        const result = this.services.admin?.deleteAd ? await this.services.admin.deleteAd(adId) : { success: false, error: 'Admin service unavailable' };
         if (result.success) {
             this.showToast('Ad campaign terminated.', 'success');
             this.loadAdminAds();
@@ -3941,7 +3948,7 @@ class VibeApp {
 
         this.showToast('Initiating Neural Merge...', 'info');
         try {
-            const result = await this.services.admin.mergeAdminData(legacyEmail, 'KingKool23');
+            const result = this.services.admin?.mergeAdminData ? await this.services.admin.mergeAdminData(legacyEmail, 'KingKool23') : { success: false, error: 'Admin service unavailable' };
             if (result.success) {
                 this.showToast(`Success! ${result.mergedPosts} vibes merged into reality. ✨`, 'success');
             }
@@ -3960,7 +3967,7 @@ class VibeApp {
             return;
         }
 
-        const result = await this.services.admin.submitAd(content, media, link);
+        const result = this.services.admin?.submitAd ? await this.services.admin.submitAd(content, media, link) : { success: false, error: 'Admin service unavailable' };
         if (result.success) {
             this.showToast('Sponsored Ad Posted!', 'success');
             document.getElementById('ad-content').value = '';
@@ -3980,7 +3987,7 @@ class VibeApp {
         const existingMod = document.getElementById('moderation-list');
         if (existingMod) existingMod.remove();
 
-        const reportedPosts = await this.services.admin.getReportedPosts();
+        const reportedPosts = this.services.admin?.getReportedPosts ? await this.services.admin.getReportedPosts() : [];
         
         const modHtml = `
             <div id="moderation-list" style="margin-top: 20px;">
@@ -4003,7 +4010,9 @@ class VibeApp {
     }
 
     async handleDeletePost(postId) {
-        await this.services.admin.deletePost(postId);
+        if (this.services.admin?.deletePost) {
+            await this.services.admin.deletePost(postId);
+        }
         this.showToast('Post deleted.');
         this.renderAdminModeration();
     }
@@ -4011,7 +4020,9 @@ class VibeApp {
     async handleBanUser(username) {
         // Need mapping for username -> id
         this.showToast(`Banning ${username} (Simulation)`);
-        await this.services.admin.banUser(username);
+        if (this.services.admin?.banUser) {
+            await this.services.admin.banUser(username);
+        }
         this.renderAdminModeration();
     }
 
