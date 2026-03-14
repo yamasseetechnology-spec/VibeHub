@@ -150,6 +150,7 @@ export class DataService {
             if (cached && Array.isArray(cached)) return cached;
         }
         
+
         try {
             let postsQuery = window.supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
             if (communityId) postsQuery = postsQuery.eq('community_id', communityId);
@@ -253,13 +254,13 @@ export class DataService {
                     heat: post.reactions?.heat?.length || 0, 
                     wild: post.reactions?.wild?.length || 0, 
                     cap: post.reactions?.cap?.length || 0, 
-                    admire: post.reactions?.relate?.length || 0, 
+                    admire: (post.reactions?.relate || post.reactions?.admire)?.length || 0, 
                     dislike: post.dislikes?.length || 0,
                     gross: post.reactions?.gross?.length || 0,
                     wtf: post.reactions?.wtf?.length || 0,
                     dope: post.reactions?.dope?.length || 0
                 },
-                vibeScore: user.vibe_score || 0,
+                vibeScore: user.vibe_score || post.vibe_score || 0,
                 commentCount: post.comment_count || 0,
                 badgeList: calculateUserBadges(user),
                 isSponsored: post.is_sponsored || post.is_ad,

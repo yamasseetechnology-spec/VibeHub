@@ -3965,15 +3965,18 @@ class VibeApp {
                 return;
             }
             
-            list.innerHTML = ads.map(ad => `
+
+            list.innerHTML = ads.map(ad => {
+                const content = ad.content || ad.text || '(No content)';
+                return `
                 <div class="glass-panel" style="padding:15px; margin-bottom:10px; border-left:3px solid var(--primary-orange); display:flex; justify-content:space-between; align-items:center;">
                     <div style="flex:1;">
-                        <p style="font-weight:bold; color:white;">${ad.content.substring(0, 100)}${ad.content.length > 100 ? '...' : ''}</p>
-                        <p class="text-dim" style="font-size:0.75rem; margin-top:5px;">Link: <a href="${ad.link}" target="_blank" style="color:var(--accent-cyan);">${ad.link || 'Internal'}</a></p>
+                        <p style="font-weight:bold; color:white;">${content.substring(0, 100)}${content.length > 100 ? '...' : ''}</p>
+                        <p class="text-dim" style="font-size:0.75rem; margin-top:5px;">Link: <a href="${ad.link || '#'}" target="_blank" style="color:var(--accent-cyan);">${ad.link || 'Internal'}</a></p>
                     </div>
                     <button class="btn-secondary btn-sm" onclick="window.App.handleDeleteAd('${ad.id}')" style="color:var(--accent-pink); border-color:var(--accent-pink); padding:5px 12px;">Delete</button>
                 </div>
-            `).join('');
+            `;}).join('');
         } catch (e) {
             list.innerHTML = `<p class="text-error">Failed to sync ads: ${e.message}</p>`;
         }
