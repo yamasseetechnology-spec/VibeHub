@@ -6,9 +6,27 @@
 export class CacheService {
     constructor() {
         this.cache = new Map();
-        this.redisUrl = import.meta.env.VITE_UPSTASH_REDIS_URL;
-        this.redisToken = import.meta.env.VITE_UPSTASH_REDIS_TOKEN;
+        
+        // Safety guard for non-Vite environments (e.g. direct GitHub Pages deploy)
+        let redisUrl = '';
+        let redisToken = '';
+        
+        try {
+            if (typeof import.meta !== 'undefined' && import.meta.env) {
+                redisUrl = import.meta.env.VITE_UPSTASH_REDIS_URL;
+                redisToken = import.meta.env.VITE_UPSTASH_REDIS_TOKEN;
+            }
+        } catch (e) {
+            console.warn('CacheService: Environment variables not accessible.');
+        }
+
+        this.redisUrl = redisUrl;
+        this.redisToken = redisToken;
         this.enabled = !!(this.redisUrl && this.redisToken);
+        
+        if (!this.enabled) {
+            console.log('ℹ️ CacheService: Redis disabled (using local fallback)');
+        }
     }
 
     async get(key) {

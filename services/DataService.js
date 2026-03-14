@@ -145,8 +145,10 @@ export class DataService {
         }
         
         const cacheKey = `posts_${tab}_${communityId || 'all'}`;
-        const cached = await this.cache.getCachedPosts(cacheKey);
-        if (cached && Array.isArray(cached)) return cached;
+        if (this.cache) {
+            const cached = await this.cache.getCachedPosts(cacheKey);
+            if (cached && Array.isArray(cached)) return cached;
+        }
         
         try {
             let postsQuery = window.supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
@@ -215,7 +217,9 @@ export class DataService {
             }));
             
             let posts = await this.mapPosts(postsWithUser);
-            await this.cache.cachePosts(cacheKey, posts);
+            if (this.cache) {
+                await this.cache.cachePosts(cacheKey, posts);
+            }
             return posts;
         } catch (error) { 
             console.error('getPosts failed:', error); 
@@ -228,51 +232,19 @@ export class DataService {
     async mapPosts(data) {
         if (!data || data.length === 0) return [];
         
-        // Get all unique user IDs from posts
-        // Filter only valid UUIDs to prevent 400 errors
-        const isValidUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-        const userIds = [...new Set(data.map(p => p.user_id))].filter(id => {
-            const valid = !!id && isValidUUID(id);
-            if (!valid) console.warn('Invalid user_id found:', id);
-            return valid;
-        });
-        
-        // Fetch current user data for all posts - only if we have valid UUIDs
-        let userData = [];
-        if (userIds.length > 0) {
-            try {
-                const { data: users, error } = await window.supabaseClient
-                    .from('users')
-                    .select('id, avatar_url, name, username, bio, banner_url')
-                    .in('id', userIds);
-                if (error) {
-                    console.warn('Error fetching user data:', error);
-                } else {
-                    userData = users || [];
-                }
-            } catch (error) {
-                console.error('Error fetching user data for posts:', error);
-            }
-        }
-        
-        // Create user lookup map
-        const userMap = userData.reduce((acc, user) => {
-            acc[user.id] = user;
-            return acc;
-        }, {});
-        
+        // Use mapping directly to ensure consistency
         return data.map(post => {
-            // CRITICAL FIX: Always use fresh user data, never cached post avatar
-            const user = userMap[post.user_id] || {};
-            const avatar = user.avatar_url || `https://i.pravatar.cc/150?u=${post.user_id}`;
+            // Priority 1: Data from the 'users' object attached in getPosts
+            // Priority 2: Fallback to username/user_id info
+            const user = post.users || {};
             
             return {
                 id: post.id,
                 userId: post.user_id,
-                displayName: user.name || post.username,
-                handle: user.username || post.username,
-                avatar: avatar,
-                content: post.text,
+                displayName: user.name || post.username || 'Anonymous',
+                handle: user.username || post.username || 'anonymous',
+                avatar: user.avatar_url || post.avatar_url || `https://i.pravatar.cc/150?u=${post.user_id || 'guest'}`,
+                content: post.text || post.content || '',
                 media: post.media_url,
                 mediaType: post.media_type,
                 type: post.media_type === 'none' ? 'text' : post.media_type,
@@ -290,7 +262,7 @@ export class DataService {
                 vibeScore: user.vibe_score || 0,
                 commentCount: post.comment_count || 0,
                 badgeList: calculateUserBadges(user),
-                isSponsored: post.is_sponsored,
+                isSponsored: post.is_sponsored || post.is_ad,
                 timestamp: post.created_at ? this.formatTimestamp(post.created_at) : 'Just now',
                 created_at: post.created_at || new Date().toISOString()
             };

@@ -2226,36 +2226,65 @@ class VibeApp {
                     await this.renderExploreView();
                     break;
                 case 'vibestream':
-                    const videos = await this.services.video.getVibeStream();
-                    const liveStreams = await this.services.video.getLiveStreams();
-                    container.innerHTML = Views.vibeStream(videos, liveStreams);
+                    try {
+                        const videos = await this.services.video.getVibeStream();
+                        const liveStreams = await this.services.video.getLiveStreams();
+                        container.innerHTML = Views.vibeStream(videos, liveStreams);
+                    } catch (e) {
+                        console.error('👑 VibeStream Error:', e);
+                        container.innerHTML = `<div class="error-view"><h2>VibeStream Offline</h2><p>${e.message}</p></div>`;
+                    }
                     break;
                 case 'syncrooms':
-                    const rooms = await this.services.chat.getSyncRooms();
-                    container.innerHTML = Views.syncRooms(rooms);
+                    try {
+                        const rooms = await this.services.chat.getSyncRooms();
+                        container.innerHTML = Views.syncRooms(rooms);
+                    } catch (e) {
+                        console.error('👑 SyncRooms Error:', e);
+                        container.innerHTML = `<div class="error-view"><h2>Neural Link Failed</h2><p>${e.message}</p></div>`;
+                    }
                     break;
                 case 'profile':
-                    const userPosts = State.user ? await this.services.data.getUserPosts(State.user.id, State.user.username) : [];
-                    container.innerHTML = Views.profile(State.user, userPosts);
+                    try {
+                        const userPosts = State.user ? await this.services.data.getUserPosts(State.user.id, State.user.username) : [];
+                        container.innerHTML = Views.profile(State.user, userPosts);
+                    } catch (e) {
+                        console.error('👑 Profile Error:', e);
+                        container.innerHTML = `<div class="error-view"><h2>Identity Retrieval Failed</h2><p>${e.message}</p></div>`;
+                    }
                     break;
                 case 'login':
                 case 'register':
                     container.innerHTML = Views.auth(view);
                     break;
                 case 'messages':
-                    const dms = await this.services.chat.getMessages();
-                    container.innerHTML = Views.messages(dms);
+                    try {
+                        const dms = await this.services.chat.getMessages();
+                        container.innerHTML = Views.messages(dms);
+                    } catch (e) {
+                        console.error('👑 Messages Error:', e);
+                        container.innerHTML = `<div class="error-view"><h2>Communication Breakdown</h2><p>${e.message}</p></div>`;
+                    }
                     break;
                 case 'notifications':
-                    const notifs = State.user ? await this.services.data.getNotifications(State.user.id) : [];
-                    container.innerHTML = Views.notifications(notifs);
-                    // Mark as read after rendering
-                    if (State.user) this.services.data.markNotificationsRead(State.user.id);
+                    try {
+                        const notifs = State.user ? await this.services.data.getNotifications(State.user.id) : [];
+                        container.innerHTML = Views.notifications(notifs);
+                        if (State.user) this.services.data.markNotificationsRead(State.user.id);
+                    } catch (e) {
+                        console.error('👑 Notifications Error:', e);
+                        container.innerHTML = `<div class="error-view"><h2>Signal Loss</h2><p>${e.message}</p></div>`;
+                    }
                     break;
                 case 'friends':
-                    const friends = await this.services.data.getFriends(State.user?.id);
-                    const friendsPosts = await this.services.data.getFriendsPosts(State.user?.id);
-                    container.innerHTML = Views.friends(friends, friendsPosts);
+                    try {
+                        const friends = await this.services.data.getFriends(State.user?.id);
+                        const friendsPosts = await this.services.data.getFriendsPosts(State.user?.id);
+                        container.innerHTML = Views.friends(friends, friendsPosts);
+                    } catch (e) {
+                        console.error('👑 Friends Error:', e);
+                        container.innerHTML = `<div class="error-view"><h2>Sync Link Error</h2><p>${e.message}</p></div>`;
+                    }
                     break;
                 case 'guidelines':
                     container.innerHTML = Views.guidelines();
