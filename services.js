@@ -457,15 +457,24 @@ export class ChatService {
 export class AdminService {
     async getStats() {
         if (!window.supabaseClient) {
-            return { users: 12482, activeNow: 1205, postsToday: 458, revenue: '$1,240' };
+            return { users: 12482, activeNow: 1205, postsToday: 458, reports: 12, revenue: '$1,240' };
         }
         
         try {
             const { count: users } = await window.supabaseClient.from('users').select('*', { count: 'exact', head: true });
             const { count: posts } = await window.supabaseClient.from('posts').select('*', { count: 'exact', head: true });
-            return { users, activeNow: Math.floor(Math.random() * 100), postsToday: posts, revenue: '$1,240' };
+            const { count: reports } = await window.supabaseClient.from('reported_posts').select('*', { count: 'exact', head: true });
+            return { 
+                users: users || 0, 
+                activeNow: Math.floor(Math.random() * 100), 
+                posts: posts || 0,
+                reports: reports || 0,
+                postsToday: posts || 0, 
+                revenue: '$1,240' 
+            };
         } catch (e) {
-            return { users: 0, activeNow: 0, postsToday: 0, revenue: '$0' };
+            console.error('Error fetching admin stats:', e);
+            return { users: 0, activeNow: 0, posts: 0, reports: 0, postsToday: 0, revenue: '$0' };
         }
     }
 

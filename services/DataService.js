@@ -55,12 +55,17 @@ export class DataService {
 
     async loadSampleData() {
         if (!window.supabaseClient) return;
+        
+        // Generate valid UUIDs for sample data
+        const uid1 = crypto.randomUUID();
+        const uid2 = crypto.randomUUID();
+        
         const sampleUsers = [
-            { id: 'u1', username: 'echo_mind', email: 'echo@vibehub.com', name: 'Echo Mind', bio: 'The geometry of thought is fascinating. #mindfulness', avatar_url: 'https://i.pravatar.cc/150?u=vibehub1', banner_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200', theme: 'purple', followers: ['u2', 'u3'], following: ['u2'], vibe_score: 1200, verified: true, role: 'user', created_at: new Date().toISOString() },
-            { id: 'u2', username: 'cyber_soul', email: 'cyber@vibehub.com', name: 'Cyber Soul', bio: 'Neon dreams in a digital world. 🏙️✨', avatar_url: 'https://i.pravatar.cc/150?u=vibehub2', banner_url: 'https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=1200', theme: 'cyan', followers: ['u1', 'u3', 'u4'], following: ['u1'], vibe_score: 850, verified: true, role: 'user', created_at: new Date().toISOString() }
+            { id: uid1, username: 'echo_mind', email: 'echo@vibehub.com', name: 'Echo Mind', bio: 'The geometry of thought is fascinating. #mindfulness', avatar_url: 'https://i.pravatar.cc/150?u=vibehub1', banner_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200', theme: 'purple', vibes_boosted: 0, vibe_score: 1200, verified: true, role: 'user', created_at: new Date().toISOString() },
+            { id: uid2, username: 'cyber_soul', email: 'cyber@vibehub.com', name: 'Cyber Soul', bio: 'Neon dreams in a digital world. 🏙️✨', avatar_url: 'https://i.pravatar.cc/150?u=vibehub2', banner_url: 'https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=1200', theme: 'cyan', vibes_boosted: 0, vibe_score: 850, verified: true, role: 'user', created_at: new Date().toISOString() }
         ];
         const samplePosts = [
-            { id: crypto.randomUUID(), user_id: 'u1', username: 'echo_mind', text: 'The geometry of thought is fascinating.', media_url: 'https://images.unsplash.com/photo-1633167606207-d840b5070fc2?w=800', media_type: 'image', tags: ['mindfulness'], likes: ['u2'], dislikes: [], reactions: { cap: [], relate: [], wild: [], facts: [] }, comments: [] }
+            { id: crypto.randomUUID(), user_id: uid1, username: 'echo_mind', text: 'The geometry of thought is fascinating.', media_url: 'https://images.unsplash.com/photo-1633167606207-d840b5070fc2?w=800', media_type: 'image', tags: ['mindfulness'], likes: [uid2], dislikes: [], reactions: { cap: [], relate: [], wild: [], facts: [] }, comments: [] }
         ];
         try {
             await window.supabaseClient.from('users').insert(sampleUsers);
@@ -553,7 +558,7 @@ export class DataService {
         if (!userId || !window.supabaseClient) return [];
         try {
             // Skip join - fetch friends and user data separately
-            const { data: friends } = await window.supabaseClient.from('friends').select('friend_id').eq('user_id', userId);
+            const { data: friends } = await window.supabaseClient.from('friendships').select('friend_id').eq('user_id', userId);
             if (!friends || friends.length === 0) return [];
             
             const friendIds = friends.map(f => f.friend_id);

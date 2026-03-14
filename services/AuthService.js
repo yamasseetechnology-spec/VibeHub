@@ -150,12 +150,12 @@ export class AuthService {
             if (window.supabaseClient) {
                 try {
                     const { count: followersCountResult, error: followersError } = await window.supabaseClient
-                        .from('friends')
+                        .from('friendships')
                         .select('*', { count: 'exact', head: true })
                         .eq('friend_id', userData?.id || supabaseUser.id);
                     if (!followersError) followersCount = followersCountResult || 0;
                     const { count: followingCountResult, error: followingError } = await window.supabaseClient
-                        .from('friends')
+                        .from('friendships')
                         .select('*', { count: 'exact', head: true })
                         .eq('user_id', userData?.id || supabaseUser.id);
                     if (!followingError) followingCount = followingCountResult || 0;
