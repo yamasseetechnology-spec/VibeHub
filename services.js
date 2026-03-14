@@ -106,12 +106,20 @@ export class VideoService {
     async getLiveStreams() {
         if (!window.supabaseClient) return [];
         try {
-            const { data } = await window.supabaseClient
+            // Check if table exists first by doing a very small query
+            // Or better, just catch the specific error
+            const { data, error } = await window.supabaseClient
                 .from('live_streams')
                 .select('*')
                 .eq('status', 'online');
+            
+            if (error) {
+                console.warn('live_streams table might not exist:', error.message);
+                return [];
+            }
             return data || [];
         } catch (e) {
+            console.error('Error in getLiveStreams:', e);
             return [];
         }
     }
@@ -406,6 +414,12 @@ export class ChatService {
                 }])
                 .select();
 
+            if (data && data[0]) {
+                // Trigger notification
+                if (window.App && window.App.services.data) {
+                    await window.App.services.data.createNotification(receiverId, `New message from ${sender.username}`, 'message', data[0].id);
+                }
+            }
             return data?.[0];
         } catch (error) {
             console.error('Error sending message:', error);

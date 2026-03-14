@@ -6,22 +6,20 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-async function checkUserTableColumns() {
-    console.log("Checking user table columns...");
+async function getUniqueUserIds() {
+    console.log("Getting unique user IDs...");
     
-    // Select one user to see column names
     try {
-        const { data, error } = await supabase.from('users').select('*').limit(1);
+        const { data, error } = await supabase.from('posts').select('user_id');
         if (error) {
-            console.error("Error fetching user:", error.message);
-        } else if (data && data.length > 0) {
-            console.log("User table columns:", Object.keys(data[0]));
+            console.error("Error fetching user_ids:", error.message);
         } else {
-            console.log("No users found.");
+            const unique = [...new Set(data.map(p => p.user_id))];
+            console.log("Unique user_ids:", unique);
         }
     } catch (e) {
         console.error("Exception:", e);
     }
 }
 
-checkUserTableColumns();
+getUniqueUserIds();

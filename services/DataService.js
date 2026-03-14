@@ -19,7 +19,7 @@ function calculateUserBadges(userData) {
     if (totalVibeScore >= 1000) badges.push('Vibe Legend');
     else if (totalVibeScore >= 500) badges.push('Vibe Master');
     else if (vibeLikesCount >= 50) badges.push('Viber');
-    if (userData.role === 'admin' || userData.is_admin) badges.push('Admin');
+    if (userData.role === 'admin') badges.push('Admin');
     return badges;
 }
 
@@ -131,22 +131,28 @@ export class DataService {
     }
 
     async getPosts(tab = 'all', communityId = null) {
+        console.log('👑 DataService.getPosts called');
         const ready = await this.waitForSupabase();
-        if (!ready) return [];
+        console.log('👑 DataService.waitForSupabase:', ready);
+        if (!ready) {
+            console.error('👑 DataService: Supabase not ready');
+            return [];
+        }
+        
         const cacheKey = `posts_${tab}_${communityId || 'all'}`;
         const cached = await this.cache.getCachedPosts(cacheKey);
         if (cached && Array.isArray(cached)) return cached;
         
-        // Skip join query entirely - always use simple queries due to missing foreign key relationships
         try {
             let postsQuery = window.supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
             if (communityId) postsQuery = postsQuery.eq('community_id', communityId);
             
             const { data: postsData, error: postsError } = await postsQuery;
             if (postsError) {
-                console.error('Error fetching posts:', postsError);
+                console.error('👑 DataService Error:', postsError);
                 return [];
             }
+            console.log('👑 DataService fetched raw posts:', postsData?.length);
             
             if (!postsData || postsData.length === 0) return [];
             
@@ -206,13 +212,33 @@ export class DataService {
         }
     }
 
+        
+        try {
+            let postsQuery = window.supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
+            if (communityId) postsQuery = postsQuery.eq('community_id', communityId);
+            
+            const { data: postsData, error: postsError } = await postsQuery;
+            if (postsError) {
+                console.error('👑 DataService Error:', postsError);
+                return [];
+            }
+            console.log('👑 DataService fetched raw posts:', postsData?.length);
+            
+            if (!postsData || postsData.length === 0) return [];
+            
+            // ... (rest of the mapping code)
+
     async mapPosts(data) {
         if (!data || data.length === 0) return [];
         
         // Get all unique user IDs from posts
         // Filter only valid UUIDs to prevent 400 errors
         const isValidUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-        const userIds = [...new Set(data.map(p => p.user_id))].filter(id => !!id && isValidUUID(id));
+        const userIds = [...new Set(data.map(p => p.user_id))].filter(id => {
+            const valid = !!id && isValidUUID(id);
+            if (!valid) console.warn('Invalid user_id found:', id);
+            return valid;
+        });
         
         // Fetch current user data for all posts - only if we have valid UUIDs
         let userData = [];
@@ -1033,29 +1059,27 @@ export class DataService {
     
     async getRankedPosts(tab = 'all', communityId = null, userContext = null) {
         try {
-            // Get base posts
+            console.log('getRankedPosts: tab=', tab, 'userContext=', userContext);
             const posts = await this.getPosts(tab, communityId);
+            console.log('getRankedPosts: Got base posts:', posts ? posts.length : 0);
             
             if (!posts || posts.length === 0) return [];
             
-            // Calculate engagement scores for all posts
-            const postsWithScores = posts.map(post => ({
-                ...post,
-                engagementScore: this.calculateEngagementScore(post, userContext),
-                rankSignals: {
-                    reactionCount: this.getTotalReactions(post),
-                    commentCount: post.comment_count || 0,
-                    hasMedia: !!post.media_url,
-                    contentLength: post.text?.length || 0,
-                    hoursOld: this.getHoursSinceCreation(post.created_at)
+            const postsWithScores = posts.map(post => {
+                try {
+                    return {
+                        ...post,
+                        engagementScore: this.calculateEngagementScore(post, userContext)
+                    };
+                } catch (e) {
+                    console.error('Error calculating score for post:', post.id, e);
+                    return { ...post, engagementScore: 0 };
                 }
-            }));
+            });
             
-            // Sort by engagement score (highest first)
-            const rankedPosts = postsWithScores
-                .sort((a, b) => b.engagementScore - a.engagementScore);
-            
-            return rankedPosts;
+            const result = postsWithScores.sort((a, b) => b.engagementScore - a.engagementScore);
+            console.log('getRankedPosts: Returning ranked posts:', result.length);
+            return result;
         } catch (error) {
             console.error('Error getting ranked posts:', error);
             return [];

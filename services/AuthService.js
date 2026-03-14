@@ -23,7 +23,7 @@ function calculateUserBadges(userData) {
     else if (totalVibeScore >= 500) badges.push('Vibe Master');
     else if (vibeLikesCount >= 50) badges.push('Viber');
     
-    if (userData.role === 'admin' || userData.is_admin) badges.push('Admin');
+    if (userData.role === 'admin') badges.push('Admin');
     
     return badges;
 }

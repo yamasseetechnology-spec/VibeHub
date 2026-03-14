@@ -291,57 +291,28 @@ class VibeApp {
     enableRealTimeSubscriptions() {
         if (!this.services.data) return;
         
-        console.log('📡 Enabling enhanced real-time subscriptions...');
+        console.log('📡 Enabling real-time subscriptions...');
         
-        // Subscribe to new posts, updates, and deletions
+        // Subscribe to new posts
         this.postsChannel = this.services.data.subscribeToPosts((event) => {
-            console.log('Posts event:', event);
+            console.log('Real-time event:', event);
             if (event.type === 'new_post') {
-                // Add new post to top of timeline with engagement scoring
-                this.handleNewPost(event.data);
-            } else if (event.type === 'post_updated') {
-                // Update existing post (e.g., reaction counts changed)
-                this.handlePostUpdated(event.data);
-            } else if (event.type === 'post_deleted') {
-                // Remove post from timeline
-                this.handlePostDeleted(event.data);
+                // Add new post to top of timeline
+                State.posts.unshift(event.data);
+                if (State.currentView === 'home') {
+                    this.renderView('home');
+                }
+                this.showToast('New vibe posted!', 'info');
+            } else if (event.type === 'post_update') {
+                // Update existing post
+                const index = State.posts.findIndex(p => p.id === event.data.id);
+                if (index !== -1) {
+                    State.posts[index] = { ...State.posts[index], ...event.data };
+                    if (State.currentView === 'home') {
+                        this.renderView('home');
+                    }
+                }
             }
-        });
-
-        // Subscribe to reactions for instant updates
-        this.reactionsChannel = this.services.data.subscribeToReactions((event) => {
-            console.log('Reaction event:', event);
-            if (event.type === 'new_reaction') {
-                this.handleNewReaction(event.data);
-            } else if (event.type === 'reaction_removed') {
-                this.handleReactionRemoved(event.data);
-            }
-        });
-
-        // Subscribe to user profile updates
-        this.userUpdatesChannel = this.services.data.subscribeToUserUpdates((event) => {
-            console.log('User update event:', event);
-            this.handleUserUpdated(event.data);
-        });
-
-        // Subscribe to Top 8 changes
-        this.top8Channel = this.services.data.subscribeToTop8Updates((event) => {
-            console.log('Top 8 event:', event);
-            this.handleTop8Updated(event);
-        });
-
-        // Subscribe to comments
-        this.commentsChannel = this.services.data.subscribeToComments((event) => {
-            console.log('Comment event:', event);
-            if (event.type === 'new_comment') {
-                this.handleNewComment(event.data);
-            }
-        });
-
-        // Subscribe to vibe boosts
-        this.vibeBoostsChannel = this.services.data.subscribeToVibeBoosts((event) => {
-            console.log('Vibe boost event:', event);
-            this.handleVibeBoostUpdated(event);
         });
 
         // Subscribe to notifications
@@ -366,33 +337,19 @@ class VibeApp {
     }
 
     disableRealTimeSubscriptions() {
-        // Disable all enhanced real-time channels
-        const channels = [
-            this.postsChannel,
-            this.reactionsChannel,
-            this.userUpdatesChannel,
-            this.top8Channel,
-            this.commentsChannel,
-            this.vibeBoostsChannel,
-            this.notificationsChannel
-        ];
-        
-        channels.forEach(channel => {
-            if (channel && window.supabaseClient) {
-                window.supabaseClient.removeChannel(channel);
+        if (this.postsChannel) {
+            if (window.supabaseClient) {
+                window.supabaseClient.removeChannel(this.postsChannel);
             }
-        });
-        
-        // Clear channel references
-        this.postsChannel = null;
-        this.reactionsChannel = null;
-        this.userUpdatesChannel = null;
-        this.top8Channel = null;
-        this.commentsChannel = null;
-        this.vibeBoostsChannel = null;
-        this.notificationsChannel = null;
-        
-        console.log('Enhanced real-time subscriptions disabled');
+            this.postsChannel = null;
+        }
+        if (this.notificationsChannel) {
+            if (window.supabaseClient) {
+                window.supabaseClient.removeChannel(this.notificationsChannel);
+            }
+            this.notificationsChannel = null;
+        }
+        console.log('Real-time subscriptions disabled');
     }
 
     handleOnlineStatus(isOnline) {
@@ -2245,22 +2202,26 @@ class VibeApp {
         try {
             switch(view) {
                 case 'home':
-                    // Use engagement ranking algorithm with user context for personalized feed
-                    const postsData = await this.services.data.getRankedPosts('all', null, State.user);
-                    const adsData = await this.services.data.getAds();
-                    
-                    if (!postsData || postsData.length === 0) {
-                        // Retry once for new users or slow loads
-                        setTimeout(async () => {
-                            const retryPosts = await this.services.data.getRankedPosts('all', null, State.user);
-                            const retryAds = await this.services.data.getAds();
-                            if (retryPosts && retryPosts.length > 0) {
-                                container.innerHTML = Views.home(this.interleaveAds(retryPosts, retryAds));
-                            }
-                        }, 1000);
+                    try {
+                        console.log('👑 Fetching home posts for:', State.user?.username);
+                        const postsData = await this.services.data.getPosts('all', null);
+                        const adsData = await this.services.data.getAds();
+                        
+                        console.log('👑 Posts fetched (raw):', postsData);
+                        
+                        if (!postsData || postsData.length === 0) {
+                            console.warn('👑 No posts retrieved!');
+                            container.innerHTML = '<div style="padding:20px; color:white;">No content available to display on your timeline. Database check: posts table has entries?</div>';
+                        } else {
+                            const interleaved = this.interleaveAds(postsData, adsData);
+                            container.innerHTML = Views.home(interleaved);
+                        }
+                    } catch (e) {
+                        console.error('👑 Home Error:', e);
+                        container.innerHTML = `<div class="error-view"><h2>Error loading Home.</h2><p>${e.message}</p></div>`;
                     }
-                    container.innerHTML = Views.home(this.interleaveAds(Array.isArray(postsData) ? postsData : [], adsData));
                     break;
+
                 case 'explore':
                     await this.renderExploreView();
                     break;
@@ -2311,25 +2272,36 @@ class VibeApp {
                 case 'search':
                     container.innerHTML = Views.search();
                     break;
-                case 'admin':
+                case 'communities':
                     try {
-                        if (State.user && (State.user.isSuperAdmin || State.user.username === 'KingKool23')) {
-                            const stats = this.services.admin?.getStats ? await this.services.admin.getStats() : { users: 0, posts: 0 };
-                            container.innerHTML = Components.admin(stats);
-                        } else {
-                            container.innerHTML = '<div class="view-header"><h1 class="view-title">Access Denied</h1><p class="text-dim">Admin only.</p></div>';
-                        }
-                    } catch (err) {
-                        console.error('Admin panel error:', err);
-                        container.innerHTML = '<div class="view-header"><h1 class="view-title">Admin Panel</h1><p>Loading...</p></div>';
+                        const communities = await this.services.data.getCommunities();
+                        container.innerHTML = Views.communities(communities);
+                    } catch (e) {
+                        console.error('Error rendering communities:', e);
+                        container.innerHTML = '<p>Error loading communities.</p>';
                     }
                     break;
-                case 'communities':
-                    const communities = await this.services.data.getCommunities();
-                    container.innerHTML = Views.communities(communities);
+                case 'admin':
+                    console.log('👑 Admin Case Entered. State.user:', State.user);
+                    try {
+                        const isAdmin = State.user && (State.user.role === 'admin');
+                        console.log('👑 Admin status check:', isAdmin);
+                        if (isAdmin) {
+                            const adminStats = await this.services.admin.getStats();
+                            console.log('👑 Admin stats fetched:', adminStats);
+                            container.innerHTML = Views.admin(adminStats);
+                        } else {
+                            console.log('👑 Access Denied: User not admin');
+                            container.innerHTML = `<div class="view-header"><h1 class="view-title">Access Denied</h1><p>Admin privileges required.</p></div>`;
+                        }
+                    } catch (e) {
+                        console.error('👑 Admin panel error:', e);
+                        container.innerHTML = `<div class="error-view"><h2>Admin Portal Error</h2><p>${e.message}</p></div>`;
+                    }
                     break;
                 default:
-                    container.innerHTML = `<div class="view-header"><h1 class="view-title">${view}</h1><p>Vibe missing. Error 404.</p></div>`;
+                    console.error(`👑 Default case hit! Unknown view: "${view}"`);
+                    container.innerHTML = `<div class="view-header"><h1 class="view-title">${view}</h1><p>Vibe missing (Error 404/Unknown View).</p></div>`;
             }
             this.attachViewEvents();
         } catch (err) {
@@ -2427,9 +2399,27 @@ class VibeApp {
         setTimeout(() => popup.remove(), 900);
     }
 
+
+
+    // --- VIEW TEMPLATES ---
+
+
+    async switchHomeTab(tabId) {
+        if (tabId === 'friends') {
+            this.navigate('friends');
+            return;
+        }
+        const posts = await this.services.data.getPosts(tabId);
+        const container = document.getElementById('view-container');
+        if (container) {
+            container.innerHTML = Views.home(Array.isArray(posts) ? posts : [], tabId);
+        }
+        this.attachViewEvents();
+    }
+
+    async joinLiveStream(hostId, username) {
+        this.showToast(`Linking to ${username}'s vibe...`);
         
-container.scrollTop = 0;
-}
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
@@ -3425,7 +3415,7 @@ container.scrollTop = 0;
         else if (totalVibeScore >= 500) badges.push({ label: 'Vibe Master', class: 'badge-master' });
         else if (vibeLikesCount >= 50) badges.push({ label: 'Viber', class: 'badge-viber' });
         
-        if (user.role === 'admin' || user.is_admin) badges.push({ label: 'Admin', class: 'badge-admin' });
+        if (user.role === 'admin') badges.push({ label: 'Admin', class: 'badge-admin' });
         
         // Additional achievement badges
         const postCount = user.postCount || 0;
