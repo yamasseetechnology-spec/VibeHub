@@ -149,15 +149,21 @@ export class DataService {
             
             const { data: postsData, error: postsError } = await postsQuery;
             if (postsError) {
-                console.error('👑 DataService Error:', postsError);
+                console.error('👑 DataService Error fetching posts:', postsError);
                 return [];
             }
-            console.log('👑 DataService fetched raw posts:', postsData?.length);
+            console.log('👑 DataService fetched raw posts count:', postsData?.length);
             
-            if (!postsData || postsData.length === 0) return [];
+            if (!postsData || postsData.length === 0) {
+                console.log('👑 DataService: No posts found in database.');
+                return [];
+            }
             
             // Fetch associated users separately
-            const isValidUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+            const isValidUUID = (id) => {
+                if (!id) return false;
+                return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+            };
             const allUserIds = [...new Set(postsData.map(p => p.user_id))];
             const userIds = allUserIds.filter(id => !!id && isValidUUID(id));
             
@@ -212,21 +218,7 @@ export class DataService {
         }
     }
 
-        
-        try {
-            let postsQuery = window.supabaseClient.from('posts').select('*').order('created_at', { ascending: false });
-            if (communityId) postsQuery = postsQuery.eq('community_id', communityId);
-            
-            const { data: postsData, error: postsError } = await postsQuery;
-            if (postsError) {
-                console.error('👑 DataService Error:', postsError);
-                return [];
-            }
-            console.log('👑 DataService fetched raw posts:', postsData?.length);
-            
-            if (!postsData || postsData.length === 0) return [];
-            
-            // ... (rest of the mapping code)
+
 
     async mapPosts(data) {
         if (!data || data.length === 0) return [];

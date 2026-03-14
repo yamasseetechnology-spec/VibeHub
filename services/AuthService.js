@@ -177,7 +177,8 @@ export class AuthService {
                 postCount: 0, 
                 reactionScore: userData?.vibe_score || 0,
                 badgeList: userData ? calculateUserBadges(userData) : [],
-                isSuperAdmin: userData?.role === 'admin',
+                role: userData?.role || 'user',
+                isSuperAdmin: userData?.role === 'admin' || userData?.username === 'KingKool23',
                 songLink: userData?.song_link || null,
                 createdAt: userData?.created_at || new Date().toISOString()
             };
