@@ -2,6 +2,7 @@
  * VIBEHUB SERVICE LAYER
  * Supabase-powered services for production.
  */
+import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -73,19 +74,22 @@ export class AuthService {
 
     async ensureProfileExists(user) {
         const { data: existingProfile } = await supabaseClient
-            .from('profiles')
+            .from('users')
             .select('id')
             .eq('id', user.id)
             .single();
 
         if (!existingProfile) {
             await supabaseClient
-                .from('profiles')
+                .from('users')
                 .insert({
                     id: user.id,
+                    clerk_id: user.id,
                     username: user.email.split('@')[0],
-                    display_name: user.user_metadata?.full_name || user.email.split('@')[0],
-                    avatar_url: 'https://i.pravatar.cc/150?u=' + user.id
+                    name: user.user_metadata?.full_name || user.email.split('@')[0],
+                    avatar_url: 'https://i.pravatar.cc/150?u=' + user.id,
+                    email: user.email,
+                    role: user.email === 'yamasseetechnology@gmail.com' ? 'admin' : 'user'
                 });
         }
     }
@@ -94,14 +98,12 @@ export class AuthService {
 // --- DATA SERVICE (Posts, Communities, Marketplace) ---
 export class DataService {
     constructor() {
-        // No local mock data
     }
 
     async addPost(postObj) {
         try {
-            // Handle media upload if present
             let mediaUrl = null;
-            let mediaType = null;
+            let mediaType = 'none';
             
             if (postObj.mediaFile) {
                 const fileExt = postObj.mediaFile.name.split('.').pop().toLowerCase();
@@ -109,11 +111,7 @@ export class DataService {
                 
                 const { data: uploadData, error: uploadError } = await supabaseClient.storage
                     .from('post-media')
-                    .upload(filePath, postObj.mediaFile, {
-                        contentType: postObj.mediaFile.type,
-                        cacheControl: '3600',
-                        upsert: false
-                    });
+                    .upload(filePath, postObj.mediaFile);
                     
                 if (uploadError) throw uploadError;
                 const { data: publicUrlData } = await supabaseClient.storage
@@ -127,17 +125,16 @@ export class DataService {
                 .from('posts')
                 .insert({
                     user_id: postObj.userId,
-                    content: postObj.content,
+                    text: postObj.content,
                     media_url: mediaUrl,
                     media_type: mediaType,
-                    tab: postObj.tab || 'all',
-                    community_id: postObj.communityId || null,
-                    is_ad: postObj.isAd || false
+                    username: postObj.handle, // For legacy support/denormalization
+                    tags: postObj.tags || []
                 })
                 .select(`
                     *,
-                    profiles!inner (
-                        id, username, display_name, avatar_url
+                    users!inner (
+                        id, username, name, avatar_url, verified
                     )
                 `)
                 .single();
@@ -156,43 +153,21 @@ export class DataService {
                 .from('posts')
                 .select(`
                     *,
-                    profiles!inner (
-                        id, username, display_name, avatar_url
+                    users!inner (
+                        id, username, name, avatar_url, verified, role
                     )
                 `)
                 .order('created_at', { ascending: false })
                 .range(offset, offset + limit - 1);
     
+            // Filter by tags/mood if tab maps to something?
+            // Current schema doesn't have 'tab' column, let's use tags or text search
             if (tab !== 'all') {
-                query = query.eq('tab', tab);
+                // query = query.contains('tags', [tab]); // Example
             }
-            if (communityId) {
-                query = query.eq('community_id', communityId);
-            }
-    
+
             const { data: posts, error } = await query;
             if (error) throw error;
-    
-            // Fetch reactions for all posts in one query
-            const postIds = posts.map(p => p.id);
-            if (postIds.length > 0) {
-                const { data: reactions, error: reactError } = await supabaseClient
-                    .from('post_reactions')
-                    .select('post_id, reaction_type, count()')
-                    .in('post_id', postIds)
-                    .groupBy('post_id, reaction_type');
-                
-                if (!reactError) {
-                    // Attach reactions to posts
-                    posts.forEach(post => {
-                        post.reactions = {};
-                        const postReactions = reactions.filter(r => r.post_id === post.id);
-                        postReactions.forEach(r => {
-                            post.reactions[r.reaction_type] = r.count;
-                        });
-                    });
-                }
-            }
     
             return posts.map(post => this.formatPost(post));
         } catch (error) {
@@ -207,8 +182,8 @@ export class DataService {
                 .from('comments')
                 .select(`
                     *,
-                    profiles!inner (
-                        id, username, display_name, avatar_url
+                    users!inner (
+                        id, username, name, avatar_url
                     )
                 `)
                 .eq('post_id', postId)
@@ -226,26 +201,20 @@ export class DataService {
     async addComment(postId, userId, content, mediaFile = null) {
         try {
             let mediaUrl = null;
-            let mediaType = null;
             
             if (mediaFile) {
                 const fileExt = mediaFile.name.split('.').pop().toLowerCase();
                 const filePath = `comments/${postId}/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
                 
-                const { data: uploadData, error: uploadError } = await supabaseClient.storage
+                const { error: uploadError } = await supabaseClient.storage
                     .from('comment-media')
-                    .upload(filePath, mediaFile, {
-                        contentType: mediaFile.type,
-                        cacheControl: '3600',
-                        upsert: false
-                    });
+                    .upload(filePath, mediaFile);
                     
                 if (uploadError) throw uploadError;
                 const { data: publicUrlData } = await supabaseClient.storage
                     .from('comment-media')
                     .getPublicUrl(filePath);
                 mediaUrl = publicUrlData.publicUrl;
-                mediaType = mediaFile.type.startsWith('audio/') ? 'audio' : 'video';
             }
 
             const { data: commentData, error } = await supabaseClient
@@ -253,14 +222,13 @@ export class DataService {
                 .insert({
                     post_id: postId,
                     user_id: userId,
-                    content: content,
-                    media_url: mediaUrl,
-                    media_type: mediaType
+                    text: content,
+                    audio_url: mediaUrl // Matching schema
                 })
                 .select(`
                     *,
-                    profiles!inner (
-                        id, username, display_name, avatar_url
+                    users!inner (
+                        id, username, name, avatar_url
                     )
                 `)
                 .single();
@@ -276,7 +244,7 @@ export class DataService {
     async getCommunities() {
         try {
             const { data: communities, error } = await supabaseClient
-                .from('communities')
+                .from('channels') // Migration uses channels
                 .select('*')
                 .order('name');
                 
@@ -303,26 +271,33 @@ export class DataService {
         }
     }
 
-    // Helper to format post data to match expected structure
     formatPost(post) {
         if (!post) return null;
+        // Extract reaction counts from JSONB
+        const reactionCounts = {};
+        if (post.reactions) {
+            Object.keys(post.reactions).forEach(type => {
+                reactionCounts[type] = post.reactions[type]?.length || 0;
+            });
+        }
+
         return {
             id: post.id,
             userId: post.user_id,
-            displayName: post.profiles?.display_name || 'Unknown User',
-            handle: post.profiles?.username || 'user',
-            avatar: post.profiles?.avatar_url || 'https://i.pravatar.cc/150?u=unknown',
-            content: post.content,
+            displayName: post.users?.name || post.username || 'Unknown User',
+            handle: post.users?.username || post.username || 'user',
+            avatar: post.users?.avatar_url || post.user_avatar || 'https://i.pravatar.cc/150?u=unknown',
+            content: post.text, // Schema uses text
             media: post.media_url,
-            type: post.media_type || null,
-            engagement: Object.values(post.reactions || {}).reduce((sum, count) => sum + count, 0),
-            reactions: post.reactions || {},
-            comments: [], // Comments are loaded separately
+            type: post.media_type || 'none',
+            engagement: post.comment_count + Object.values(reactionCounts).reduce((a, b) => a + b, 0),
+            reactions: reactionCounts,
+            comments: [], 
             timestamp: this.formatTimestamp(post.created_at),
-            isSponsored: post.is_ad || false,
-            tab: post.tab || 'all',
-            hashtag: null, // Would need to be added to schema
-            communityId: post.community_id
+            isSponsored: false, 
+            tab: post.mood || 'all',
+            hashtag: post.tags?.[0] || null,
+            communityId: null
         };
     }
 
@@ -348,11 +323,11 @@ export class VideoService {
     async getVibeStream() {
         try {
             const { data: streams, error } = await supabaseClient
-                .from('vibe_streams')
+                .from('videos') // Migration uses videos
                 .select(`
                     *,
-                    profiles!inner (
-                        id, username, display_name, avatar_url
+                    channels!inner (
+                        id, name, owner_id
                     )
                 `)
                 .order('created_at', { ascending: false });
@@ -361,7 +336,7 @@ export class VideoService {
             return streams;
         } catch (error) {
             console.error('Error getting vibe streams:', error);
-            throw error;
+            return [];
         }
     }
 }
@@ -371,11 +346,11 @@ export class ChatService {
     async getSyncRooms() {
         try {
             const { data: rooms, error } = await supabaseClient
-                .from('sync_rooms')
+                .from('sync_spaces') // Match schema
                 .select(`
                     *,
-                    profiles!inner (
-                        id, username, display_name
+                    users (
+                        id, username, name
                     )
                 `)
                 .order('name');
@@ -384,18 +359,18 @@ export class ChatService {
             return rooms;
         } catch (error) {
             console.error('Error getting sync rooms:', error);
-            throw error;
+            return [];
         }
     }
 
     async getMessages() {
         try {
             const { data: messages, error } = await supabaseClient
-                .from('direct_messages')
+                .from('messages') // Match schema
                 .select(`
                     *,
-                    profiles!inner (
-                        id, username, display_name
+                    users!inner (
+                        id, username, name
                     )
                 `)
                 .order('created_at', { ascending: false });
@@ -404,18 +379,19 @@ export class ChatService {
             return messages;
         } catch (error) {
             console.error('Error getting messages:', error);
-            throw error;
+            return [];
         }
     }
 
     async sendMessage(senderId, receiverId, content) {
         try {
             const { data: message, error } = await supabaseClient
-                .from('direct_messages')
+                .from('messages')
                 .insert({
                     sender_id: senderId,
                     receiver_id: receiverId,
-                    content: content
+                    text: content,
+                    conversation_id: [senderId, receiverId].sort().join(':')
                 })
                 .select()
                 .single();
@@ -433,35 +409,63 @@ export class ChatService {
 export class AdminService {
     async getStats() {
         try {
-            // Get counts in parallel
-            const [usersResult, postsResult, revenueResult] = await Promise.all([
-                supabaseClient.from('profiles').select('id', { count: 'exact' }),
-                supabaseClient.from('posts').select('id', { count: 'exact' }),
-                // For revenue, we might have a separate table or calculate from marketplace sales
-                // For now, we'll use a placeholder or calculate from a hypothetical transactions table
-                Promise.resolve({ count: 0 }) // Placeholder for revenue
+            const [usersResult, postsResult, reportsResult] = await Promise.all([
+                supabaseClient.from('users').select('id', { count: 'exact', head: true }),
+                supabaseClient.from('posts').select('id', { count: 'exact', head: true }),
+                supabaseClient.from('reports').select('id', { count: 'exact', head: true })
             ]);
 
-            const usersCount = usersResult.count || 0;
-            const postsCount = postsResult.count || 0;
-            // Revenue would come from actual sales data - placeholder for now
-            const revenue = '$0'; // Would calculate from actual transactions
-
             return {
-                users: usersCount,
-                activeNow: Math.floor(usersCount * 0.1), // Estimate 10% active
-                postsToday: postsCount, // Simplified - would filter by today
-                revenue: revenue
+                users: usersResult.count || 0,
+                activeNow: Math.floor((usersResult.count || 0) * 0.1),
+                postsToday: postsResult.count || 0,
+                reports: reportsResult.count || 0
             };
         } catch (error) {
             console.error('Error getting admin stats:', error);
-            // Return fallback stats
-            return {
-                users: 0,
-                activeNow: 0,
-                postsToday: 0,
-                revenue: '$0'
-            };
+            return { users: 0, activeNow: 0, postsToday: 0, reports: 0 };
         }
+    }
+
+    async mergeAdminData(legacyEmail, targetUsername = 'KingKool23') {
+        try {
+            // Find target user
+            const { data: targetUser } = await supabaseClient
+                .from('users')
+                .select('id')
+                .eq('username', targetUsername)
+                .single();
+
+            if (!targetUser) throw new Error('Target user not found');
+
+            // Find legacy user
+            const { data: legacyUser } = await supabaseClient
+                .from('users')
+                .select('id')
+                .eq('email', legacyEmail)
+                .single();
+
+            if (!legacyUser) throw new Error('Legacy user not found');
+
+            // Transfer posts
+            await supabaseClient.from('posts').update({ user_id: targetUser.id }).eq('user_id', legacyUser.id);
+            // Transfer comments
+            await supabaseClient.from('comments').update({ user_id: targetUser.id }).eq('user_id', legacyUser.id);
+            // Delete legacy user
+            await supabaseClient.from('users').delete().eq('id', legacyUser.id);
+
+            return { success: true };
+        } catch (error) {
+            console.error('Merge error:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    async banUser(userId) {
+        return await supabaseClient.from('users').update({ role: 'banned' }).eq('id', userId);
+    }
+
+    async deletePost(postId) {
+        return await supabaseClient.from('posts').delete().eq('id', postId);
     }
 }
