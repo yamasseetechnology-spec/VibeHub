@@ -2,11 +2,30 @@
  * VIBEHUB SERVICE LAYER
  * Supabase-powered services for production.
  */
-import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// FIXED: Use the globally loaded Supabase CDN client as fallback
+// so this works both with Vite (import.meta.env) and plain HTML serving
+let createClient;
+try {
+    // Works in Vite / bundler environments
+    const mod = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+    createClient = mod.createClient;
+} catch (e) {
+    // Falls back to the CDN global loaded in index.html
+    createClient = window.supabase?.createClient;
+}
+
+// FIXED: Support both Vite env vars and a window config set by repair.js / env setup
+const supabaseUrl =
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
+    window.VIBEHUB_CONFIG?.url ||
+    window._SUPABASE_URL;
+
+const supabaseAnonKey =
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) ||
+    window.VIBEHUB_CONFIG?.key ||
+    window._SUPABASE_ANON_KEY;
+
 export const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 
 // --- AUTH SERVICE ---
@@ -20,7 +39,6 @@ export class AuthService {
         supabaseClient.auth.onAuthStateChange((event, session) => {
             if (session) {
                 this.user = session.user;
-                localStorage.setItem('vibehub_user', JSON.stringify(this.user));
             } else {
                 this.user = null;
                 localStorage.removeItem('vibehub_user');
@@ -29,40 +47,34 @@ export class AuthService {
     }
 
     async checkSession() {
-        if (this.user) return this.user;
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (session) {
             this.user = session.user;
-            localStorage.setItem('vibehub_user', JSON.stringify(this.user));
+            // FIXED: Always load the full profile (with role) from users table
+            const profile = await this.getFullProfile(session.user);
+            return profile;
         }
-        return this.user;
+        return null;
     }
 
     async login(email, password) {
-        const { data, error } = await supabaseClient.auth.signInWithPassword({
-            email,
-            password
-        });
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        // Ensure profile exists
-        await this.ensureProfileExists(data.user);
+
         this.user = data.user;
-        localStorage.setItem('vibehub_user', JSON.stringify(this.user));
-        return this.user;
+
+        // FIXED: ensureProfileExists now returns the full profile object
+        const profile = await this.ensureProfileExists(data.user);
+        return profile;
     }
 
     async signUp(email, password, fullName) {
         const { data, error } = await supabaseClient.auth.signUp({
             email,
             password,
-            options: {
-                data: {
-                    full_name: fullName
-                }
-            }
+            options: { data: { full_name: fullName } }
         });
         if (error) throw error;
-        // Note: email confirmation handled separately
         return data;
     }
 
@@ -72,51 +84,128 @@ export class AuthService {
         localStorage.removeItem('vibehub_user');
     }
 
-    async ensureProfileExists(user) {
-        const { data: existingProfile } = await supabaseClient
-            .from('users')
-            .select('id')
-            .eq('id', user.id)
-            .single();
-
-        if (!existingProfile) {
-            await supabaseClient
+    // FIXED: Now returns the full profile object (including role from users table)
+    // Previously returned undefined, causing State.user to always be the raw auth user
+    async ensureProfileExists(authUser) {
+        try {
+            // Try to fetch existing profile
+            const { data: existingProfile, error: fetchError } = await supabaseClient
                 .from('users')
-                .insert({
-                    id: user.id,
-                    clerk_id: user.id,
-                    username: user.email.split('@')[0],
-                    name: user.user_metadata?.full_name || user.email.split('@')[0],
-                    avatar_url: 'https://i.pravatar.cc/150?u=' + user.id,
-                    email: user.email,
-                    role: user.email === 'yamasseetechnology@gmail.com' ? 'admin' : 'user'
-                });
+                .select('id, username, name, avatar_url, bio, email, role, created_at, verified')
+                .eq('id', authUser.id)
+                .single();
+
+            if (existingProfile) {
+                // Profile found — return it merged with auth user data
+                return this.mergeAuthAndProfile(authUser, existingProfile);
+            }
+
+            // No profile — create one
+            const newProfile = {
+                id: authUser.id,
+                clerk_id: authUser.id,
+                username: authUser.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_'),
+                name: authUser.user_metadata?.full_name || authUser.email.split('@')[0],
+                avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + authUser.id,
+                email: authUser.email,
+                role: authUser.email === 'yamasseetechnology@gmail.com' ? 'admin' : 'user'
+            };
+
+            const { data: inserted, error: insertError } = await supabaseClient
+                .from('users')
+                .insert(newProfile)
+                .select('id, username, name, avatar_url, bio, email, role, created_at, verified')
+                .single();
+
+            if (insertError) {
+                console.error('Profile insert error:', insertError);
+                // Insert failed (likely duplicate) — try fetching again
+                const { data: retryProfile } = await supabaseClient
+                    .from('users')
+                    .select('id, username, name, avatar_url, bio, email, role, created_at, verified')
+                    .eq('id', authUser.id)
+                    .single();
+                if (retryProfile) return this.mergeAuthAndProfile(authUser, retryProfile);
+            }
+
+            return this.mergeAuthAndProfile(authUser, inserted || newProfile);
+        } catch (err) {
+            console.error('ensureProfileExists error:', err);
+            // Fallback: return auth user with a default role
+            return {
+                ...authUser,
+                role: authUser.email === 'yamasseetechnology@gmail.com' ? 'admin' : 'user',
+                username: authUser.email?.split('@')[0] || 'user',
+                name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
+                avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + authUser.id
+            };
         }
+    }
+
+    // FIXED: Loads full profile from users table (for session restore on refresh)
+    async getFullProfile(authUser) {
+        try {
+            const { data: profile } = await supabaseClient
+                .from('users')
+                .select('id, username, name, avatar_url, bio, email, role, created_at, verified')
+                .eq('id', authUser.id)
+                .single();
+
+            if (profile) return this.mergeAuthAndProfile(authUser, profile);
+        } catch (err) {
+            console.warn('Could not load profile, using auth user:', err);
+        }
+        // Fallback
+        return {
+            ...authUser,
+            role: authUser.email === 'yamasseetechnology@gmail.com' ? 'admin' : 'user',
+            username: authUser.email?.split('@')[0] || 'user',
+            name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
+            avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + authUser.id
+        };
+    }
+
+    // Utility: merge Supabase auth user with profile row into one clean object
+    mergeAuthAndProfile(authUser, profile) {
+        return {
+            id: authUser.id,
+            email: authUser.email,
+            role: profile.role || 'user',            // role from users table
+            username: profile.username || authUser.email?.split('@')[0],
+            name: profile.name || authUser.user_metadata?.full_name || profile.username,
+            avatar_url: profile.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + authUser.id,
+            bio: profile.bio || '',
+            verified: profile.verified || false,
+            created_at: profile.created_at || authUser.created_at,
+            // Keep original auth fields accessible
+            user_metadata: authUser.user_metadata
+        };
     }
 }
 
 // --- DATA SERVICE (Posts, Communities, Marketplace) ---
 export class DataService {
-    constructor() {
-    }
 
     async addPost(postObj) {
         try {
             let mediaUrl = null;
             let mediaType = 'none';
-            
+
             if (postObj.mediaFile) {
                 const fileExt = postObj.mediaFile.name.split('.').pop().toLowerCase();
+                // FIXED: Unique file path prevents collisions and wrong-image bugs
                 const filePath = `posts/${postObj.userId}/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-                
-                const { data: uploadData, error: uploadError } = await supabaseClient.storage
+
+                const { error: uploadError } = await supabaseClient.storage
                     .from('post-media')
                     .upload(filePath, postObj.mediaFile);
-                    
+
                 if (uploadError) throw uploadError;
-                const { data: publicUrlData } = await supabaseClient.storage
+
+                const { data: publicUrlData } = supabaseClient.storage
                     .from('post-media')
                     .getPublicUrl(filePath);
+
                 mediaUrl = publicUrlData.publicUrl;
                 mediaType = postObj.mediaFile.type.startsWith('video/') ? 'video' : 'image';
             }
@@ -128,15 +217,10 @@ export class DataService {
                     text: postObj.content,
                     media_url: mediaUrl,
                     media_type: mediaType,
-                    username: postObj.handle, // For legacy support/denormalization
+                    username: postObj.handle,
                     tags: postObj.tags || []
                 })
-                .select(`
-                    *,
-                    users (
-                        id, username, name, avatar_url, verified
-                    )
-                `)
+                .select(`*, users (id, username, name, avatar_url, verified)`)
                 .single();
 
             if (postError) throw postError;
@@ -151,24 +235,15 @@ export class DataService {
         try {
             let query = supabaseClient
                 .from('posts')
-                .select(`
-                    *,
-                    users (
-                        id, username, name, avatar_url, verified, role
-                    )
-                `)
+                .select(`*, users (id, username, name, avatar_url, verified, role)`)
                 .order('created_at', { ascending: false })
                 .range(offset, offset + limit - 1);
-    
-            // Filter by tags/mood if tab maps to something?
-            // Current schema doesn't have 'tab' column, let's use tags or text search
-            if (tab !== 'all') {
-                // query = query.contains('tags', [tab]); // Example
-            }
 
             const { data: posts, error } = await query;
             if (error) throw error;
-    
+
+            // FIXED: Guard against null response (can happen with RLS misconfiguration)
+            if (!posts) return [];
             return posts.map(post => this.formatPost(post));
         } catch (error) {
             console.error('Error getting posts:', error);
@@ -180,38 +255,33 @@ export class DataService {
         try {
             const { data: comments, error } = await supabaseClient
                 .from('comments')
-                .select(`
-                    *,
-                    users!inner (
-                        id, username, name, avatar_url
-                    )
-                `)
+                .select(`*, users!inner (id, username, name, avatar_url)`)
                 .eq('post_id', postId)
                 .order('created_at', { ascending: false })
                 .range(offset, offset + limit - 1);
 
             if (error) throw error;
-            return comments;
+            return comments || [];
         } catch (error) {
             console.error('Error getting comments:', error);
-            throw error;
+            return [];
         }
     }
 
     async addComment(postId, userId, content, mediaFile = null) {
         try {
             let mediaUrl = null;
-            
+
             if (mediaFile) {
                 const fileExt = mediaFile.name.split('.').pop().toLowerCase();
                 const filePath = `comments/${postId}/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-                
+
                 const { error: uploadError } = await supabaseClient.storage
                     .from('comment-media')
                     .upload(filePath, mediaFile);
-                    
+
                 if (uploadError) throw uploadError;
-                const { data: publicUrlData } = await supabaseClient.storage
+                const { data: publicUrlData } = supabaseClient.storage
                     .from('comment-media')
                     .getPublicUrl(filePath);
                 mediaUrl = publicUrlData.publicUrl;
@@ -223,14 +293,9 @@ export class DataService {
                     post_id: postId,
                     user_id: userId,
                     text: content,
-                    audio_url: mediaUrl // Matching schema
+                    audio_url: mediaUrl
                 })
-                .select(`
-                    *,
-                    users!inner (
-                        id, username, name, avatar_url
-                    )
-                `)
+                .select(`*, users!inner (id, username, name, avatar_url)`)
                 .single();
 
             if (error) throw error;
@@ -244,15 +309,15 @@ export class DataService {
     async getCommunities() {
         try {
             const { data: communities, error } = await supabaseClient
-                .from('channels') // Migration uses channels
+                .from('channels')
                 .select('*')
                 .order('name');
-                
+
             if (error) throw error;
-            return communities;
+            return communities || [];
         } catch (error) {
             console.error('Error getting communities:', error);
-            throw error;
+            return [];
         }
     }
 
@@ -262,22 +327,23 @@ export class DataService {
                 .from('marketplace')
                 .select('*')
                 .order('created_at', { ascending: false });
-                
+
             if (error) throw error;
-            return marketplace;
+            return marketplace || [];
         } catch (error) {
             console.error('Error getting marketplace:', error);
-            throw error;
+            return [];
         }
     }
 
     formatPost(post) {
         if (!post) return null;
-        // Extract reaction counts from JSONB
         const reactionCounts = {};
-        if (post.reactions) {
+        if (post.reactions && typeof post.reactions === 'object') {
             Object.keys(post.reactions).forEach(type => {
-                reactionCounts[type] = post.reactions[type]?.length || 0;
+                reactionCounts[type] = Array.isArray(post.reactions[type])
+                    ? post.reactions[type].length
+                    : (Number(post.reactions[type]) || 0);
             });
         }
 
@@ -286,18 +352,18 @@ export class DataService {
             userId: post.user_id,
             displayName: post.users?.name || post.username || 'Unknown User',
             handle: post.users?.username || post.username || 'user',
-            avatar: post.users?.avatar_url || post.user_avatar || 'https://i.pravatar.cc/150?u=unknown',
-            content: post.text, // Schema uses text
-            media: post.media_url,
+            avatar: post.users?.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + post.user_id,
+            content: post.text || '',
+            // FIXED: Use exact media_url from DB — no random images
+            media: post.media_url || null,
             type: post.media_type || 'none',
-            engagement: post.comment_count + Object.values(reactionCounts).reduce((a, b) => a + b, 0),
+            engagement: (post.comment_count || 0) + Object.values(reactionCounts).reduce((a, b) => a + b, 0),
             reactions: reactionCounts,
-            comments: [], 
+            comments: [],
             timestamp: this.formatTimestamp(post.created_at),
-            isSponsored: false, 
+            isSponsored: false,
             tab: post.mood || 'all',
             hashtag: post.tags?.[0] || null,
-            communityId: null
         };
     }
 
@@ -323,17 +389,12 @@ export class VideoService {
     async getVibeStream() {
         try {
             const { data: streams, error } = await supabaseClient
-                .from('videos') // Migration uses videos
-                .select(`
-                    *,
-                    channels!inner (
-                        id, name, owner_id
-                    )
-                `)
+                .from('videos')
+                .select(`*, channels!inner (id, name, owner_id)`)
                 .order('created_at', { ascending: false });
-                
+
             if (error) throw error;
-            return streams;
+            return streams || [];
         } catch (error) {
             console.error('Error getting vibe streams:', error);
             return [];
@@ -346,37 +407,39 @@ export class ChatService {
     async getSyncRooms() {
         try {
             const { data: rooms, error } = await supabaseClient
-                .from('sync_spaces') // Match schema
-                .select(`
-                    *,
-                    users (
-                        id, username, name
-                    )
-                `)
+                .from('sync_spaces')
+                .select(`*, users (id, username, name)`)
                 .order('name');
-                
+
             if (error) throw error;
-            return rooms;
+            return rooms || [];
         } catch (error) {
             console.error('Error getting sync rooms:', error);
             return [];
         }
     }
 
-    async getMessages() {
+    async getMessages(userId, partnerId = null) {
         try {
-            const { data: messages, error } = await supabaseClient
-                .from('messages') // Match schema
-                .select(`
-                    *,
-                    users (
-                        id, username, name
-                    )
-                `)
-                .order('created_at', { ascending: false });
-                
+            let query = supabaseClient
+                .from('messages')
+                .select(`*, users (id, username, name, avatar_url)`)
+                .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+                .order('created_at', { ascending: false })
+                .limit(50);
+
+            if (partnerId) {
+                const convoId = [userId, partnerId].sort().join(':');
+                query = supabaseClient
+                    .from('messages')
+                    .select(`*, users (id, username, name, avatar_url)`)
+                    .eq('conversation_id', convoId)
+                    .order('created_at', { ascending: true });
+            }
+
+            const { data: messages, error } = await query;
             if (error) throw error;
-            return messages;
+            return messages || [];
         } catch (error) {
             console.error('Error getting messages:', error);
             return [];
@@ -395,7 +458,7 @@ export class ChatService {
                 })
                 .select()
                 .single();
-                
+
             if (error) throw error;
             return message;
         } catch (error) {
@@ -409,17 +472,18 @@ export class ChatService {
 export class AdminService {
     async getStats() {
         try {
-            const [usersResult, postsResult, reportsResult] = await Promise.all([
+            const [usersResult, postsResult, reportsResult] = await Promise.allSettled([
                 supabaseClient.from('users').select('id', { count: 'exact', head: true }),
                 supabaseClient.from('posts').select('id', { count: 'exact', head: true }),
+                // FIXED: Use allSettled so a missing 'reports' table doesn't crash the panel
                 supabaseClient.from('reports').select('id', { count: 'exact', head: true })
             ]);
 
             return {
-                users: usersResult.count || 0,
-                activeNow: Math.floor((usersResult.count || 0) * 0.1),
-                postsToday: postsResult.count || 0,
-                reports: reportsResult.count || 0
+                users: usersResult.status === 'fulfilled' ? (usersResult.value.count || 0) : 0,
+                activeNow: usersResult.status === 'fulfilled' ? Math.floor((usersResult.value.count || 0) * 0.1) : 0,
+                postsToday: postsResult.status === 'fulfilled' ? (postsResult.value.count || 0) : 0,
+                reports: reportsResult.status === 'fulfilled' ? (reportsResult.value.count || 0) : 0
             };
         } catch (error) {
             console.error('Error getting admin stats:', error);
@@ -427,31 +491,33 @@ export class AdminService {
         }
     }
 
+    async getAllUsers(limit = 50, offset = 0) {
+        try {
+            const { data, error } = await supabaseClient
+                .from('users')
+                .select('id, username, name, email, role, avatar_url, created_at')
+                .order('created_at', { ascending: false })
+                .range(offset, offset + limit - 1);
+            if (error) throw error;
+            return data || [];
+        } catch (error) {
+            console.error('Error getting all users:', error);
+            return [];
+        }
+    }
+
     async mergeAdminData(legacyEmail, targetUsername = 'KingKool23') {
         try {
-            // Find target user
             const { data: targetUser } = await supabaseClient
-                .from('users')
-                .select('id')
-                .eq('username', targetUsername)
-                .single();
-
+                .from('users').select('id').eq('username', targetUsername).single();
             if (!targetUser) throw new Error('Target user not found');
 
-            // Find legacy user
             const { data: legacyUser } = await supabaseClient
-                .from('users')
-                .select('id')
-                .eq('email', legacyEmail)
-                .single();
-
+                .from('users').select('id').eq('email', legacyEmail).single();
             if (!legacyUser) throw new Error('Legacy user not found');
 
-            // Transfer posts
             await supabaseClient.from('posts').update({ user_id: targetUser.id }).eq('user_id', legacyUser.id);
-            // Transfer comments
             await supabaseClient.from('comments').update({ user_id: targetUser.id }).eq('user_id', legacyUser.id);
-            // Delete legacy user
             await supabaseClient.from('users').delete().eq('id', legacyUser.id);
 
             return { success: true };
