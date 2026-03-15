@@ -1,0 +1,28 @@
+{
+  "name": "vibehub-new",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yamasseetechnology-spec/vibehub.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/yamasseetechnology-spec/vibehub/issues"
+  },
+  "homepage": "https://github.com/yamasseetechnology-spec/vibehub#readme",
+  "dependencies": {
+    "@clerk/clerk-js": "^6.0.0",
+    "@supabase/supabase-js": "^2.99.1",
+    "vite": "^7.3.1"
+  }
+}
