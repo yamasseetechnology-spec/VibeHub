@@ -133,7 +133,7 @@ export class DataService {
                 })
                 .select(`
                     *,
-                    users!inner (
+                    users (
                         id, username, name, avatar_url, verified
                     )
                 `)
@@ -153,7 +153,7 @@ export class DataService {
                 .from('posts')
                 .select(`
                     *,
-                    users!inner (
+                    users (
                         id, username, name, avatar_url, verified, role
                     )
                 `)
@@ -369,7 +369,7 @@ export class ChatService {
                 .from('messages') // Match schema
                 .select(`
                     *,
-                    users!inner (
+                    users (
                         id, username, name
                     )
                 `)
