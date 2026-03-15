@@ -10,7 +10,7 @@ const Components = {
         const reactions = p.reactions || {};
 
         // FIXED: window.App.currentUser was undefined — VibeApp now has a currentUser getter
-        const isAdmin = window.App?.currentUser?.role === 'admin';
+        const isAdmin = window.App?.getCurrentUser?.()?.role === 'admin';
 
         return `
             <div class="post-card glass-panel ${p.isSponsored ? 'sponsored-ad' : ''}" data-id="${p.id}">

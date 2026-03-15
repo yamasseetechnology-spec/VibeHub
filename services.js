@@ -3,28 +3,16 @@
  * Supabase-powered services for production.
  */
 
-// FIXED: Use the globally loaded Supabase CDN client as fallback
-// so this works both with Vite (import.meta.env) and plain HTML serving
-let createClient;
-try {
-    // Works in Vite / bundler environments
-    const mod = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
-    createClient = mod.createClient;
-} catch (e) {
-    // Falls back to the CDN global loaded in index.html
-    createClient = window.supabase?.createClient;
+// FIXED: Import createClient normally — Vite bundles this from node_modules
+import { createClient } from '@supabase/supabase-js';
+
+// FIXED: Standard Vite env var pattern
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Supabase env vars missing. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to GitHub Actions secrets.');
 }
-
-// FIXED: Support both Vite env vars and a window config set by repair.js / env setup
-const supabaseUrl =
-    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
-    window.VIBEHUB_CONFIG?.url ||
-    window._SUPABASE_URL;
-
-const supabaseAnonKey =
-    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) ||
-    window.VIBEHUB_CONFIG?.key ||
-    window._SUPABASE_ANON_KEY;
 
 export const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 

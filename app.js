@@ -33,7 +33,7 @@ class VibeApp {
     }
 
     // FIXED: Expose currentUser so components.js can reference window.App.currentUser
-    get currentUser() {
+    getCurrentUser() {
         return State.user;
     }
 
